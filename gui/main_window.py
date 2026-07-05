@@ -1,263 +1,225 @@
 from PySide6.QtWidgets import (
-    QMainWindow, QLabel, QFileDialog,
-    QListWidget, QSplitter, QWidget, QGridLayout
+    QMainWindow, QWidget, QVBoxLayout, QFileDialog,
+    QStatusBar, QListWidget, QPushButton, QHBoxLayout
 )
-from PySide6.QtGui import QAction, QPixmap
-from PySide6.QtCore import Qt, QTimer
 
 import os
 import subprocess
+import json
 
-from core.scanner import scan_videos
+from gui.segment_widget import SegmentWidget
+from gui.thumbnail_grid import ThumbnailGrid
+
+from core.segment_engine import SegmentEngine
+from core.frame_sampler import FrameSampler
+from core.state_manager import StateManager
+from core.local_refine_engine import LocalRefineEngine
 
 
-# =========================
-# CoverPicker v1.8.2 FIX ZOOM STATE BUG
-# =========================
 class MainWindow(QMainWindow):
+
     def __init__(self):
         super().__init__()
 
-        self.setWindowTitle("CoverPicker v1.8.2 Stable Fix")
-        self.resize(1300, 850)
+        self.setWindowTitle("CoverPicker v2.1.1")
 
-        # ---------- UI ----------
-        self.video_list = QListWidget()
-        self.video_list.itemClicked.connect(self.on_video_click)
+        self.segment_engine = SegmentEngine()
+        self.frame_sampler = FrameSampler()
+        self.state = StateManager()
+        self.refiner = LocalRefineEngine()
 
-        self.main_widget = QWidget()
-        self.main_grid = QGridLayout()
-        self.main_widget.setLayout(self.main_grid)
-
-        self.zoom_widget = QWidget()
-        self.zoom_grid = QGridLayout()
-        self.zoom_widget.setLayout(self.zoom_grid)
-
-        root = QSplitter()
-        right = QSplitter(Qt.Vertical)
-
-        right.addWidget(self.main_widget)
-        right.addWidget(self.zoom_widget)
-
-        root.addWidget(self.video_list)
-        root.addWidget(right)
-        root.setSizes([300, 1000])
-
-        self.setCentralWidget(root)
-
-        # ---------- STATE ----------
-        self.videos = []
         self.current_video = None
+        self.current_segments = []
+        self.current_segment = None
 
-        self.zoom_level = 0
-        self.max_zoom = 2
+        self.selected_idx = None
+        self.last_sample_times = []
 
-        self.selected_path = None
+        # UI
+        self.container = QWidget()
+        self.setCentralWidget(self.container)
 
-        # 🔥 改成“按视频重置”
-        self.zoom_cache = {}
-        self.current_center = None
+        self.layout = QVBoxLayout()
+        self.container.setLayout(self.layout)
 
-        # ---------- MENU ----------
-        menu = self.menuBar().addMenu("文件")
-        open_action = QAction("打开目录", self)
-        open_action.triggered.connect(self.open_folder)
-        menu.addAction(open_action)
+        self.segment_widget = SegmentWidget(self.on_segment_click)
+        self.layout.addWidget(self.segment_widget)
+
+        self.grid = ThumbnailGrid(self.on_select)
+        self.layout.addWidget(self.grid)
+
+        # 按钮
+        btn_layout = QHBoxLayout()
+
+        self.btn_fav = QPushButton("⭐ 收藏/取消")
+        self.btn_refine = QPushButton("🔍 局部强化")
+
+        btn_layout.addWidget(self.btn_fav)
+        btn_layout.addWidget(self.btn_refine)
+
+        self.layout.addLayout(btn_layout)
+
+        self.fav_list = QListWidget()
+        self.layout.addWidget(self.fav_list)
+
+        self.setStatusBar(QStatusBar())
+
+        self.btn_fav.clicked.connect(self.toggle_favorite)
+        self.btn_refine.clicked.connect(self.local_refine)
+
+        # ⚠️ 这里必须先初始化再调用
+        self.load_video()
 
     # =========================
-    def open_folder(self):
-        folder = QFileDialog.getExistingDirectory(self, "选择视频目录")
-        if not folder:
+    # ✅ FIX: 缺失函数（关键修复）
+    # =========================
+    def load_video(self):
+
+        path, _ = QFileDialog.getOpenFileName(self, "选择视频")
+
+        if not path:
             return
 
-        self.videos = scan_videos(folder)
+        self.current_video = path
 
-        self.video_list.clear()
-        for v in self.videos:
-            self.video_list.addItem(v)
+        duration = self._get_duration(path)
+        self.duration = duration
 
-        self.statusBar().showMessage(f"已加载 {len(self.videos)} 个视频")
+        self.current_segments = self.segment_engine.build_segments(duration)
 
-    # =========================
-    def on_video_click(self, item):
-        self.current_video = item.text()
+        self.on_segment_click("A")
 
-        self.zoom_level = 0
-        self.selected_path = None
-        self.current_center = None
+    # ---------------- ffprobe ----------------
+    def _get_duration(self, path):
 
-        # 🔥 每个视频独立 cache
-        self.zoom_cache = {}
-
-        self.clear(self.main_grid)
-        self.clear(self.zoom_grid)
-
-        self.build_l0(self.current_video)
-
-    # =========================
-    # CACHE PATH
-    # =========================
-    def cache_path(self, folder, i):
-        base = os.path.join("cache", self.safe_name(self.current_video), folder)
-        os.makedirs(base, exist_ok=True)
-        return os.path.join(base, f"{i}.jpg")
-
-    def safe_name(self, s):
-        return str(abs(hash(s)))
-
-    # =========================
-    def build_l0(self, video):
-        duration = self.get_duration(video)
-        if not duration:
-            return
-
-        start = duration * 0.1
-        end = duration * 0.9
-
-        times = [start + (end - start) * i / 8 for i in range(9)]
-
-        for i, t in enumerate(times):
-            path = self.extract(video, t, "l0", i)
-            self.add_frame(path, t, self.main_grid, i, level=0)
-
-    # =========================
-    # ZOOM (彻底修复)
-    # =========================
-    def build_zoom(self, video, center, level):
-
-        # 🔥 强制更新 center
-        self.current_center = center
-
-        key = f"{center:.2f}_{level}"
-
-        # ❌ 不再阻止重复（修复你现在bug）
-        # if key in self.zoom_cache:
-        #     return
-
-        self.zoom_cache[key] = True
-
-        self.clear(self.zoom_grid)
-
-        duration = self.get_duration(video)
-        if not duration:
-            return
-
-        ratio = 0.03 / (level + 1)
-
-        times = [
-            center - 3 * ratio * duration,
-            center - 2 * ratio * duration,
-            center - 1 * ratio * duration,
-            center,
-            center + 1 * ratio * duration,
-            center + 2 * ratio * duration,
-            center + 3 * ratio * duration,
+        cmd = [
+            "ffprobe", "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "json",
+            path
         ]
 
-        for i, t in enumerate(times):
-            t = max(0, min(duration, t))
-            path = self.extract(video, t, f"l{level}", i)
-            self.add_frame(path, t, self.zoom_grid, i, level)
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        data = json.loads(result.stdout)
 
-    # =========================
-    def handle_click(self, path, time, level):
+        return float(data["format"]["duration"])
 
-        if not self.current_video:
+    # ---------------- segment ----------------
+    def on_segment_click(self, name):
+
+        self.segment_widget.set_active(name)
+
+        seg = next(s for s in self.current_segments if s.name == name)
+        self.current_segment = seg
+
+        video_id = os.path.basename(self.current_video)
+
+        out_dir = os.path.join("cache", video_id, name)
+
+        used_times = self.state.get_sampled_times(video_id)
+
+        images = self.frame_sampler.sample_frames(
+            self.current_video,
+            seg,
+            9,
+            out_dir,
+            used_times
+        )
+
+        self.last_sample_times = [i["time"] for i in images]
+
+        self.grid.set_images([i["path"] for i in images])
+
+        self._refresh_favorites(video_id)
+
+    # ---------------- select ----------------
+    def on_select(self, idx):
+        self.selected_idx = idx
+
+    # ---------------- favorite toggle ----------------
+    def toggle_favorite(self):
+
+        if self.selected_idx is None:
             return
 
-        # 🔥 关键修复：必须更新 center
-        self.current_center = time
+        video_id = os.path.basename(self.current_video)
 
-        if level < self.max_zoom:
-            self.zoom_level = level + 1
-            self.build_zoom(self.current_video, time, self.zoom_level)
+        cache_dir = os.path.join(
+            "cache",
+            video_id,
+            self.current_segment.name
+        )
+
+        images = sorted(os.listdir(cache_dir))
+
+        if self.selected_idx >= len(images):
             return
 
-        self.selected_path = path
-        self.statusBar().showMessage(f"已选中: {path}")
+        img_path = os.path.join(cache_dir, images[self.selected_idx])
 
-    # =========================
-    def save_selected(self, path):
-        if not self.current_video or not path:
+        favs = self.state.get_favorites(video_id)
+
+        if img_path in favs:
+            favs.remove(img_path)
+        else:
+            self.state.add_favorite(video_id, img_path)
+
+        self._refresh_favorites(video_id)
+
+    # ---------------- local refine ----------------
+    def local_refine(self):
+
+        if self.selected_idx is None:
             return
 
-        name = os.path.splitext(os.path.basename(self.current_video))[0]
-        out_dir = os.path.join("StillPic", name)
+        video_id = os.path.basename(self.current_video)
+
+        base_time = self.last_sample_times[self.selected_idx]
+
+        start, end = self.refiner.build_local_segment(
+            base_time,
+            self.duration
+        )
+
+        local_times = self.refiner.sample_local_times(
+            start,
+            end,
+            9,
+            self.state.get_sampled_times(video_id)
+        )
+
+        new_images = []
+
+        out_dir = os.path.join("cache", video_id, "local")
         os.makedirs(out_dir, exist_ok=True)
 
-        idx = len(os.listdir(out_dir)) + 1
-        out = os.path.join(out_dir, f"cover_{idx:02d}.jpg")
+        for i, t in enumerate(local_times):
 
-        with open(path, "rb") as f1:
-            data = f1.read()
-        with open(out, "wb") as f2:
-            f2.write(data)
+            out_path = os.path.join(out_dir, f"local_{i}.jpg")
 
-        self.statusBar().showMessage(f"已保存: {out}")
+            cmd = [
+                "ffmpeg",
+                "-ss", str(t),
+                "-i", self.current_video,
+                "-vframes", "1",
+                "-q:v", "2",
+                "-y",
+                out_path
+            ]
 
-    # =========================
-    def extract(self, video, t, folder, i):
-        out = self.cache_path(folder, i)
+            subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-        if os.path.exists(out):
-            return out
+            new_images.append(out_path)
 
-        subprocess.run([
-            "ffmpeg",
-            "-ss", str(t),
-            "-i", video,
-            "-frames:v", "1",
-            "-q:v", "2",
-            "-y",
-            out
-        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.grid.set_images(new_images)
 
-        return out
+    # ---------------- favorites ----------------
+    def _refresh_favorites(self, video_id):
 
-    # =========================
-    def get_duration(self, video):
-        try:
-            return float(subprocess.check_output([
-                "ffprobe",
-                "-v", "error",
-                "-show_entries", "format=duration",
-                "-of", "default=noprint_wrappers=1:nokey=1",
-                video
-            ]).decode().strip())
-        except:
-            return None
+        self.fav_list.clear()
 
-    # =========================
-    def clear(self, layout):
-        while layout.count():
-            w = layout.takeAt(0).widget()
-            if w:
-                w.deleteLater()
+        for f in self.state.get_favorites(video_id):
+            self.fav_list.addItem(os.path.basename(f))
 
-    def add_frame(self, path, time, grid, i, level):
-        label = Clickable(self, path, time, level)
-        label.setFixedSize(300, 170)
-
-        if os.path.exists(path):
-            label.setPixmap(QPixmap(path).scaled(300, 170, Qt.KeepAspectRatio))
-
-        grid.addWidget(label, i // 4, i % 4)
-
-
-# =========================
-class Clickable(QLabel):
-    def __init__(self, parent, path, time, level):
-        super().__init__()
-        self.parent = parent
-        self.path = path
-        self.time = time
-        self.level = level
-
-    def mousePressEvent(self, event):
-        QTimer.singleShot(180, self._do_click)
-
-    def _do_click(self):
-        self.parent.handle_click(self.path, self.time, self.level)
-
-    def mouseDoubleClickEvent(self, event):
-        self.parent.save_selected(self.path)
+    def showEvent(self, event):
+        super().showEvent(event)
