@@ -1,19 +1,19 @@
 from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QFileDialog,
-    QStatusBar, QListWidget, QPushButton, QHBoxLayout
+    QMainWindow, QWidget, QVBoxLayout,
+    QPushButton, QLabel, QListWidget,
+    QFileDialog, QHBoxLayout
 )
 
 import os
 import subprocess
-import json
+import copy
+
+from core.segment_engine import SegmentEngine
+from core.frame_pipeline import FramePipeline
+from core.slot_manager import SlotManager
 
 from gui.segment_widget import SegmentWidget
 from gui.thumbnail_grid import ThumbnailGrid
-
-from core.segment_engine import SegmentEngine
-from core.frame_sampler import FrameSampler
-from core.state_manager import StateManager
-from core.local_refine_engine import LocalRefineEngine
 
 
 class MainWindow(QMainWindow):
@@ -21,191 +21,200 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        self.setWindowTitle("CoverPicker v2.2")
+        self.setWindowTitle("CoverPicker v2.5.1 Stable Slot")
 
-        self.segment_engine = SegmentEngine()
-        self.frame_sampler = FrameSampler()
-        self.state = StateManager()
-        self.refiner = LocalRefineEngine()
+        self.pipeline = FramePipeline()
+        self.seg_engine = SegmentEngine()
+        self.slot_mgr = SlotManager()
 
-        self.current_video = None
         self.current_segment = None
 
-        self.selected_idx = None
-        self.last_sample_times = []
-        self.current_images = []
+        # 🟢 view layer（关键修复）
+        self.base_view = []
+        self.current_view = []
+        self.zoom_history = []
+
+        # 🟢 favorites（恢复）
+        self.favorites = set()
 
         # UI
-        self.container = QWidget()
-        self.setCentralWidget(self.container)
+        root = QWidget()
+        self.setCentralWidget(root)
 
-        self.layout = QVBoxLayout()
-        self.container.setLayout(self.layout)
+        layout = QVBoxLayout()
+        root.setLayout(layout)
 
-        self.segment_widget = SegmentWidget(self.on_segment_click)
-        self.layout.addWidget(self.segment_widget)
+        self.segment_ui = SegmentWidget(self.on_segment)
+        layout.addWidget(self.segment_ui)
+
+        self.best_label = QLabel("⭐ Best: -")
+        layout.addWidget(self.best_label)
 
         self.grid = ThumbnailGrid(self.on_select)
-        self.layout.addWidget(self.grid)
+        layout.addWidget(self.grid)
 
-        # buttons
-        btn = QHBoxLayout()
+        btns = QHBoxLayout()
 
-        self.btn_fav = QPushButton("⭐ 候选")
-        self.btn_lock = QPushButton("🔒 封面")
-        self.btn_refine = QPushButton("🔍 局部")
+        self.btn_load = QPushButton("Load")
+        self.btn_opt = QPushButton("Optimize")
+        self.btn_lock = QPushButton("Lock")
+        self.btn_zoom = QPushButton("Zoom")
+        self.btn_fav = QPushButton("Favorite")
 
-        btn.addWidget(self.btn_fav)
-        btn.addWidget(self.btn_lock)
-        btn.addWidget(self.btn_refine)
+        btns.addWidget(self.btn_load)
+        btns.addWidget(self.btn_opt)
+        btns.addWidget(self.btn_lock)
+        btns.addWidget(self.btn_zoom)
+        btns.addWidget(self.btn_fav)
 
-        self.layout.addLayout(btn)
+        layout.addLayout(btns)
 
-        self.fav_list = QListWidget()
-        self.layout.addWidget(self.fav_list)
+        self.list = QListWidget()
+        layout.addWidget(self.list)
 
-        self.setStatusBar(QStatusBar())
+        # signals
+        self.btn_load.clicked.connect(self.load)
+        self.btn_opt.clicked.connect(self.optimize)
+        self.btn_lock.clicked.connect(self.lock_slot)
+        self.btn_zoom.clicked.connect(self.zoom)
+        self.btn_fav.clicked.connect(self.toggle_fav)
 
-        self.btn_fav.clicked.connect(self.toggle_candidate)
-        self.btn_lock.clicked.connect(self.set_cover)
-        self.btn_refine.clicked.connect(self.local_refine)
+        self.grid.on_click = self.on_select
 
-        self.load_video()
+        self.selected_idx = None
 
     # =========================
-    def load_video(self):
+    def load(self):
 
-        path, _ = QFileDialog.getOpenFileName(self, "选择视频")
+        path, _ = QFileDialog.getOpenFileName(self)
         if not path:
             return
 
-        self.current_video = path
-        self.duration = self._get_duration(path)
+        self.video = path
 
-        self.segments = self.segment_engine.build_segments(self.duration)
+        self.duration = float(subprocess.check_output([
+            "ffprobe", "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            path
+        ]))
 
-        self.on_segment_click("A")
+        self.segments = self.seg_engine.build_segments(self.duration)
+
+        self.on_segment("A")
 
     # =========================
-    def on_segment_click(self, name):
-
-        self.segment_widget.set_active(name)
+    def on_segment(self, name):
 
         self.current_segment = next(s for s in self.segments if s.name == name)
 
-        video_id = os.path.basename(self.current_video)
-
-        out_dir = os.path.join("cache", video_id, name)
-
-        images = self.frame_sampler.sample_frames(
-            self.current_video,
+        frames = self.pipeline.sample(
+            self.video,
             self.current_segment,
             9,
-            out_dir,
-            []
+            os.path.join("cache", os.path.basename(self.video), name),
+            jitter=0.0
         )
 
-        self.current_images = images
-        self.last_sample_times = [i["time"] for i in images]
+        self.slot_mgr.init_slots(frames)
 
-        self.grid.set_images([i["path"] for i in images])
+        self.base_view = frames
+        self.current_view = copy.deepcopy(frames)
+        self.zoom_history = []
+
+        self.render()
+
+    # =========================
+    def render(self):
+
+        frames = self.slot_mgr.get_frames()
+
+        self.grid.set_images([f["path"] for f in frames])
+
+        # ⭐ best 修复（slot稳定）
+        best = self.slot_mgr.best()
+        self.best_label.setText(
+            "⭐ Best: " + os.path.basename(best["frame"]["path"])
+        )
+
+        self.refresh_list()
+
+    # =========================
+    def optimize(self):
+
+        new_frames = self.pipeline.sample(
+            self.video,
+            self.current_segment,
+            9,
+            os.path.join("cache_opt", os.path.basename(self.video)),
+            jitter=2.5
+        )
+
+        self.slot_mgr.replace_unlocked(new_frames)
+
+        self.render()
+
+    # =========================
+    def lock_slot(self):
+
+        if self.selected_idx is None:
+            return
+
+        self.slot_mgr.toggle_lock(self.selected_idx)
+        self.render()
+
+    # =========================
+    def zoom(self):
+
+        if self.selected_idx is None:
+            return
+
+        frames = self.slot_mgr.get_frames()
+
+        start = max(0, self.selected_idx - 2)
+        end = min(len(frames), self.selected_idx + 3)
+
+        zoomed = frames[start:end]
+
+        self.zoom_history.append(frames)
+
+        # ⭐ 关键：zoom不破坏slot
+        self.current_view = zoomed
+
+        self.grid.set_images([f["path"] for f in zoomed])
+
+    # =========================
+    def toggle_fav(self):
+
+        if self.selected_idx is None:
+            return
+
+        f = self.slot_mgr.slots[self.selected_idx]["frame"]["path"]
+
+        if f in self.favorites:
+            self.favorites.remove(f)
+        else:
+            self.favorites.add(f)
+
+        self.refresh_list()
+
+    # =========================
+    def refresh_list(self):
+
+        self.list.clear()
+
+        for i, s in enumerate(self.slot_mgr.slots):
+
+            p = s["frame"]["path"]
+
+            tag = ""
+            if s["locked"]:
+                tag += "🔒"
+            if p in self.favorites:
+                tag += "⭐"
+
+            self.list.addItem(f"{tag} Slot {i} | {os.path.basename(p)}")
 
     # =========================
     def on_select(self, idx):
         self.selected_idx = idx
-
-    # =========================
-    # ⭐ 候选池（可替换）
-    # =========================
-    def toggle_candidate(self):
-
-        if self.selected_idx is None:
-            return
-
-        video_id = os.path.basename(self.current_video)
-
-        img = self.current_images[self.selected_idx]["path"]
-
-        candidates = self.state.get_candidates(video_id)
-
-        if img in candidates:
-            self.state.remove_candidate(video_id, img)
-        else:
-            self.state.add_candidate(video_id, img)
-
-        self._refresh(video_id)
-
-    # =========================
-    # 🔒 封面锁定
-    # =========================
-    def set_cover(self):
-
-        if self.selected_idx is None:
-            return
-
-        video_id = os.path.basename(self.current_video)
-
-        img = self.current_images[self.selected_idx]["path"]
-
-        self.state.set_final_cover(video_id, img)
-
-        self.statusBar().showMessage("已设置封面", 2000)
-
-    # =========================
-    def local_refine(self):
-
-        if self.selected_idx is None:
-            return
-
-        base_time = self.last_sample_times[self.selected_idx]
-
-        start, end = self.refiner.build_local_segment(
-            base_time,
-            self.duration
-        )
-
-        times = self.refiner.sample_local_times(start, end, 9, [])
-
-        new_images = []
-
-        for i, t in enumerate(times):
-
-            out = f"cache/local_{i}.jpg"
-
-            subprocess.run([
-                "ffmpeg", "-ss", str(t),
-                "-i", self.current_video,
-                "-vframes", "1",
-                "-y", out
-            ])
-
-            new_images.append({"path": out})
-
-        self.current_images = new_images
-        self.grid.set_images([i["path"] for i in new_images])
-
-    # =========================
-    def _refresh(self, video_id):
-
-        self.fav_list.clear()
-
-        for f in self.state.get_candidates(video_id):
-            self.fav_list.addItem(os.path.basename(f))
-
-    # =========================
-    def _get_duration(self, path):
-
-        cmd = [
-            "ffprobe", "-v", "error",
-            "-show_entries", "format=duration",
-            "-of", "json",
-            path
-        ]
-
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        data = json.loads(result.stdout)
-
-        return float(data["format"]["duration"])
-
-    def showEvent(self, event):
-        super().showEvent(event)

@@ -1,69 +1,85 @@
-# core/frame_sampler.py
-
-import random
 import subprocess
-import os
+import numpy as np
+import cv2
 
 
 class FrameSampler:
-    """
-    改进版抽帧：
-    - 避免重复时间点
-    - 支持区间抽帧
-    """
 
-    def __init__(self, ffmpeg_path="ffmpeg"):
-        self.ffmpeg = ffmpeg_path
+    # =========================
+    # 抽帧 + 评分
+    # =========================
+    def sample_frames(self, video, segment, count, out_dir, used_times):
 
-    def sample_frames(self, video_path, segment, count, output_dir, used_times=None):
-        """
-        在 segment 区间抽取 count 帧
-        """
-
-        os.makedirs(output_dir, exist_ok=True)
-
-        used_times = used_times or []
+        import os
+        os.makedirs(out_dir, exist_ok=True)
 
         duration = segment.end - segment.start
+        step = duration / count
 
         results = []
 
-        tries = 0
+        for i in range(count):
 
-        while len(results) < count and tries < count * 10:
+            t = segment.start + i * step
 
-            t = segment.start + random.random() * duration
-
-            # 避免重复时间点
-            if any(abs(t - u) < 1.0 for u in used_times):
-                tries += 1
+            if any(abs(t - u) < 0.5 for u in used_times):
                 continue
 
-            output_file = os.path.join(
-                output_dir,
-                f"frame_{len(results)}.jpg"
-            )
+            path = os.path.join(out_dir, f"frame_{i}.jpg")
 
-            cmd = [
-                self.ffmpeg,
+            subprocess.run([
+                "ffmpeg",
                 "-ss", str(t),
-                "-i", video_path,
+                "-i", video,
                 "-vframes", "1",
                 "-q:v", "2",
                 "-y",
-                output_file
-            ]
+                path
+            ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            score = self._score_frame(path)
 
-            if os.path.exists(output_file):
-                results.append({
-                    "time": t,
-                    "path": output_file
-                })
+            results.append({
+                "time": t,
+                "path": path,
+                "score": score
+            })
 
-                used_times.append(t)
-
-            tries += 1
+        # 按分数排序（核心升级）
+        results.sort(key=lambda x: x["score"], reverse=True)
 
         return results
+
+    # =========================
+    # ⭐ 帧评分函数（v2.3核心）
+    # =========================
+    def _score_frame(self, path):
+
+        try:
+            img = cv2.imread(path)
+
+            if img is None:
+                return 0
+
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+            # 1️⃣ 清晰度（拉普拉斯）
+            sharpness = cv2.Laplacian(gray, cv2.CV_64F).var()
+
+            # 2️⃣ 亮度
+            brightness = np.mean(gray) / 255.0
+
+            # 3️⃣ 对比度
+            contrast = np.std(gray)
+
+            # 综合评分
+            score = (
+                sharpness * 0.6 +
+                contrast * 0.3 +
+                brightness * 0.1
+            )
+
+            return float(score)
+
+        except:
+            return 0
