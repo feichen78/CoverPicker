@@ -1,22 +1,52 @@
-import numpy as np
+# core/segment_engine.py
+
+from dataclasses import dataclass
+
+
+@dataclass
+class Segment:
+    name: str
+    start: float
+    end: float
+
 
 class SegmentEngine:
-    def __init__(self, duration, skip_start=3):
-        self.duration = duration
-        self.skip_start = skip_start
+    """
+    将视频划分为 A-E 五个可浏览区间
+    默认跳过头尾 10%
+    """
 
-    def build_segments(self, count=5):
-        usable = self.duration - self.skip_start
-        step = usable / count
+    def __init__(self, skip_head=0.1, skip_tail=0.1, segments=5):
+        self.skip_head = skip_head
+        self.skip_tail = skip_tail
+        self.segments = segments
 
-        segments = []
-        for i in range(count):
-            start = self.skip_start + i * step
-            end = self.skip_start + (i + 1) * step
-            segments.append((start, end))
+    def build_segments(self, duration: float):
+        """
+        返回 A-E 分区
+        """
+        start = duration * self.skip_head
+        end = duration * (1 - self.skip_tail)
 
-        return segments
+        total = end - start
+        step = total / self.segments
 
+        result = []
 
-def get_segment_label(index):
-    return ["A", "B", "C", "D", "E"][index]
+        for i in range(self.segments):
+            seg_start = start + i * step
+            seg_end = start + (i + 1) * step
+
+            name = chr(ord("A") + i)
+
+            result.append(
+                Segment(name=name, start=seg_start, end=seg_end)
+            )
+
+        return result
+
+    def get_segment_by_name(self, segments, name: str):
+        for s in segments:
+            if s.name == name:
+                return s
+        return None
