@@ -6,8 +6,6 @@ from PySide6.QtWidgets import (
 
 import os
 import subprocess
-import random
-import copy
 
 from core.segment_engine import SegmentEngine
 from core.frame_pipeline import FramePipeline
@@ -22,23 +20,22 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        self.setWindowTitle("CoverPicker v2.6 Stable Core")
+        self.setWindowTitle("CoverPicker v3.0-lite Stable")
 
+        # ======================
+        # 🟢 CORE
+        # ======================
         self.pipeline = FramePipeline()
         self.seg_engine = SegmentEngine()
         self.slot_mgr = SlotManager()
 
-        # ======================
-        # 🧠 核心三层数据
-        # ======================
-        self.base_frames = []   # score依据（永不变）
-        self.view_frames = []   # zoom用（可变）
-        self.current_zoom = False
-
-        self.current_segment = None
         self.video = None
+        self.current_segment = None
 
         self.selected_idx = None
+
+        self.zoom_mode = False
+        self.zoom_frames = None
 
         self.favorites = set()
 
@@ -66,13 +63,10 @@ class MainWindow(QMainWindow):
         self.btn_opt = QPushButton("Optimize")
         self.btn_lock = QPushButton("Lock")
         self.btn_zoom = QPushButton("Zoom")
-        self.btn_fav = QPushButton("Fav")
+        self.btn_save = QPushButton("Save")
 
-        btns.addWidget(self.btn_load)
-        btns.addWidget(self.btn_opt)
-        btns.addWidget(self.btn_lock)
-        btns.addWidget(self.btn_zoom)
-        btns.addWidget(self.btn_fav)
+        for b in [self.btn_load, self.btn_opt, self.btn_lock, self.btn_zoom, self.btn_save]:
+            btns.addWidget(b)
 
         layout.addLayout(btns)
 
@@ -83,11 +77,10 @@ class MainWindow(QMainWindow):
         self.btn_load.clicked.connect(self.load)
         self.btn_opt.clicked.connect(self.optimize)
         self.btn_lock.clicked.connect(self.lock_slot)
-        self.btn_zoom.clicked.connect(self.zoom_toggle)
-        self.btn_fav.clicked.connect(self.toggle_fav)
+        self.btn_zoom.clicked.connect(self.zoom)
+        self.btn_save.clicked.connect(self.save)
 
         self.grid.on_click = self.on_select
-        self.list.itemClicked.connect(self.on_list_click)
 
     # =========================
     def load(self):
@@ -114,6 +107,7 @@ class MainWindow(QMainWindow):
 
         self.current_segment = next(s for s in self.segments if s.name == name)
 
+        # 🟢 时间轴 = FramePipeline（关键修复）
         frames = self.pipeline.sample(
             self.video,
             self.current_segment,
@@ -122,56 +116,75 @@ class MainWindow(QMainWindow):
             jitter=0.0
         )
 
-        # 🧠 初始化三层
-        self.base_frames = frames
-        self.view_frames = copy.deepcopy(frames)
-
         self.slot_mgr.init_slots(frames)
+
+        self.zoom_mode = False
+        self.zoom_frames = None
 
         self.render()
 
     # =========================
     def render(self):
 
-        frames = self.slot_mgr.get_frames()
+        frames = self.zoom_frames if self.zoom_mode else self.slot_mgr.get_frames()
 
         self.grid.set_images([f["path"] for f in frames])
 
-        # ⭐ BEST（永远从 base_frames）
-        if self.base_frames:
-            best = max(self.base_frames, key=lambda x: x["score"])
-            self.best_label.setText(
-                "⭐ Best: " + os.path.basename(best["path"])
-            )
+        best = self.compute_best()
+        self.best_label.setText("⭐ Best: " + os.path.basename(best["path"]))
 
         self.refresh_list()
 
     # =========================
-    def on_select(self, idx):
-        self.selected_idx = idx
+    def compute_best(self):
 
-    # =========================
-    # =========================
-    # ⭐ OPTIMIZE（真正有意义版本）
+        slots = self.slot_mgr.slots
+
+        # favorite优先
+        for s in slots:
+            if s["frame"]["path"] in self.favorites:
+                return s["frame"]
+
+        # locked优先
+        for s in slots:
+            if s["locked"]:
+                return s["frame"]
+
+        # fallback（避免f_0问题）
+        return max(slots, key=lambda s: s["frame"].get("score", 0))["frame"]
+
     # =========================
     def optimize(self):
 
-        # 🧠 策略扰动（不是简单重拍）
-        jitter = random.uniform(1.5, 4.0)
-
-        new_frames = self.pipeline.sample(
+        # 🟢 真正“换时间点”，不是抖动
+        frames = self.pipeline.sample(
             self.video,
             self.current_segment,
             9,
             os.path.join("cache_opt", os.path.basename(self.video)),
-            jitter=jitter
+            jitter=3.0
         )
 
-        # ✔ 只替换未锁定slot
-        self.slot_mgr.replace_unlocked(new_frames)
+        self.slot_mgr.replace_unlocked(frames)
+        self.render()
 
-        # ✔ 更新 base_frames（关键）
-        self.base_frames = self.slot_mgr.get_frames()
+    # =========================
+    def zoom(self):
+
+        if self.selected_idx is None:
+            return
+
+        frames = self.slot_mgr.get_frames()
+
+        start = max(0, self.selected_idx - 2)
+        end = min(len(frames), self.selected_idx + 3)
+
+        if not self.zoom_mode:
+            self.zoom_frames = frames[start:end]
+            self.zoom_mode = True
+        else:
+            self.zoom_mode = False
+            self.zoom_frames = None
 
         self.render()
 
@@ -185,42 +198,20 @@ class MainWindow(QMainWindow):
         self.render()
 
     # =========================
-    # =========================
-    # ⭐ ZOOM（纯view，不污染slot）
-    # =========================
-    def zoom_toggle(self):
+    def save(self):
 
-        if self.selected_idx is None:
-            return
+        best = self.compute_best()
 
-        frames = self.slot_mgr.get_frames()
+        out = os.path.join(os.path.dirname(self.video), "cover.jpg")
 
-        if not self.current_zoom:
-            start = max(0, self.selected_idx - 2)
-            end = min(len(frames), self.selected_idx + 3)
+        import shutil
+        shutil.copy(best["path"], out)
 
-            self.view_frames = frames[start:end]
-            self.grid.set_images([f["path"] for f in self.view_frames])
-
-        else:
-            self.render()
-
-        self.current_zoom = not self.current_zoom
+        self.best_label.setText("💾 Saved cover.jpg")
 
     # =========================
-    def toggle_fav(self):
-
-        if self.selected_idx is None:
-            return
-
-        f = self.slot_mgr.slots[self.selected_idx]["frame"]["path"]
-
-        if f in self.favorites:
-            self.favorites.remove(f)
-        else:
-            self.favorites.add(f)
-
-        self.refresh_list()
+    def on_select(self, idx):
+        self.selected_idx = idx
 
     # =========================
     def refresh_list(self):
@@ -238,13 +229,3 @@ class MainWindow(QMainWindow):
                 tag += "⭐"
 
             self.list.addItem(f"{tag} Slot {i} | {os.path.basename(p)}")
-
-    # =========================
-    def on_list_click(self, item):
-
-        text = item.text()
-
-        for i in range(len(self.slot_mgr.slots)):
-            if f"Slot {i}" in text:
-                self.selected_idx = i
-                break
