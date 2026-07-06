@@ -175,3 +175,78 @@ code .
 
 git tag v3.0
 git push origin v3.0
+
+✅ 一、正确 Git 上传流程（标准安全版）
+
+在项目根目录执行：
+
+① 查看状态（必须先做）
+git status
+
+确认：
+
+docs/ 新文件在不在
+有没有 cache / 临时文件被误加入
+② 添加文件
+git add .
+③ 提交（非常重要，不能跳）
+git commit -m "Add v3.1 documentation (ENGINE_SPEC + ROADMAP + runtime flow)"
+④ 推送到 GitHub
+git push origin main
+⚠️ 二、你可能会遇到的3个问题（提前帮你避坑）
+❗问题1：没有 commit 会 push 失败
+
+如果你只做：
+
+git add .
+git push
+
+👉 会报错或什么都没上传
+
+✔ 必须有 commit
+
+❗问题2：main / master 分支问题
+
+如果报错：
+
+error: src refspec main does not match
+
+说明你是 master 分支：
+
+git push origin master
+❗问题3：GitHub没登录 / token问题
+
+如果提示：
+
+authentication failed
+password rejected
+
+👉 你需要 GitHub Token（不是密码）
+
+🧠 三、你这次上传的“正确理解”
+
+你现在上传的是：
+
+📦 不是代码，是“系统设计文档版本 v3.1”
+
+这是完全正确的工程行为 👍
+
+🚀 四、建议你加一个“版本标签”（很重要）
+
+上传完成后建议加：
+
+git tag v3.1-docs
+git push origin v3.1-docs
+
+👉 这样以后可以：
+
+回到这个设计版本
+不怕后面代码乱掉
+📌 五、一句话总结
+
+你现在正确流程是：
+
+git status
+git add .
+git commit -m "v3.1 docs"
+git push origin main
