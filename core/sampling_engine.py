@@ -1,84 +1,59 @@
-# SamplingEngine 均匀采样、去重、黑屏过滤、分区权重算法
+# SamplingEngine 路径兼容修复版
 import random
+from pathlib import Path
 from typing import List
-from config import FRAME_DUPLICATE_THRESHOLD_SEC
+from config import ZOOM_LEVELS, FRAME_DUPLICATE_THRESHOLD_SEC
 from core.state_manager import Video, Segment, Frame
 from core.ffmpeg_engine import FFmpegEngine
-from core.cache_manager import CacheManager
 
 class SamplingEngine:
-    def __init__(self, ffmpeg: FFmpegEngine, cache_mgr: CacheManager):
+    def __init__(self, ffmpeg: FFmpegEngine, cache_mgr):
         self.ffmpeg = ffmpeg
         self.cache_mgr = cache_mgr
         random.seed(42)
 
-    def _time_duplicate_filter(self, candidate_ts: List[float]) -> List[float]:
+    def _normalize_path(self, p: str) -> str:
+        # 统一路径分隔符，消除正反斜杠混合导致ffmpeg读取失败
+        return str(Path(p).resolve())
+
+    def _filter_duplicate_time(self, ts_list: List[float]) -> List[float]:
         clean = []
-        for t in candidate_ts:
+        for t in ts_list:
             dup = False
-            for exist_t in clean:
-                if abs(t - exist_t) < FRAME_DUPLICATE_THRESHOLD_SEC:
+            for exist in clean:
+                if abs(t - exist) < FRAME_DUPLICATE_THRESHOLD_SEC:
                     dup = True
                     break
             if not dup:
                 clean.append(t)
         return clean
 
-    def _gen_segment_weight(self, seg: Segment, unvisited_bonus: float = 0.3, fav_bonus: float = 0.5) -> float:
-        weight = 1.0
-        if not seg.visited:
-            weight += unvisited_bonus
-        return weight
-
     def sample_segment(self, video: Video, target_seg: Segment, grid_size: int, gen_id: int) -> List[Frame]:
-        ts_candidates = []
+        vid_path = self._normalize_path(video.path)
         seg_start = target_seg.start_time
         seg_end = target_seg.end_time
-        max_per_seg = int(grid_size / 3)
-
-        for _ in range(grid_size * 3):
+        sample_count = grid_size * 3
+        ts_candidates = []
+        for _ in range(sample_count):
             t = random.uniform(seg_start, seg_end)
             ts_candidates.append(t)
-
-        unique_ts = self._time_duplicate_filter(ts_candidates)
-        unique_ts = unique_ts[:max_per_seg]
-
-        frames = []
+        unique_ts = self._filter_duplicate_time(ts_candidates)
+        frame_list = []
         for ts in unique_ts:
             cache_path = self.cache_mgr.get_frame_cache_path(video.file_hash, gen_id, ts)
             if self.cache_mgr.cache_exists(cache_path):
+                bright = self.ffmpeg.calc_frame_brightness(cache_path)
                 if not self.ffmpeg.is_black_frame(cache_path):
-                    frame = Frame(timestamp=ts, cache_path=cache_path)
-                    frames.append(frame)
+                    frame_list.append(Frame(timestamp=ts, cache_path=cache_path))
                 continue
-            # 生成新帧
-            self.ffmpeg.extract_frame(video.path, ts, cache_path)
+            # 抽帧
+            try:
+                self.ffmpeg.extract_frame(vid_path, ts, cache_path)
+            except Exception as e:
+                print(f"[SAMPLING SKIP] 抽帧失败 ts={ts}, err={str(e)}")
+                continue
+            bright = self.ffmpeg.calc_frame_brightness(cache_path)
             self.cache_mgr.add_cache_record(cache_path, video.file_hash)
-            if self.ffmpeg.is_black_frame(cache_path):
-                continue
-            frame = Frame(timestamp=ts, cache_path=cache_path)
-            frames.append(frame)
-        return frames[:grid_size]
-
-    def sample_global(self, video: Video, grid_size: int, gen_id: int) -> List[Frame]:
-        all_ts = []
-        for seg in video.segments:
-            w = self._gen_segment_weight(seg)
-            seg_sample_cnt = int(grid_size * w / len(video.segments)) + 1
-            for _ in range(seg_sample_cnt):
-                t = random.uniform(seg.start_time, seg.end_time)
-                all_ts.append(t)
-        unique_ts = self._time_duplicate_filter(all_ts)
-        frames = []
-        for ts in unique_ts:
-            cache_path = self.cache_mgr.get_frame_cache_path(video.file_hash, gen_id, ts)
-            if self.cache_mgr.cache_exists(cache_path):
-                if not self.ffmpeg.is_black_frame(cache_path):
-                    frames.append(Frame(ts, cache_path))
-                continue
-            self.ffmpeg.extract_frame(video.path, ts, cache_path)
-            self.cache_mgr.add_cache_record(cache_path, video.file_hash)
-            if self.ffmpeg.is_black_frame(cache_path):
-                continue
-            frames.append(Frame(ts, cache_path))
-        return frames[:grid_size]
+            if not self.ffmpeg.is_black_frame(cache_path):
+                frame_list.append(Frame(timestamp=ts, cache_path=cache_path))
+        return frame_list[:grid_size]

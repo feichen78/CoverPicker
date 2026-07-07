@@ -1,63 +1,65 @@
-from PySide6.QtWidgets import QWidget, QGridLayout, QLabel
-from PySide6.QtGui import QPixmap
-from PySide6.QtCore import Qt
+# 多密度网格缩略图、收藏/锁定角标
+from PySide6.QtWidgets import QWidget, QGridLayout, QLabel, QFrame
+from PySide6.QtGui import QPixmap, QFont
+from PySide6.QtCore import Qt, Signal
 
-
-class ClickLabel(QLabel):
-
-    def __init__(self, idx, callback):
+class ThumbItem(QLabel):
+    clicked_slot = Signal(int)
+    def __init__(self, slot_id: int):
         super().__init__()
-        self.idx = idx
-        self.callback = callback
+        self.slot_id = slot_id
+        self.setFixedSize(130, 90)
+        self.setFrameShape(QFrame.Box)
+        self.favorite = False
+        self.locked = False
+        self.update_mark()
 
-    def mousePressEvent(self, event):
-        self.callback(self.idx)
+    def update_mark(self):
+        tip = ""
+        if self.locked:
+            tip += "🔒"
+        if self.favorite:
+            tip += "♥"
+        self.setText(tip)
+        font = QFont()
+        font.setPointSize(16)
+        self.setFont(font)
+        self.setAlignment(Qt.AlignBottom | Qt.AlignRight)
 
+    def mouseReleaseEvent(self, evt):
+        self.clicked_slot.emit(self.slot_id)
 
-class ThumbnailGrid(QWidget):
-
-    def __init__(self, on_select):
+class ThumbGrid(QWidget):
+    slot_click = Signal(int)
+    grid_size_change = Signal(int)
+    def __init__(self):
         super().__init__()
+        self.grid_layout = QGridLayout()
+        self.grid_layout.setSpacing(6)
+        self.setLayout(self.grid_layout)
+        self.items = {}
 
-        self.on_select = on_select
-        self.labels = []
-        self.current_index = None
+    def clear_all(self):
+        self.items.clear()
+        while self.grid_layout.count():
+            child = self.grid_layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
 
-        layout = QGridLayout()
-        self.setLayout(layout)
-
-        for i in range(9):
-
-            label = ClickLabel(i, self._clicked)
-
-            label.setFixedSize(200, 120)
-            label.setAlignment(Qt.AlignCenter)
-
-            self.labels.append(label)
-            layout.addWidget(label, i // 3, i % 3)
-
-    def _clicked(self, idx):
-        self.current_index = idx
-        self._update_style()
-        self.on_select(idx)
-
-    def set_images(self, images):
-
-        for i, label in enumerate(self.labels):
-
-            if i < len(images):
-                pix = QPixmap(images[i]).scaled(
-                    200, 120, Qt.KeepAspectRatio
-                )
-                label.setPixmap(pix)
-            else:
-                label.clear()
-
-    def _update_style(self):
-
-        for i, label in enumerate(self.labels):
-
-            if i == self.current_index:
-                label.setStyleSheet("border:3px solid #2196f3;")
-            else:
-                label.setStyleSheet("border:1px solid #ccc;")
+    def render_slots(self, slots, grid_count: int):
+        self.clear_all()
+        row_max = {9:3,12:3,16:4,25:5}[grid_count]
+        idx = 0
+        for slot in slots:
+            item = ThumbItem(slot.id)
+            item.favorite = slot.favorite
+            item.locked = slot.locked
+            item.update_mark()
+            pix = QPixmap(slot.frame.cache_path)
+            item.setPixmap(pix.scaled(130,90,Qt.KeepAspectRatio))
+            item.clicked_slot.connect(self.slot_click.emit)
+            self.items[slot.id] = item
+            r = idx // row_max
+            c = idx % row_max
+            self.grid_layout.addWidget(item, r, c)
+            idx += 1

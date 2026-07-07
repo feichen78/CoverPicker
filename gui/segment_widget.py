@@ -1,38 +1,24 @@
-# gui/segment_widget.py
-
+# A/B/C/D/E 分区导航栏
 from PySide6.QtWidgets import QWidget, QHBoxLayout, QPushButton
+from PySide6.QtCore import Signal
 
-
-class SegmentWidget(QWidget):
-    """
-    A–E 分区选择栏
-    """
-
-    def __init__(self, on_click):
+class SegmentBar(QWidget):
+    seg_clicked = Signal(str)
+    def __init__(self):
         super().__init__()
-
-        self.on_click = on_click
-        self.buttons = {}
-
         layout = QHBoxLayout()
+        layout.setSpacing(8)
+        self.btns = {}
+        for label in ["A", "B", "C", "D", "E"]:
+            btn = QPushButton(f"分区{label}")
+            btn.clicked.connect(lambda chk, lab=label: self.seg_clicked.emit(lab))
+            self.btns[label] = btn
+            layout.addWidget(btn)
         self.setLayout(layout)
 
-        for i in range(5):
-            name = chr(ord("A") + i)
-            btn = QPushButton(name)
-
-            btn.clicked.connect(lambda _, n=name: self._clicked(n))
-
-            self.buttons[name] = btn
-            layout.addWidget(btn)
-
-    def _clicked(self, name):
-        self.on_click(name)
-
-    def set_active(self, name):
-        for k, btn in self.buttons.items():
-            btn.setStyleSheet("")
-        if name in self.buttons:
-            self.buttons[name].setStyleSheet(
-                "background-color: #448aff; color: white;"
-            )
+    def set_active(self, seg_id: str):
+        for lab, btn in self.btns.items():
+            if lab == seg_id:
+                btn.setStyleSheet("background:#3388ff;color:white;")
+            else:
+                btn.setStyleSheet("")

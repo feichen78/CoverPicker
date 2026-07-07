@@ -1,7 +1,8 @@
-# EngineOrchestrator Stage5 增强版：事务、并发锁、完整引擎任务路由
+# EngineOrchestrator 路径兼容修复完整版
 import threading
 import queue
 import time
+from pathlib import Path
 from typing import Optional, Dict, Any
 from config import OP_PRIORITY, LOCAL_SMB_MAX_WORKERS, WEBDAV_MAX_WORKERS
 from core.state_manager import StateManager
@@ -56,15 +57,20 @@ class EngineOrchestrator:
     def _execute_task(self, task: OrchestratorTask):
         with self._global_lock:
             try:
-                # 事务开启
                 task.transaction_lock.acquire()
+                print(f"\n[ORCH START] 执行任务: {task.action_type}, payload={task.payload}")
                 task.result = self._route_action(task.action_type, task.payload)
                 task.completed = True
-                # 状态统一持久提交
+                print(f"[ORCH SUCCESS] {task.action_type} 执行完成, result={task.result}")
                 self.state_mgr.commit_video_state()
             except Exception as e:
+                import traceback
+                err_stack = traceback.format_exc()
                 task.error = str(e)
                 task.completed = False
+                print(f"\n[ORCH FATAL ERROR] 任务 {task.action_type} 崩溃！")
+                print(f"错误信息: {str(e)}")
+                print(f"完整堆栈:\n{err_stack}")
             finally:
                 task.transaction_lock.release()
 
@@ -102,13 +108,21 @@ class EngineOrchestrator:
 
         elif action == "load_video":
             vid_path = payload["video_path"]
-            duration = self.ffmpeg.get_video_duration(vid_path)
-            video = self.state_mgr.load_video(vid_path, duration)
+            # 统一标准化路径，解决正反斜杠+中文路径报错
+            vid_path_fix = str(Path(vid_path).resolve())
+            print(f"[LOAD_VIDEO] 原始路径: {vid_path}")
+            print(f"[LOAD_VIDEO] 标准化后路径: {vid_path_fix}")
+            print(f"[LOAD_VIDEO] 开始读取视频时长")
+            duration = self.ffmpeg.get_video_duration(vid_path_fix)
+            print(f"[LOAD_VIDEO] 获取时长成功: {duration}s")
+            video = self.state_mgr.load_video(vid_path_fix, duration)
             segs = self.segment.build_segments(duration)
             video.segments = segs
             self.state_mgr.set_segment(segs[0].id)
             grid_size = self.state_mgr.state.global_grid_size
+            print(f"[LOAD_VIDEO] 开始采样首分区，网格数量 {grid_size}")
             frames = self.sampling.sample_segment(video, segs[0], grid_size, gen_id=1)
+            print(f"[LOAD_VIDEO] 采样完成，有效帧数量: {len(frames)}")
             self.state_mgr.clear_all_slots()
             start_id = self.state_mgr._slot_id_auto_inc
             slots, new_id = self.slot.create_slots(frames, segs[0].id, gen_id=1, start_slot_id=start_id)
@@ -146,4 +160,6 @@ class EngineOrchestrator:
             if time.time() - start > timeout:
                 raise TimeoutError(f"Task {task.action_type} execute timeout")
             time.sleep(0.05)
+        if task.error:
+            raise RuntimeError(f"任务执行失败: {task.error}")
         return task.result
