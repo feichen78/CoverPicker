@@ -1,149 +1,98 @@
-# 📄 CoverPicker v3.1 → v3.2 Development Roadmap
-
-> 本文档定义 CoverPicker 从 v3.1 架构设计到 v3.2 可运行系统的**实际开发顺序**
-> 用于避免模块混乱、循环返工和功能崩坏
-
----
-
-# 🧠 0. 开发原则（必须遵守）
-
-## ❗原则1：必须按顺序开发
-
-不能跳过阶段：
-
-> ❌ 不允许先写 Zoom 再补 Slot  
-> ❌ 不允许 UI 先跑再补 StateManager  
-
----
-
-## ❗原则2：每一步必须可运行
-
-```text
-每个阶段 = 可以启动 + 可以点击 + 不崩
-原则3：优先保证系统稳定，不追求功能完整
-🚀 1. 第一阶段：核心骨架（必须先完成）
-🎯 目标：
-
-建立“不会崩的最小系统”
-
+📄 CoverPicker v3.1 → v3.2 Development Roadmap
+v3.1 = 架构规范基准，v3.2 = 首个完整可发布稳定版本
+修正开发顺序缺陷：Phase1 同步完成调度器与状态管理器，避免后期重构
+本文档定义严格不可跳过的开发顺序，规避模块循环依赖、大规模返工
+🧠 0. 开发强制原则
+❗原则 1：严格按阶段顺序开发，禁止跳步
+❌ 禁止先写 Zoom/UI，再补 StateManager、Orchestrator
+❌ 禁止先实现界面交互，再补齐底层引擎调度
+❗原则 2：每阶段交付标准：可启动、可交互、无崩溃、状态自洽
+❗原则 3：开发优先级：稳定架构 > 完整功能 > UI 美化
+🚀 1. 第一阶段：底层核心骨架（最高优先级，新增 Orchestrator 同步开发）
+🎯 目标：搭建不会崩溃的最小底层系统，统一调度 + 全局状态
 📦 开发顺序：
-1. StateManager（必须第一）
-- AppState结构
-- load_video()
-- set_segment()
-
-✔ 目标：能加载视频 + 保存状态
-
-2. SlotEngine（第二）
-- Slot结构
-- create_slots()
-- toggle_favorite()
-
-✔ 目标：能显示9宫格
-
-3. SamplingEngine（第三）
-- generate_initial_frames()
-
-✔ 目标：能生成第一批截图
-
-✔ 第一阶段完成标准：
-能打开视频
-能生成9张图
-UI不崩
-state可追踪
-🔵 2. 第二阶段：基础交互（核心体验）
-🎯 目标：
-
-实现“可选图系统”
-
+PersistManager 持久层：SQLite 数据表定义、读写、加载 / 保存状态
+StateManager（全局唯一状态源）
+AppState 完整数据结构
+load_video ()、set_segment ()、状态提交接口
+EngineOrchestrator 基础调度器
+请求统一接收、事务锁、执行计划、失败回滚机制
+SlotEngine（筛选单元核心）
+Slot 对象结构、create_slots ()、toggle_favorite/lock、安全替换逻辑
+SamplingEngine（初始帧生成）
+均匀分区采样、去重、黑屏帧过滤算法
+✔ 阶段完成验收标准：
+程序可正常加载本地 / NAS 视频；
+可自动划分 Segment；
+可生成基础 9 宫格候选帧；
+所有操作状态存入数据库，重启软件完整恢复；
+底层无状态错乱、无并发冲突。
+🔵 2. 第二阶段：基础交互与推荐系统
+🎯 目标：完整实现收藏、锁定、推荐 Best 帧逻辑
 📦 开发顺序：
-4. BestEngine
-- compute_best()
-- priority rules
-
-✔ 目标：best能正确变化
-
-5. 收藏系统（SlotEngine增强）
-- favorite toggle
-- state update
-
-✔ 目标：可收藏 / 可取消
-
-6. EngineOrchestrator（基础版）
-- handle(action)
-- simple routing
-
-✔ 目标：所有操作经过统一入口
-
-✔ 第二阶段完成标准：
-收藏正常
-best正常变化
-操作不会乱
-🟡 3. 第三阶段：Zoom系统（关键难点）
-🎯 目标：
-
-恢复并稳定 Zoom
-
+6. BestEngine 优先级评分系统
+优先级规则：Locked > Favorite > 画质分数
+清晰度、对比度基础评分算法
+SlotEngine 功能增强：收藏切换、锁定切换、状态变更同步
+Orchestrator 完善操作路由，区分收藏 / 采样请求优先级
+✔ 验收标准：
+帧收藏、锁定状态切换正常；
+界面 Best 推荐帧自动实时更新；
+操作不会出现状态不一致、UI 显示滞后。
+🟡 3. 第三阶段：标准化 Zoom 分层精修系统
+🎯 目标：稳定多层级 Zoom 采样，不破坏已锁定 / 收藏帧
 📦 开发顺序：
-7. ZoomEngine（L1 → L2）
-- ±2s
-- ±8s
-8. SlotEngine replace_partial()
-9. StateManager.zoom_request()
-✔ 第三阶段完成标准：
-zoom不会回退9宫格
-zoom不会空白
-zoom至少稳定2次连续使用
-🔴 4. 第四阶段：Optimize系统
-🎯 目标：
-
-全局重采样
-
-10. OptimizeEngine
-- global resample
-- non-locked replace only
-✔ 完成标准：
-optimize不会破坏收藏
-slot稳定更新
-🟣 5. 第五阶段：系统稳定层（最关键）
-🎯 目标：
-
-防崩溃架构完成
-
-11. EngineOrchestrator升级
-- plan()
-- priority system
-- conflict resolution
-12. StateManager统一commit
-- best recompute
-- UI sync
-✔ 完成标准：
-zoom + optimize 不冲突
-UI不闪烁
-state一致
-🟢 6. 第六阶段：Clip系统（增强功能）
-13. ClipEngine
-- ffmpeg export
-- segment clip
-🧠 7. 最终稳定版本标准（v3.2）
-✔ 系统必须满足：
-Zoom稳定
-Optimize稳定
-收藏可控
-Best稳定
-UI无状态错乱
-NAS级视频支持
-📌 8. 开发节奏总结
-Phase 1 → 能跑
-Phase 2 → 能选
-Phase 3 → 能zoom
-Phase 4 → 能优化
-Phase 5 → 不会崩
-Phase 6 → 可导出
-🚀 9. 核心原则总结
-
-❗先稳定，再功能
-❗先State，再Engine
-❗先流程，再UI
-
-📄 文档结束
+9. ZoomEngine 四层标准化采样（L1~L4 参数统一）
+10. SlotEngine partial 替换接口：仅替换未锁定 Slot
+11. StateManager zoom 请求统一入口
+✔ 验收标准：
+多级缩放采样稳定运行；
+Zoom 仅刷新局部候选，不重置整张 Grid；
+连续多次缩放不会空白、崩溃；
+锁定帧全程保留不被替换。
+🔴 4. 第四阶段：全局 Optimize 重采样引擎
+🎯 目标：整段分区全局刷新候选，保留用户标记帧
+12. OptimizeEngine
+全局均衡重采样算法
+强制规则：locked/favorite 帧默认不替换
+✔ 验收标准：
+全局重采样不会清除收藏、锁定标记；
+采样结果分布均匀，无大量重复、黑屏帧。
+🟣 5. 第五阶段：系统冲突稳定层（防崩溃核心）
+🎯 目标：解决多引擎并发冲突、UI 闪烁、事务异常
+13. EngineOrchestrator 完整升级
+操作优先级队列（ZOOM > SELECT > OPTIMIZE > SAMPLING）
+并发执行冲突解决、事务回滚
+StateManager 统一 commit 机制
+状态变更批量提交、同步刷新 UI、失败回滚
+CacheManager 完整缓存生命周期管理
+单视频缓存上限、自动清理过期缓存、哈希隔离
+✔ 验收标准：
+同时触发 Zoom+Optimize 无状态错乱；
+UI 局部刷新无大面积闪烁；
+缓存自动清理，磁盘占用可控；
+NAS 网络断开、文件损坏操作可回滚不崩溃。
+🟢 6. 第六阶段：导出 Clip 完整功能
+🎯 目标：无损片段导出、批量剧照导出
+16. ClipEngine FFmpeg 无损截取实现
+-c copy 无转码导出逻辑
+自定义时长片段、自动分目录存储
+✔ 验收标准：
+剧照单张 / 批量导出正常；
+视频片段导出速度快，无二次压缩画质损失；
+文件命名自动递增，不覆盖已有素材。
+🧩 7. UI 完整落地（所有底层引擎稳定后开发）
+按架构分层实现全部 GUI 组件，绑定 Orchestrator 事件信号，完成界面交互。
+🧠 8. v3.2 最终稳定版本验收标准
+✔ 四层 Zoom 分层稳定可用
+✔ Optimize 全局重采样无标记丢失
+✔ 收藏 / 锁定体系完整可靠
+✔ Best 推荐逻辑实时同步
+✔ UI 无状态错乱、无频繁闪烁
+✔ NAS 大视频库稳定加载，缓存自动管控
+✔ 全部操作状态持久化，重启完全恢复
+✔ 视频片段无损导出功能正常
+📌 开发核心铁律总结
+❗先持久层 + 状态 + 调度器，再写各类引擎
+❗先底层逻辑稳定，后开发 UI 界面
+❗先最小可用流程，再叠加拓展功能
