@@ -250,3 +250,37 @@ git status
 git add .
 git commit -m "v3.1 docs"
 git push origin main
+
+开发备忘卡
+
+打开项目
+cd C:\Personal\CoverPicker
+激活环境
+(Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned) ; (& .\.venv\Scripts\Activate.ps1)
+
+看到：
+
+(.venv) PS C:\Personal\CoverPicker>
+
+说明成功。
+
+运行程序
+python main.py
+安装新库
+pip install 包名
+
+安装完成后，如果项目需要记录依赖：
+
+pip freeze > requirements.txt
+Git 开发流程（以后固定）
+
+完成一个功能后：
+
+git status
+git add .
+git commit -m "完成内容"
+git push
+
+例如：
+
+git commit -m "Add core models for v3.2 foundation"
