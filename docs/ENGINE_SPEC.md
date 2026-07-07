@@ -84,7 +84,21 @@ max_per_segment = grid_size / 3
 🔍 3. ZoomEngine（多尺度探索）
 🎯 职责
 基于选中 Frame 做细化探索
-跨 Segment 采样
+SamplingEngine
+
+默认：
+
+仅在当前 Segment 内随机采样。
+
+要求：
+
+每次重新采样都必须覆盖整个 Segment，
+
+不能局限于上一轮截图附近。
+
+只有"全片探索（Global Explore）"模式，
+
+才允许跨 Segment。
 提供多层 Zoom
 📦 输入
 base_frame

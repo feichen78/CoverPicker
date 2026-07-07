@@ -1,448 +1,206 @@
-📘 CoverPicker 产品说明书（v3.1）
-1. 产品定位
+# 📘 CoverPicker 产品说明书（Product Specification）
 
-CoverPicker 是一款用于 NAS视频库剧照筛选与封面选择的工具。
+Version: 1.0
 
-它的目标是：
+---
 
-将用户从“长视频中手动找帧”的时间，从几十分钟降低到几分钟。
+# 1. 产品定位
 
-❌ 非目标
+CoverPicker 是一款专门用于 **NAS 视频库剧照筛选与封面制作** 的工具。
 
-CoverPicker 不做：
+它帮助用户从海量视频中，快速找到最满意的一张或几张剧照。
 
-视频播放器
-视频剪辑软件
-自动AI选封面工具
-✅ 核心目标
+CoverPicker 不负责替用户做决定。
 
-只做一件事：
+它负责让用户更快、更轻松地完成决定。
 
-在大量视频帧中，帮助用户快速找到最满意的剧照或封面
+---
 
-2. 核心系统结构（非常重要）
+# 2. 目标用户
 
-CoverPicker 是一个 四层筛选系统
+CoverPicker 面向：
 
-VIDEO
-  ↓
-SEGMENT（分区）
-  ↓
-GRID（帧候选集合）
-  ↓
-ZOOM（时间精细化）
-  ↓
-CLIP（视频导出）
-3. 数据模型定义（工程核心）
-3.1 Frame（帧）
-Frame:
-    time: float
-    image: QImage
-3.2 Slot（UI单元）
+* NAS 视频收藏用户
+* 电影、电视剧收藏者
+* 动漫收藏者
+* MV、演唱会收藏者
+* 希望为视频制作封面的用户
 
-Grid中的每一个位置：
+典型规模：
 
-Slot:
-    frame: Frame
-    locked: bool
-    favorite: bool
-    visible: bool
-3.3 Segment（视频分区）
-Segment:
-    name: str   # A/B/C/D/E
-    start_time: float
-    end_time: float
-    slots: List[Slot]
-    visited: bool
-3.4 Clip（导出片段）
-Clip:
-    start_time: float
-    end_time: float
-    file_path: str
-4. 第一层：视频分区（Segment Navigation）
+* 1000～10000 个视频
+* 数 TB 视频库
+* 长时间持续维护
 
-视频按时间自动分为多个区：
+因此 CoverPicker 必须不仅适合处理一个视频，也必须适合长期管理整个视频库。
 
-A | B | C | D | E
+---
 
-规则：
+# 3. 产品目标
 
-默认跳过前10%
-Segment 可扩展（F/G/H…）
-支持状态：
-A ✓ 已浏览
-B
-C ★ 推荐
-D ✓
-E
-Segment状态定义
-未浏览 → 已浏览 → 推荐 → 已导出
-时间范围筛选（重要新增）
+CoverPicker 的目标只有一个：
 
-用户可限制采样区间：
+> 在大量视频帧中，帮助用户快速找到最满意的剧照。
 
-00:14:12 ~ 00:35:20
+成功标准：
 
-Segment只在该区间内生成。
+* 将单个视频封面筛选时间从约 30 分钟降低到 3 分钟以内。
+* 在大型 NAS 视频库中保持稳定、高效的工作流程。
+* 每一次重新采样都能够提供足够的新候选，减少重复劳动。
 
-5. 第二层：Grid（帧筛选系统）
+---
 
-进入Segment后生成 Grid：
+# 4. 非目标
 
-默认：
+CoverPicker 不做以下工作：
 
-3x3 = 9帧
+* 视频播放器
+* 视频剪辑软件
+* 自动 AI 选封面工具
+* 视频管理软件
+* 视频格式转换工具
 
-可切换：
+这些功能可以由其他软件完成。
 
-9 / 12 / 16 / 25
-用户操作
-点击帧：
-favorite = toggle
-lock：
-locked = true
-补充机制（核心功能）
+CoverPicker 只专注于剧照筛选。
 
-触发：
+---
 
-“补充当前Segment”
+# 5. 工作流程
 
-规则：
+整个产品围绕一个简单而稳定的流程设计：
 
-只替换 Slot where locked == false
-保留 locked / favorite slot
-示例：
-原始：
-①✔ ② ③✔ ④ ⑤ ⑥ ⑦✔ ⑧ ⑨
-
-补充后：
-①✔ ②新 ③✔ ④新 ⑤新 ⑥新 ⑦✔ ⑧新 ⑨新
-6. 第三层：Zoom（时间轴精细化）
-定义（非常重要）
-
-Zoom =
-
-基于当前 Frame 时间点，重新进行时间采样
-
-采样规则
-
-初级：
-
-±4秒
-
-中级：
-
-±1秒
-
-高级：
-
-±0.2秒
-Zoom行为规则（关键）
-❌ 不改变 Segment
-❌ 不重置 Grid
-❌ 不重新进入 A/B/C
-✅ 仅更新当前 Slot内容
-7. 第四层：收藏系统（Favorites）
-收藏规则
-
-用户点击：
-
-❤ 或 ☆
-
-状态：
-
-favorite = true
-收藏管理
-可取消收藏
-可批量导出
-可跨 Segment 存在
-8. Best Frame（推荐帧）
-定义
-
-Best Frame = 当前 Grid 中的推荐展示帧
-
-计算规则（简单稳定版）
-
-优先级：
-
-1. locked
-2. favorite
-3. score（基础清晰度）
-9. Optimize（重采样）
-定义
-
-对当前 Segment重新采样Frame
-
-规则
-只替换 unlocked slots
-不改变 favorite / locked
-时间分布随机扰动
-10. 视频片段导出（Clip）
-功能
-
-导出用户选定时间片段
-
-UI行为
-
-用户选择：
-
-00:35:22
-
-选择：
-
-10 / 15 / 20 秒
-输出
-StillClip/影片名/0001.mp4
-实现方式
-FFmpeg
-无需重新编码（fast copy模式）
-11. UI状态系统（非常重要）
-Segment状态
-gray   = 未浏览
-blue   = 已浏览
-green  = 收藏帧
-orange = 导出Clip
-Slot状态
-locked
-favorite
-normal
-12. 用户完整流程（闭环）
+```
 选择视频
-→ Segment浏览（A/B/C）
-→ Grid生成（9/16/25）
-→ 收藏帧
-→ 补充未选帧
-→ Zoom精细化
-→ Lock最终帧
-→ Save/Export
-13. 成功标准
+    ↓
+浏览分区（Segment）
+    ↓
+浏览候选截图（Grid）
+    ↓
+收藏喜欢的截图
+    ↓
+补充新的候选截图
+    ↓
+Zoom 精细寻找最佳帧
+    ↓
+保存图片
+    ↓
+导出视频片段（可选）
+```
 
-CoverPicker 成功定义：
+所有功能都服务于这一流程，而不是增加新的流程。
 
-将视频封面筛选时间从 30分钟降低到 3分钟以内
+---
 
-14. 设计原则（强约束）
-所有操作必须“可逆”
-所有状态必须“可保存”
-所有采样必须“可重复”
-UI不做决策，只做表达
-## NAS级设计原则
+# 6. 核心功能
 
-CoverPicker 面向 NAS 视频库（1000+ 视频），因此：
+## 6.1 视频分区浏览
 
-### 1. 禁止局部重复采样
-任何重采样必须跨时间区间分布，而不是邻近帧。
+视频按照时间自动划分为多个 Segment。
 
-### 2. 视频是“全局资源”
-采样必须跨 Segment，而不是局限单 Segment。
+例如：
 
-### 3. 系统目标是“筛选效率”，不是“单视频优化”
-单视频优化只是子问题。
-🧠 CoverPicker v3.1 工程规格化（System Specification）
+```
+A   B   C   D   E
+```
 
-这一步的目标只有一个：
+用户可以快速定位到感兴趣的时间区域。
 
-✅ 把 PRODUCT.md 变成“可以直接写代码的系统说明书”
+支持：
 
-📐 一、系统总架构（核心）
+* 已浏览
+* 已收藏
+* 已导出
 
-CoverPicker 不再是 UI 程序，而是一个四层引擎系统
+等状态显示。
 
-┌──────────────────────────────┐
-│        UI Layer (PySide6)    │
-└─────────────┬────────────────┘
-              ↓
-┌──────────────────────────────┐
-│      State Controller        │  ← 核心调度
-└─────────────┬────────────────┘
-              ↓
-┌──────────────────────────────┐
-│     Sampling Engine          │  ← 帧生成核心（关键）
-└─────────────┬────────────────┘
-              ↓
-┌──────────────────────────────┐
-│   Video Processing Engine    │  ← ffmpeg / 解码
-└──────────────────────────────┘
-🧠 二、核心数据流（非常重要）
+---
 
-所有操作必须遵循这个链路：
+## 6.2 Grid 候选浏览
 
-VIDEO LOAD
-   ↓
-SEGMENT BUILD
-   ↓
-FRAME SAMPLING
-   ↓
-SLOT CREATION
-   ↓
-GRID RENDER
-   ↓
-USER ACTION
-   ↓
-STATE UPDATE
-🧩 三、核心对象规格（必须严格实现）
-3.1 Frame（不可变）
-class Frame:
-    time: float
-    image_path: str
-    source_segment: str
+进入 Segment 后生成候选截图。
 
-👉 Frame = 只读对象（禁止修改）
+支持：
 
-3.2 Slot（核心UI单元）
-class Slot:
-    frame: Frame
-    locked: bool
-    favorite: bool
-    score: float
-Slot规则
-状态	含义
-locked	永久保留
-favorite	用户喜欢
-score	系统评分
-3.3 Segment（时间分区）
-class Segment:
-    id: str   # A/B/C/D/E...
-    start: float
-    end: float
-    visited: bool
-3.4 Video（新增关键）
-class Video:
-    path: str
-    duration: float
-    segments: List[Segment]
-🧠 四、核心引擎规格
-4.1 Sampling Engine（最重要）
-🎯 职责
+* 9 张
+* 12 张
+* 16 张
+* 25 张
 
-生成 Frame（核心）
+不同密度的浏览方式。
 
-❌ 禁止行为（非常关键）
+---
 
-Sampling Engine 禁止：
+## 6.3 收藏与补充
 
-❌ 只在 ±几秒内采样
-❌ 只在单Segment采样
-❌ 重复旧frame
-✅ 正确行为（NAS级采样）
-规则1：全局分布采样
-time ∈ [video_start, video_end]
-规则2：Segment加权随机
-P(segment) = uniform OR weighted
-规则3：去重机制
-if abs(time - existing_frame_time) < threshold:
-    reject
-规则4：多样性约束（关键）
+用户可以：
 
-必须保证：
+* 收藏喜欢的截图
+* 固定满意的截图
+* 重新生成其它位置的新候选
 
-时间分散
-Segment分散
-视觉差异最大化（未来扩展）
-4.2 Slot Engine
-职责
+整个过程无需重复浏览已经满意的图片。
 
-维护 Grid 状态
+---
 
-更新规则
-if locked == True:
-    NEVER overwrite
-if favorite == True:
-    preserve during optimize
-补充机制（核心）
-replace only where locked == False
-4.3 Zoom Engine（重大修正）
-❗Zoom真实定义
+## 6.4 Zoom 精修
 
-Zoom = 跨Segment局部重采样
+当用户发现一张不错的截图时，
 
-❌ 禁止旧实现
-❌ ±4秒邻近采样
-❌ 单帧时间窗口放大
-✅ 正确实现
-input: frame
-output: new frame set
+可以不断缩小时间范围，
 
-rule:
-    sample from:
-        same segment ± adjacent segments
-        OR global weighted pool
-Zoom层级（不是时间，而是“密度”）
-Level 1: coarse (segment-wide)
-Level 2: medium (multi-segment)
-Level 3: fine (local + cross segment)
-Level 4: ultra (very high density sampling)
-4.4 Optimize Engine
-职责
+逐步找到真正最佳的一帧。
 
-重生成 Grid，但不破坏用户选择
+Zoom 是 CoverPicker 最重要的精修能力。
 
-规则
-preserve locked slots
-preserve favorite slots
-replace others with new samples
-与 Zoom 区别（必须严格）
-功能	本质
-Optimize	Grid重建
-Zoom	Frame重采样
-4.5 Best Engine
-定义
-Best = max(score + user_preference)
-优先级
-locked > favorite > score
-🧠 五、状态机（核心）
-Slot状态流转
-empty → sampled → favorite → locked
-Segment状态
-unvisited → visited → preferred
-🧠 六、关键系统约束（NAS级）
-❗1. 禁止局部采样
-NO sampling within ±seconds only
-❗2. 必须跨Segment
-every batch must include multiple segments
-❗3. 每次补充必须“明显变化”
-new frames must differ visually & temporally
-🧠 七、UI行为绑定规则
-Grid UI
-click → favorite toggle
-long press → lock
-optimize → regenerate slots
-Zoom UI
-click frame → zoom engine
-zoom level change → resample density
-Segment UI
-click → load grid
-revisit → preserve state
-🧠 八、系统边界（非常重要）
-CoverPicker 不做：
-❌ 自动选封面
-❌ AI评分主导
-❌ 视频编辑
-❌ 播放控制
-CoverPicker 只做：
+---
 
-✔ 人类视觉筛选加速器
+## 6.5 图片与视频导出
 
-🧠 九、最终工程目标
-Reduce:
-    manual frame browsing time
+用户可以：
 
-From:
-    30 minutes
+* 保存剧照
+* 批量导出收藏
+* 导出指定时间的视频片段
 
-To:
-    2–5 minutes per video
+导出的片段无需重新编码，以保证速度。
 
-AND
+---
 
-Scale to:
-    1000–10000 NAS videos
-🚀 十、这一版规格化的意义
+# 7. NAS 级设计目标
 
-现在这个系统已经变成：
+CoverPicker 从设计之初就面向大型视频库。
 
-🧠 一个“视频视觉检索 + 人类决策辅助系统”
+设计要求：
 
-而不是：
+* 能长期处理数千个视频。
+* 所有操作都应保持简单一致。
+* 不因视频数量增加而降低效率。
+* 状态能够长期保存，并支持继续工作。
 
-❌ 截图工具 / 视频工具
+---
+
+# 8. 产品原则
+
+所有功能必须遵守以下原则：
+
+1. 操作必须可逆。
+2. 状态必须可保存。
+3. 采样必须可重复。
+4. 用户始终拥有最终决定权。
+5. 新功能不能增加理解成本。
+6. 系统优先提升效率，而不是增加功能数量。
+
+---
+
+# 9. 产品愿景
+
+CoverPicker 希望成为：
+
+> 一款能够帮助用户快速完成视频封面挑选的人机协作工具。
+
+系统负责生成优秀候选。
+
+用户负责最终审美判断。
+
+两者共同完成最佳结果。
