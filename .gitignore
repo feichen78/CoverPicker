@@ -1,28 +1,45 @@
+# =========================
+
 # Python
-__pycache__/
+
+# =========================
+
+**pycache**/
 *.pyc
+*.pyo
+*.pyd
+
+# Virtual Environment
+
 .venv/
+venv/
 
-# IDE
+# VSCode
+
 .vscode/
-.idea/
 
-# Cache（截图缓存）
+# Build
+
+build/
+dist/
+
+# Cache
+
 cache/
-cache_opt/
-temp/
 
-# 输出文件
+# Generated Images
+
+StillPic/
+
+# Exported Clips
+
+StillClip/
+
+# Release Packages
+
 release/
-exports/
-output/
 
-# 封面图片
-cover.jpg
+# Temporary
 
-# 日志
+*.tmp
 *.log
-
-# 测试视频（按你的目录名修改）
-test_videos/
-videos/
