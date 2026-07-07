@@ -284,3 +284,55 @@ git push
 例如：
 
 git commit -m "Add core models for v3.2 foundation"
+
+当你换电脑时：
+
+git clone ...
+
+↓
+
+py -3.13 -m venv .venv
+
+↓
+
+激活：
+
+.\.venv\Scripts\Activate.ps1
+
+↓
+
+安装项目依赖：
+
+python -m pip install -r requirements.txt
+
+这样所有依赖都会装好。
+
+任何电脑：
+
+只需要：
+
+python -m pip install -r requirements.txt
+
+整个开发环境 5 分钟就能恢复。
+
+以后无论换电脑还是新成员加入，都按这个流程：
+
+git clone
+
+↓
+
+创建 .venv
+
+↓
+
+激活 .venv
+
+↓
+
+python -m pip install -r requirements.txt
+
+↓
+
+python main.py
+
+不再手动安装 PySide6、Pillow 等任何单独的库。
