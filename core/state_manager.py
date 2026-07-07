@@ -1,4 +1,4 @@
-# StateManager: Single Source of Truth SSOT
+# StateManager: Single Source of Truth SSOT Stage2 修复循环导入版
 import hashlib
 from dataclasses import dataclass, field
 from typing import List, Optional
@@ -112,12 +112,18 @@ class StateManager:
             slot.state = "SELECTED"
         else:
             slot.state = "VIEWED"
+        self.recompute_best()
 
     def update_slot_lock(self, slot_id: int):
         slot = self.get_slot_by_id(slot_id)
         if not slot:
             return
         slot.locked = not slot.locked
+        if slot.locked:
+            slot.state = "LOCKED"
+        else:
+            slot.state = "SELECTED" if slot.favorite else "VIEWED"
+        self.recompute_best()
 
     def replace_unlocked_slots(self, new_frames: List[Frame], seg_id: str, gen_id: int):
         ptr = 0
@@ -130,7 +136,22 @@ class StateManager:
             slot.state = "GENERATED"
             slot.generation_id = gen_id
             slot.source_segment = seg_id
+            slot.quality_score = 0.0
             ptr += 1
+        self.recompute_best()
+
+    def set_slot_quality(self, slot_id: int, score: float):
+        slot = self.get_slot_by_id(slot_id)
+        if not slot:
+            return
+        slot.quality_score = score
+        self.recompute_best()
+
+    def recompute_best(self):
+        # 局部导入消除循环依赖
+        from core.best_engine import BestEngine
+        best_id = BestEngine.compute_best_slot(self.state.grid_slots)
+        self.state.best_slot_id = best_id
 
     def set_zoom_level(self, level: int):
         self.state.current_zoom_level = level

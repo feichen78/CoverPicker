@@ -1,231 +1,92 @@
+# CoverPicker GUI 基础脚手架 v3.1 Stage6
+import sys
 from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout,
-    QPushButton, QLabel, QListWidget,
-    QFileDialog, QHBoxLayout
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QPushButton, QLabel, QFileDialog, QScrollArea, QGridLayout, QFrame, QMessageBox
 )
+from PySide6.QtCore import Qt, Signal, QThread
+from config import THUMBNAIL_DIR, DEFAULT_GRID_SIZE
+from core.orchestrator import EngineOrchestrator
+from core.state_manager import StateManager
 
-import os
-import subprocess
+class BackendWorkThread(QThread):
+    """后台异步线程，防止UI阻塞"""
+    task_done = Signal(dict)
+    task_error = Signal(str)
 
-from core.segment_engine import SegmentEngine
-from core.frame_pipeline import FramePipeline
-from core.slot_manager import SlotManager
+    def __init__(self, orchestrator: EngineOrchestrator, action: str, payload: dict):
+        super().__init__()
+        self.orch = orchestrator
+        self.action = action
+        self.payload = payload
 
-from gui.segment_widget import SegmentWidget
-from gui.thumbnail_grid import ThumbnailGrid
-
+    def run(self):
+        try:
+            task = self.orch.submit_task(self.action, self.payload)
+            res = self.orch.wait_task(task)
+            self.task_done.emit(res)
+        except Exception as e:
+            self.task_error.emit(str(e))
 
 class MainWindow(QMainWindow):
-
-    def __init__(self):
+    def __init__(self, orchestrator: EngineOrchestrator):
         super().__init__()
+        self.orchestrator = orchestrator
+        self.state = orchestrator.state_mgr
+        self.setWindowTitle("CoverPicker v3.1 Stage6")
+        self.resize(1280, 720)
+        self._build_ui()
 
-        self.setWindowTitle("CoverPicker v3.0-lite Stable")
+    def _build_ui(self):
+        central = QWidget()
+        self.setCentralWidget(central)
+        main_layout = QVBoxLayout(central)
 
-        # ======================
-        # 🟢 CORE
-        # ======================
-        self.pipeline = FramePipeline()
-        self.seg_engine = SegmentEngine()
-        self.slot_mgr = SlotManager()
+        # 顶部操作栏
+        top_bar = QHBoxLayout()
+        self.btn_load_video = QPushButton("选择视频(NAS/本地)")
+        self.btn_load_video.clicked.connect(self.on_select_video)
+        self.label_current_video = QLabel("未加载视频")
+        top_bar.addWidget(self.btn_load_video)
+        top_bar.addWidget(self.label_current_video)
+        main_layout.addLayout(top_bar)
 
-        self.video = None
-        self.current_segment = None
+        # 网格预览占位区
+        self.grid_container = QFrame()
+        grid_layout = QGridLayout(self.grid_container)
+        placeholder = QLabel("加载视频后显示截图网格")
+        placeholder.setAlignment(Qt.AlignCenter)
+        grid_layout.addWidget(placeholder)
+        main_layout.addWidget(self.grid_container)
 
-        self.selected_idx = None
+        # 底部操作按钮栏
+        bottom_bar = QHBoxLayout()
+        self.btn_zoom = QPushButton("Zoom L1 精细采样")
+        self.btn_optimize = QPushButton("Optimize 全局重采样")
+        self.btn_export = QPushButton("导出选中剧照")
+        self.btn_clip = QPushButton("导出视频片段")
+        bottom_bar.addWidget(self.btn_zoom)
+        bottom_bar.addWidget(self.btn_optimize)
+        bottom_bar.addWidget(self.btn_export)
+        bottom_bar.addWidget(self.btn_clip)
+        main_layout.addLayout(bottom_bar)
 
-        self.zoom_mode = False
-        self.zoom_frames = None
-
-        self.favorites = set()
-
-        # ======================
-        # UI
-        # ======================
-        root = QWidget()
-        self.setCentralWidget(root)
-
-        layout = QVBoxLayout()
-        root.setLayout(layout)
-
-        self.segment_ui = SegmentWidget(self.on_segment)
-        layout.addWidget(self.segment_ui)
-
-        self.best_label = QLabel("⭐ Best: -")
-        layout.addWidget(self.best_label)
-
-        self.grid = ThumbnailGrid(self.on_select)
-        layout.addWidget(self.grid)
-
-        btns = QHBoxLayout()
-
-        self.btn_load = QPushButton("Load")
-        self.btn_opt = QPushButton("Optimize")
-        self.btn_lock = QPushButton("Lock")
-        self.btn_zoom = QPushButton("Zoom")
-        self.btn_save = QPushButton("Save")
-
-        for b in [self.btn_load, self.btn_opt, self.btn_lock, self.btn_zoom, self.btn_save]:
-            btns.addWidget(b)
-
-        layout.addLayout(btns)
-
-        self.list = QListWidget()
-        layout.addWidget(self.list)
-
-        # signals
-        self.btn_load.clicked.connect(self.load)
-        self.btn_opt.clicked.connect(self.optimize)
-        self.btn_lock.clicked.connect(self.lock_slot)
-        self.btn_zoom.clicked.connect(self.zoom)
-        self.btn_save.clicked.connect(self.save)
-
-        self.grid.on_click = self.on_select
-
-    # =========================
-    def load(self):
-
-        path, _ = QFileDialog.getOpenFileName(self)
-        if not path:
-            return
-
-        self.video = path
-
-        self.duration = float(subprocess.check_output([
-            "ffprobe", "-v", "error",
-            "-show_entries", "format=duration",
-            "-of", "default=noprint_wrappers=1:nokey=1",
-            path
-        ]))
-
-        self.segments = self.seg_engine.build_segments(self.duration)
-
-        self.on_segment("A")
-
-    # =========================
-    def on_segment(self, name):
-
-        self.current_segment = next(s for s in self.segments if s.name == name)
-
-        # 🟢 时间轴 = FramePipeline（关键修复）
-        frames = self.pipeline.sample(
-            self.video,
-            self.current_segment,
-            9,
-            os.path.join("cache", os.path.basename(self.video), name),
-            jitter=0.0
+    def on_select_video(self):
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "选择视频文件", "",
+            "Video Files (*.mp4 *.mkv *.mov *.avi *.flv)"
         )
-
-        self.slot_mgr.init_slots(frames)
-
-        self.zoom_mode = False
-        self.zoom_frames = None
-
-        self.render()
-
-    # =========================
-    def render(self):
-
-        frames = self.zoom_frames if self.zoom_mode else self.slot_mgr.get_frames()
-
-        self.grid.set_images([f["path"] for f in frames])
-
-        best = self.compute_best()
-        self.best_label.setText("⭐ Best: " + os.path.basename(best["path"]))
-
-        self.refresh_list()
-
-    # =========================
-    def compute_best(self):
-
-        slots = self.slot_mgr.slots
-
-        # favorite优先
-        for s in slots:
-            if s["frame"]["path"] in self.favorites:
-                return s["frame"]
-
-        # locked优先
-        for s in slots:
-            if s["locked"]:
-                return s["frame"]
-
-        # fallback（避免f_0问题）
-        return max(slots, key=lambda s: s["frame"].get("score", 0))["frame"]
-
-    # =========================
-    def optimize(self):
-
-        # 🟢 真正“换时间点”，不是抖动
-        frames = self.pipeline.sample(
-            self.video,
-            self.current_segment,
-            9,
-            os.path.join("cache_opt", os.path.basename(self.video)),
-            jitter=3.0
-        )
-
-        self.slot_mgr.replace_unlocked(frames)
-        self.render()
-
-    # =========================
-    def zoom(self):
-
-        if self.selected_idx is None:
+        if not file_path:
             return
+        self.label_current_video.setText(file_path)
+        # 后台加载视频
+        worker = BackendWorkThread(self.orchestrator, "load_video", {"video_path": file_path})
+        worker.task_done.connect(self.on_video_loaded)
+        worker.task_error.connect(self.show_err)
+        worker.start()
 
-        frames = self.slot_mgr.get_frames()
+    def on_video_loaded(self, result: dict):
+        QMessageBox.information(self, "完成", f"视频加载成功\n分区列表：{result['segments']}")
 
-        start = max(0, self.selected_idx - 2)
-        end = min(len(frames), self.selected_idx + 3)
-
-        if not self.zoom_mode:
-            self.zoom_frames = frames[start:end]
-            self.zoom_mode = True
-        else:
-            self.zoom_mode = False
-            self.zoom_frames = None
-
-        self.render()
-
-    # =========================
-    def lock_slot(self):
-
-        if self.selected_idx is None:
-            return
-
-        self.slot_mgr.toggle_lock(self.selected_idx)
-        self.render()
-
-    # =========================
-    def save(self):
-
-        best = self.compute_best()
-
-        out = os.path.join(os.path.dirname(self.video), "cover.jpg")
-
-        import shutil
-        shutil.copy(best["path"], out)
-
-        self.best_label.setText("💾 Saved cover.jpg")
-
-    # =========================
-    def on_select(self, idx):
-        self.selected_idx = idx
-
-    # =========================
-    def refresh_list(self):
-
-        self.list.clear()
-
-        for i, s in enumerate(self.slot_mgr.slots):
-
-            p = s["frame"]["path"]
-
-            tag = ""
-            if s["locked"]:
-                tag += "🔒"
-            if p in self.favorites:
-                tag += "⭐"
-
-            self.list.addItem(f"{tag} Slot {i} | {os.path.basename(p)}")
+    def show_err(self, err_msg: str):
+        QMessageBox.critical(self, "操作失败", err_msg)

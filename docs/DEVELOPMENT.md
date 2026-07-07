@@ -336,3 +336,10 @@ python -m pip install -r requirements.txt
 python main.py
 
 不再手动安装 PySide6、Pillow 等任何单独的库。
+
+# 先删除原有origin
+git remote remove origin
+# 添加镜像远程仓库
+git remote add origin https://kgithub.com/feichen78/CoverPicker.git
+# 推送
+git push -u origin main

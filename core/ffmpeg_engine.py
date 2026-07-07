@@ -1,9 +1,9 @@
-# FFmpegEngine 统一封装抽帧、读取元数据、网络重试、路径兼容
+# FFmpegEngine Stage5 增强：WebDAV重试、网络异常捕获、断线容错
 import os
 import time
 import subprocess
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Tuple
 from PIL import Image
 from config import (
     FFMPEG_RETRY_COUNT, FFMPEG_RETRY_DELAY_SEC,
@@ -28,7 +28,8 @@ class FFmpegEngine:
                     cmd,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
-                    text=True
+                    text=True,
+                    creationflags=subprocess.CREATE_NO_WINDOW
                 )
                 out, err = proc.communicate()
                 if proc.returncode == 0:
@@ -48,11 +49,13 @@ class FFmpegEngine:
             "-i", video_path
         ]
         ok, output = self._run_cmd_with_retry(cmd)
-        if not ok:
+        if not ok or not output.strip():
             raise RuntimeError(f"读取视频时长失败: {output}")
         return float(output.strip())
 
     def extract_frame(self, video_path: str, timestamp: float, out_img_path: str):
+        out_p = Path(out_img_path)
+        out_p.parent.mkdir(exist_ok=True)
         cmd = [
             "ffmpeg",
             "-ss", str(timestamp),
@@ -65,19 +68,24 @@ class FFmpegEngine:
             raise RuntimeError(f"抽帧失败 {timestamp}s: {msg}")
 
     def calc_frame_brightness(self, img_path: str) -> float:
-        img = Image.open(img_path).convert("L")
-        hist = img.histogram()
-        total = sum(i * v for i, v in enumerate(hist))
-        pix_cnt = sum(hist)
-        if pix_cnt == 0:
+        try:
+            img = Image.open(img_path).convert("L")
+            hist = img.histogram()
+            total = sum(i * v for i, v in enumerate(hist))
+            pix_cnt = sum(hist)
+            if pix_cnt == 0:
+                return 0.0
+            return total / pix_cnt
+        except Exception:
             return 0.0
-        return total / pix_cnt
 
     def is_black_frame(self, img_path: str) -> bool:
         br = self.calc_frame_brightness(img_path)
         return br < BLACK_FRAME_BRIGHTNESS_THRESHOLD
 
     def extract_clip_lossless(self, video_path: str, start: float, duration: float, out_path: str):
+        out_p = Path(out_path)
+        out_p.parent.mkdir(exist_ok=True)
         cmd = [
             "ffmpeg",
             "-ss", str(start),
