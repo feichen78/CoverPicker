@@ -8,7 +8,7 @@ def main(page: ft.Page):
     # 1. 全局基础设置
     page.title = "CoverPicker - 视频封面挑选工具"
     page.window_width = 1000
-    page.window_height = 700
+    page.window_height = 900
     page.bgcolor = ft.Colors.SURFACE
     
     # 2. 初始化核心引擎
