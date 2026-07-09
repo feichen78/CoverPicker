@@ -21,6 +21,7 @@ from PySide6.QtGui import QPixmap, QFont, QColor, QPainter, QPen, QBrush, QKeyEv
 from src.video_scanner import scan_videos, get_video_duration, calculate_segments, extract_frame
 from ui.views.zoom_preview import ZoomPreviewDialog
 from ui.views.exclude_dialog import ExcludeRangeDialog
+from ui.views.zoom_dialog import ZoomDialog
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -37,10 +38,11 @@ class ClickableLabel(QLabel):
         self.is_locked = False
         self.is_favorite = False
         self.is_exported = False
-        self.original_pixmap = pixmap.copy() if not pixmap.isNull() else QPixmap(300, 185)
-        self.setFixedSize(300, 185)
+        self.original_pixmap = pixmap.copy() if not pixmap.isNull() else QPixmap(360, 220)
+        self.setFixedSize(360, 220)
         self.setAlignment(Qt.AlignCenter)
-        self.setStyleSheet("border: none; background: transparent;")
+        # 添加细边框以替代间距
+        self.setStyleSheet("border: 1px solid #ddd; background: transparent;")
         self.setScaledContents(False)
         self.time_text = f"{time_sec:.1f}s"
         self._cached_scaled = None
@@ -70,7 +72,6 @@ class ClickableLabel(QLabel):
 
     def mouseDoubleClickEvent(self, event):
         self.double_clicked.emit()
-        super().mouseDoubleClickEvent(event)
 
     def set_selected(self, selected: bool):
         self.is_selected = selected
@@ -101,12 +102,8 @@ class ClickableLabel(QLabel):
             else:
                 painter.fillRect(self.rect(), QColor(100, 100, 100))
 
-            # 边框
-            if self.is_locked:
-                pen = QPen(QColor(255, 215, 0), 4)
-                painter.setPen(pen)
-                painter.drawRect(2, 2, self.width()-4, self.height()-4)
-            elif self.is_selected:
+            # 选中边框（蓝色）会覆盖灰色边框
+            if self.is_selected:
                 pen = QPen(QColor(33, 150, 243), 4)
                 painter.setPen(pen)
                 painter.drawRect(2, 2, self.width()-4, self.height()-4)
@@ -117,6 +114,12 @@ class ClickableLabel(QLabel):
                 painter.setPen(Qt.NoPen)
                 painter.drawEllipse(8, 8, 16, 16)
 
+            # 锁定图钉（右上角）
+            if self.is_locked:
+                painter.setFont(QFont("Segoe UI Emoji", 20))
+                painter.setPen(QColor(255, 0, 0))
+                painter.drawText(self.width()-28, 28, "📌")
+
             # 时间戳
             if self.time_sec >= 0:
                 painter.setPen(Qt.white)
@@ -126,7 +129,7 @@ class ClickableLabel(QLabel):
                 painter.setFont(QFont("Arial", 10))
                 painter.drawText(6, self.height()-6, self.time_text)
 
-            # 收藏标记（★）
+            # 收藏星标
             if self.is_favorite:
                 painter.setFont(QFont("Arial", 18))
                 painter.setPen(QColor(255, 215, 0))
@@ -187,7 +190,6 @@ class SegmentView(QWidget):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # ================= 左侧面板 =================
         left_panel = QWidget()
         left_panel.setFixedWidth(280)
         left_layout = QVBoxLayout(left_panel)
@@ -213,7 +215,6 @@ class SegmentView(QWidget):
             self.video_list.addItem(item)
         left_layout.addWidget(self.video_list)
 
-        # 视频信息组
         info_group = QFrame()
         info_group.setFrameShape(QFrame.StyledPanel)
         info_group.setStyleSheet("background: #f8f8f8; border-radius: 4px;")
@@ -240,13 +241,11 @@ class SegmentView(QWidget):
         info_layout.addStretch()
         left_layout.addWidget(info_group)
 
-        # ---------- 新增：进度指示（移到左侧） ----------
         self.progress_label_left = QLabel("")
         self.progress_label_left.setStyleSheet("color: #666; font-size: 10px; padding: 4px;")
         self.progress_label_left.setWordWrap(True)
         left_layout.addWidget(self.progress_label_left)
 
-        # 状态统计
         stat_layout = QHBoxLayout()
         self.stat_locked = QLabel("锁定: 0")
         self.stat_fav = QLabel("收藏: 0")
@@ -262,7 +261,6 @@ class SegmentView(QWidget):
         left_layout.addWidget(btn_clear_cache)
         left_layout.addStretch()
 
-        # ================= 右侧主工作区 =================
         right_panel = QWidget()
         right_layout = QVBoxLayout(right_panel)
         right_layout.setContentsMargins(10, 10, 10, 10)
@@ -281,7 +279,6 @@ class SegmentView(QWidget):
         top_bar.addWidget(settings_btn)
         right_layout.addLayout(top_bar)
 
-        # 控制栏
         control_bar = QHBoxLayout()
         control_bar.setSpacing(8)
 
@@ -320,41 +317,35 @@ class SegmentView(QWidget):
 
         right_layout.addLayout(control_bar)
 
-        # 网格
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setFrameShape(QFrame.NoFrame)
 
         self.grid_widget = QWidget()
         self.grid_layout = QGridLayout(self.grid_widget)
-        self.grid_layout.setSpacing(8)
-        self.grid_layout.setContentsMargins(8, 8, 8, 8)
+        # 间距设为0，使图片紧挨
+        self.grid_layout.setSpacing(0)
+        self.grid_layout.setContentsMargins(0, 0, 0, 0)
 
         self.scroll.setWidget(self.grid_widget)
         right_layout.addWidget(self.scroll, 1)
 
-        # ================= 底部状态栏 =================
         bottom_bar = QHBoxLayout()
         bottom_bar.setSpacing(12)
 
         self.selected_label = QLabel("已选: 0 张")
         bottom_bar.addWidget(self.selected_label)
 
-        # 移除旧的进度标签，因为已经移到左侧
-        # 改为在底部添加全选/取消全选按钮
         bottom_bar.addStretch()
 
-        # 新增：全选按钮
         select_all_btn = QPushButton("☑ 全选")
         select_all_btn.clicked.connect(self.select_all)
         bottom_bar.addWidget(select_all_btn)
 
-        # 新增：取消全选按钮
         deselect_all_btn = QPushButton("☐ 取消全选")
         deselect_all_btn.clicked.connect(self.deselect_all)
         bottom_bar.addWidget(deselect_all_btn)
 
-        # 收藏按钮
         fav_btn = QPushButton("⭐ 收藏")
         fav_btn.clicked.connect(self.favorite_selected)
         bottom_bar.addWidget(fav_btn)
@@ -363,7 +354,7 @@ class SegmentView(QWidget):
         unfav_btn.clicked.connect(self.unfavorite_selected)
         bottom_bar.addWidget(unfav_btn)
 
-        lock_btn = QPushButton("🔒 锁定")
+        lock_btn = QPushButton("📌 锁定")
         lock_btn.clicked.connect(self.lock_selected)
         bottom_bar.addWidget(lock_btn)
 
@@ -389,7 +380,6 @@ class SegmentView(QWidget):
 
         right_layout.addLayout(bottom_bar)
 
-        # 分割器
         splitter = QSplitter(Qt.Horizontal)
         splitter.addWidget(left_panel)
         splitter.addWidget(right_panel)
@@ -401,9 +391,8 @@ class SegmentView(QWidget):
 
         print("setup_ui done")
 
-    # ---------- 全选 / 取消全选 ----------
+    # ---------- 全选/取消全选 ----------
     def select_all(self):
-        """选中当前分段的所有截图"""
         if not self.video_path or not self.segments:
             return
         seg_idx = self.current_seg_index
@@ -414,14 +403,13 @@ class SegmentView(QWidget):
         self._refresh_grid(seg_idx)
 
     def deselect_all(self):
-        """取消所有选中"""
         self.selected_indices.clear()
         if self.video_path and self.segments:
             self._refresh_grid(self.current_seg_index)
         else:
             self._update_selected_count()
 
-    # ---------- 其余方法（保持不变） ----------
+    # ---------- 视频选择 ----------
     def on_video_selected(self, item: QListWidgetItem):
         path = item.data(Qt.UserRole)
         if path:
@@ -435,7 +423,7 @@ class SegmentView(QWidget):
         self.info_name.setText(os.path.basename(video_path))
         self.info_path.setText(f"路径: {video_path}")
         self._clear_grid()
-        self.progress_label_left.setText("加载中...")  # 改用左侧标签
+        self.progress_label_left.setText("加载中...")
 
         if self._load_task and not self._load_task.done():
             self._load_task.cancel()
@@ -464,14 +452,14 @@ class SegmentView(QWidget):
         self._update_seg_buttons()
         self._load_task = asyncio.create_task(self._load_segment(0, restore_locks=True, randomize=False))
         await self._load_task
-        self.progress_label_left.setText("加载完成")  # 改用左侧标签
+        self.progress_label_left.setText("加载完成")
 
     def _clear_grid(self):
         while self.grid_layout.count():
             child = self.grid_layout.takeAt(0)
             if child.widget():
                 child.widget().deleteLater()
-        self.progress_label_left.setText("")  # 清空左侧进度
+        self.progress_label_left.setText("")
 
     def on_seg_clicked(self, label: str):
         idx = ord(label) - ord('A')
@@ -498,10 +486,12 @@ class SegmentView(QWidget):
                     self._load_task.cancel()
                 self._load_task = asyncio.create_task(self._load_segment(self.current_seg_index, restore_locks=True, randomize=False))
 
-    def _filter_excluded(self, times: List[float], start: float, end: float) -> List[float]:
+    # ---------- 随机采样辅助 ----------
+    def _filter_excluded_random(self, times: List[float], start: float, end: float, target_count: int) -> List[float]:
         if not self.excluded_ranges:
             return times
-        filtered = []
+
+        valid = []
         for t in times:
             excluded = False
             for low, high in self.excluded_ranges:
@@ -509,35 +499,25 @@ class SegmentView(QWidget):
                     excluded = True
                     break
             if not excluded:
-                filtered.append(t)
-        need = len(times) - len(filtered)
-        if need > 0:
-            available_ranges = [(start, end)]
-            for low, high in self.excluded_ranges:
-                new_ranges = []
-                for a, b in available_ranges:
-                    if high <= a or low >= b:
-                        new_ranges.append((a, b))
-                    else:
-                        if a < low:
-                            new_ranges.append((a, min(b, low)))
-                        if b > high:
-                            new_ranges.append((max(a, high), b))
-                available_ranges = new_ranges
-            for _ in range(need):
-                if not available_ranges:
-                    break
-                total_len = sum(b-a for a,b in available_ranges)
-                r = random.random() * total_len
-                for a, b in available_ranges:
-                    if r < (b-a):
-                        t = random.uniform(a, b)
-                        filtered.append(t)
-                        break
-                    r -= (b-a)
-        filtered.sort()
-        return filtered
+                valid.append(t)
 
+        while len(valid) < target_count:
+            t = random.uniform(start, end)
+            excluded = False
+            for low, high in self.excluded_ranges:
+                if low <= t <= high:
+                    excluded = True
+                    break
+            if not excluded:
+                valid.append(t)
+
+        if len(valid) > target_count:
+            valid = valid[:target_count]
+
+        valid.sort()
+        return valid
+
+    # ---------- 加载分段 ----------
     async def _load_segment(self, seg_idx: int, restore_locks: bool = True, randomize: bool = False):
         if not self.video_path or not self.segments:
             return
@@ -550,33 +530,16 @@ class SegmentView(QWidget):
             start_cropped = start
             end_cropped = end
         logger.info(f"加载分段 {label}: {start_cropped:.1f}s - {end_cropped:.1f}s")
-        self.progress_label_left.setText(f"正在加载 {label} 分段...")  # 左侧
+        self.progress_label_left.setText(f"正在加载 {label} 分段...")
 
         duration_seg = end_cropped - start_cropped
         count = self.density
 
-        if randomize:
-            times = [random.uniform(start_cropped, end_cropped) for _ in range(count)]
-            times.sort()
-        else:
-            if count == 1:
-                times = [(start_cropped + end_cropped) / 2]
-            else:
-                step = duration_seg / (count + 1)
-                times = [start_cropped + step * (i+1) for i in range(count)]
-
-        times = self._filter_excluded(times, start_cropped, end_cropped)
-        while len(times) < count:
-            t = random.uniform(start_cropped, end_cropped)
-            excluded = False
-            for low, high in self.excluded_ranges:
-                if low <= t <= high:
-                    excluded = True
-                    break
-            if not excluded:
-                times.append(t)
+        # 随机生成时间点
+        times = [random.uniform(start_cropped, end_cropped) for _ in range(count)]
         times.sort()
-        times = times[:count]
+
+        times = self._filter_excluded_random(times, start_cropped, end_cropped, count)
 
         seg_key = label
         if seg_key not in self.screenshots:
@@ -584,16 +547,15 @@ class SegmentView(QWidget):
 
         old_items = self.screenshots.get(seg_key, [])
         new_items = []
-        step_half = step * 0.5 if not randomize and count > 1 else 1.0
         total = len(times)
         for idx, t in enumerate(times):
-            self.progress_label_left.setText(f"正在生成 {label} 第 {idx+1}/{total} 张 @ {t:.2f}s")  # 左侧
+            self.progress_label_left.setText(f"正在生成 {label} 第 {idx+1}/{total} 张 @ {t:.2f}s")
             QApplication.processEvents()
 
             matched = None
-            if restore_locks and not randomize:
+            if restore_locks:
                 for item in old_items:
-                    if abs(item['time'] - t) < step_half:
+                    if abs(item['time'] - t) < 0.5:
                         matched = item
                         break
             if matched:
@@ -624,8 +586,9 @@ class SegmentView(QWidget):
         self.screenshots[seg_key] = new_items
         self.selected_indices = set()
         self._refresh_grid(seg_idx)
-        self.progress_label_left.setText(f"{label} 分段加载完成")  # 左侧
+        self.progress_label_left.setText(f"{label} 分段加载完成")
 
+    # ---------- 刷新网格 ----------
     def _refresh_grid(self, seg_idx: int):
         try:
             logger.info("刷新网格开始")
@@ -659,7 +622,7 @@ class SegmentView(QWidget):
                     row = pos // cols
                     col = pos % cols
 
-                    pixmap = QPixmap(300, 185)
+                    pixmap = QPixmap(360, 220)
                     pixmap.fill(QColor(100, 100, 100))
                     if item.get('path') and os.path.exists(item['path']):
                         loaded = QPixmap(item['path'])
@@ -699,6 +662,7 @@ class SegmentView(QWidget):
             self.selected_indices.add(key)
         self._refresh_grid(seg_idx)
 
+    # ---------- Zoom 精修 ----------
     def zoom_image(self, seg_idx: int, pos: int):
         seg_label = self.segments[seg_idx][0]
         items = self.screenshots.get(seg_label, [])
@@ -708,14 +672,21 @@ class SegmentView(QWidget):
         if not item.get('path') or not os.path.exists(item['path']):
             QMessageBox.warning(self, "警告", "图片文件不存在。")
             return
-        pixmap = QPixmap(item['path'])
-        if pixmap.isNull():
-            QMessageBox.warning(self, "警告", "无法加载图片。")
-            return
-        dlg = ZoomPreviewDialog(pixmap, item['time'], self)
-        dlg.exec()
 
-    # ---------- 收藏功能 ----------
+        dlg = ZoomDialog(
+            video_path=self.video_path,
+            time_sec=item['time'],
+            segment_label=seg_label,
+            segments=self.segments,
+            screenshots=self.screenshots,
+            temp_dir=self.temp_dir,
+            export_base=self.export_base,
+            parent=self
+        )
+        dlg.exec()
+        self._refresh_grid(self.current_seg_index)
+
+    # ---------- 其他操作 ----------
     def favorite_selected(self):
         try:
             if not self.selected_indices:
@@ -748,7 +719,6 @@ class SegmentView(QWidget):
             logger.error(f"unfavorite_selected error: {e}\n{traceback.format_exc()}")
             QMessageBox.critical(self, "错误", f"取消收藏失败: {str(e)}")
 
-    # ---------- 锁定/解锁 ----------
     def lock_selected(self):
         try:
             if not self.selected_indices:
@@ -798,7 +768,7 @@ class SegmentView(QWidget):
             locked_times = [item['time'] for item in items if item.get('locked', False)]
             total = len(unlocked_positions)
             for idx, pos in enumerate(unlocked_positions):
-                self.progress_label_left.setText(f"刷新未锁定 {idx+1}/{total}")  # 左侧
+                self.progress_label_left.setText(f"刷新未锁定 {idx+1}/{total}")
                 QApplication.processEvents()
                 for _ in range(20):
                     t = random.uniform(start_cropped, end_cropped)
@@ -819,7 +789,7 @@ class SegmentView(QWidget):
                 else:
                     logger.warning(f"刷新未锁定失败: {seg_label} {pos}")
             self._refresh_grid(seg_idx)
-            self.progress_label_left.setText("刷新完成")  # 左侧
+            self.progress_label_left.setText("刷新完成")
         except Exception as e:
             logger.error(f"refresh_unlocked error: {e}\n{traceback.format_exc()}")
 
