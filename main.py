@@ -1,58 +1,40 @@
-# region --- 程序绝对主入口 ---
-import flet as ft
-from src.video_scanner import VideoScanner
-from ui.views.home_view import HomeView
+import sys
+import asyncio
+import traceback
+from PySide6.QtWidgets import QApplication, QMainWindow
+from PySide6.QtCore import QTimer
+from qasync import QEventLoop
 from ui.views.segment_view import SegmentView
 
-def main(page: ft.Page):
-    page.title = "CoverPicker - 视频封面挑选工具"
-    page.window_width = 1300
-    page.window_height = 900
-    page.bgcolor = ft.Colors.SURFACE
-    page.padding = 0
-    page.spacing = 0
-    
-    print("[main] 初始化...")
-    
-    scanner = VideoScanner({
-        "supported_extensions": [
-            ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".ts", ".flv", ".webm", ".m4v", ".mpg", ".mpeg"
-        ], 
-        "nas_video_path": "Z:\\"
-    })
-    
-    video_list = []
-    
-    def go_to_segment(video_path):
-        print(f"[main] 切换到 SegmentView: {video_path}")
-        segment_view = SegmentView(
-            page=page,
-            video_path=video_path,
-            on_back_click=go_back,
-            video_list=video_list,
-        )
-        page.views.append(segment_view)
-        page.update()
-        print(f"[main] 已添加 SegmentView，当前 views 数量: {len(page.views)}")
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        print("MainWindow init start")
+        self.setWindowTitle("CoverPicker - 视频封面选择器")
+        self.resize(1400, 900)
+        try:
+            self.segment_view = SegmentView()
+            self.setCentralWidget(self.segment_view)
+            print("SegmentView created successfully")
+        except Exception as e:
+            print("Error creating SegmentView:")
+            traceback.print_exc()
+            # 即使出错也继续，避免窗口不显示
+            import sys
+            sys.exit(1)
+        # 延迟加载第一个视频（确保事件循环已运行）
+        QTimer.singleShot(200, self.segment_view.load_first_video)
 
-    def go_back(e=None):
-        print("[main] 返回首页")
-        if len(page.views) > 1:
-            page.views.pop()
-            page.update()
-        else:
-            # 如果只有首页，清空并重建
-            page.views.clear()
-            home_view = HomeView(page, scanner, go_to_segment)
-            page.views.append(ft.View(route="/home", controls=[home_view], padding=0))
-            page.update()
-
-    # 启动时显示首页
-    home_view = HomeView(page, scanner, go_to_segment)
-    page.views.append(ft.View(route="/home", controls=[home_view], padding=0))
-    page.update()
-    print("[main] 首页已显示")
+def main():
+    print("main start")
+    app = QApplication(sys.argv)
+    loop = QEventLoop(app)
+    asyncio.set_event_loop(loop)
+    window = MainWindow()
+    window.show()
+    print("Window shown")
+    with loop:
+        sys.exit(loop.run_forever())
 
 if __name__ == "__main__":
-    ft.app(target=main)
-# endregion
+    main()
