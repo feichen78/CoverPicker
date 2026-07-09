@@ -338,11 +338,11 @@ C:\CoverPicker
 
 ## 📝 关键代码位置
 
-| 文件 | 说明 |
-|------|------|
-| `main.py` | 单页面模式入口，切换 HomeView ↔ SegmentView |
-| `ui/views/segment_view.py` | 当前问题文件，v5.2 版本 |
-| `ui/views/home_view.py` | 首页，视频列表扫描 |
+| 文件                       | 说明                                        |
+| -------------------------- | ------------------------------------------- |
+| `main.py`                  | 单页面模式入口，切换 HomeView ↔ SegmentView |
+| `ui/views/segment_view.py` | 当前问题文件，v5.2 版本                     |
+| `ui/views/home_view.py`    | 首页，视频列表扫描                          |
 
 ---
 
@@ -355,3 +355,161 @@ C:\CoverPicker
 ---
 
 *最后更新时间：2026-07-08*
+# 📋 CoverPicker 项目进度日志
+
+> **维护说明**：本文件用于记录项目开发进度。每次对话结束后，请将最新状态更新于此。  
+> 当你开启新对话时，只需将此文件内容完整发送给 AI，即可快速恢复上下文。
+
+---
+
+## 🏷️ 当前版本信息
+
+- **版本号**：`v0.11.0`
+- **版本名称**：架构重构尝试版（Architecture Refactor Attempt）
+- **状态**：❌ **Flet 版本阻塞，决定迁移到 PySide6**
+- **最后更新**：2026-07-09
+
+---
+
+## 🎯 当前目标
+
+**将 CoverPicker 从 Flet 迁移到 PySide6（Qt for Python）**，以解决 Flet 0.85.3 在 Windows 桌面端的渲染 bug。
+
+---
+
+## ❌ 阻塞性结论
+
+**Flet 0.85.3 在 Windows 上存在无法绕过的渲染 bug：**
+
+- `GridView` 单独渲染 → ✅ 正常
+- `GridView` + 任何布局容器（`Column`、`Stack`、`Container`）→ ❌ 灰色窗口
+- 已尝试所有 Flet 布局方案（`Column`、`Stack`、`Wrap`、`Container` 嵌套）均无效
+- 问题根源在 Flet 框架层，非代码逻辑问题
+- 继续在 Flet 上投入时间收益极低，决定**切换技术栈**
+
+---
+
+## ✅ 今天已完成的工作（2026-07-09）
+
+### 1. 系统性问题诊断
+- ✅ 通过逐步简化 UI（5个阶段），确认了每个单独组件都能正常显示
+- ✅ 定位到核心问题：`GridView` 与任何父布局容器组合时，整个页面不渲染
+- ✅ 确认了 Flet 0.85.3 Windows 桌面端的渲染 bug 无法绕过
+
+### 2. 技术决策
+- ✅ 评估了继续 Flet 调试与切换 PySide6 的性价比
+- ✅ 决定迁移到 PySide6（Qt for Python）
+
+### 3. 迁移准备
+- ✅ 明确迁移范围：UI 层重写，业务逻辑层（视频扫描、FFmpeg 截图）完全复用
+- ✅ 预估迁移工作量：2-3 小时
+
+---
+
+## ✅ 已验证可用的功能（迁移后需保留）
+
+### 视频处理层（`src/video_scanner.py`）— 完全复用
+- [x] 扫描 `Z:\` 目录下的视频文件（`.mp4`, `.mkv`, `.avi` 等 11 种格式）
+- [x] 获取视频时长（通过 FFprobe）
+- [x] 计算 A/B/C/D/E 分段（<5分钟合并，≥5分钟均分5段）
+- [x] 从 `Temp` 目录提取临时截图（通过 FFmpeg）
+
+### UI 功能（迁移后需重写）
+- [x] 首页视频列表展示
+- [x] 分段标签切换（A/B/C/D/E）
+- [x] 网格密度切换（9/12/16/25）
+- [x] 截图网格展示（点击选中，蓝色边框高亮）
+- [x] 锁定/解锁功能（金色边框 + 锁图标）
+- [x] 刷新未锁定（保留锁定，重新生成其他）
+- [x] 全部重抽（清空锁定，重新生成）
+- [x] 导出选中截图到 `StillPic/` 目录
+- [x] Zoom 精修弹窗（双击截图触发，L1/L2 层级）
+
+---
+
+## 📁 当前项目结构（迁移后保持不变）
+C:\CoverPicker
+├── main.py # 入口（待重写为 PySide6）
+├── PROGRESS.md # 本文件
+├── src/
+│ └── video_scanner.py # ✅ 完全复用（视频扫描 + FFmpeg 调用）
+├── ui/
+│ └── views/
+│ ├── home_view.py # ❌ 待重写（PySide6）
+│ ├── segment_view.py # ❌ 待重写（PySide6）
+│ └── zoom_dialog.py # ❌ 待重写（PySide6）
+└── StillPic/ # 截图导出目录
+
+---
+
+## 🛠️ 新技术栈（PySide6）
+
+| 组件     | 版本 / 说明                              |
+| :------- | :--------------------------------------- |
+| 编程语言 | Python 3.13                              |
+| GUI 框架 | **PySide6**（Qt for Python，官方稳定版） |
+| 视频处理 | FFmpeg / FFprobe（需系统 PATH）          |
+| 异步并发 | asyncio（保持不变）                      |
+| 布局系统 | QGridLayout / QVBoxLayout / QHBoxLayout  |
+| 图片控件 | QLabel + QPixmap（替代 Image）           |
+
+---
+
+## 📋 迁移任务清单
+
+### 第一阶段：基础框架
+- [ ] 安装 PySide6：`pip install pyside6`
+- [ ] 创建 `QApplication` + 主窗口（`QMainWindow`）
+- [ ] 实现首页视频列表（`QListWidget` 或 `QListView`）
+
+### 第二阶段：核心功能
+- [ ] 实现分区视图（`QWidget` + `QGridLayout`）
+- [ ] 实现分段标签（`QPushButton` 或 `QLabel` + 点击事件）
+- [ ] 实现截图网格（`QGridLayout` 动态添加 `QLabel` + `QPixmap`）
+- [ ] 实现密度切换（`QButtonGroup` + `QPushButton`）
+
+### 第三阶段：交互功能
+- [ ] 实现点击选中 + 蓝色边框（`QLabel` 样式切换）
+- [ ] 实现锁定/解锁（金色边框 + 锁图标）
+- [ ] 实现刷新未锁定 + 全部重抽
+- [ ] 实现导出截图
+
+### 第四阶段：Zoom 弹窗
+- [ ] 实现 Zoom 精修弹窗（`QDialog`）
+- [ ] L1/L2 层级切换
+- [ ] 导出选中 Zoom 截图
+
+### 第五阶段：优化
+- [ ] 异步截图（`asyncio` + `QThread` 或 `QTimer`）
+- [ ] 进度提示（`QProgressBar`）
+- [ ] 清理临时文件
+
+---
+
+## 📌 关键可复用代码位置
+
+| 文件                   | 说明                                                  |
+| ---------------------- | ----------------------------------------------------- |
+| `src/video_scanner.py` | **完全复用**：`scan_videos()`, `calculate_segments()` |
+| `src/video_scanner.py` | **完全复用**：`_extract_frame()`（FFmpeg 截图逻辑）   |
+| `StillPic/`            | 截图导出目录，逻辑不变                                |
+
+---
+
+## ⚠️ 注意事项
+
+1. **PySide6 许可证**：LGPL，商业使用需遵守相应条款
+2. **异步兼容**：PySide6 的 `QApplication.exec()` 会阻塞主线程，`asyncio` 事件循环需要与 Qt 事件循环配合（可用 `qasync` 或 `QTimer`）
+3. **路径格式**：Windows 路径直接使用字符串，无需 `file:///` 前缀
+
+---
+
+## 📝 下次对话起点
+
+**新对话中直接粘贴本文件，然后说：**
+
+> “我已决定切换到 PySide6，请帮我开始迁移。先实现首页视频列表。”
+
+---
+
+*最后更新时间：2026-07-09*
