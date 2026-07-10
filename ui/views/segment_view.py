@@ -38,32 +38,16 @@ class ClickableLabel(QLabel):
         self.is_locked = False
         self.is_favorite = False
         self.is_exported = False
-        self.original_pixmap = pixmap.copy() if not pixmap.isNull() else QPixmap(360, 220)
-        self.setFixedSize(360, 220)
+        # 使用固定尺寸，避免布局计算问题
+        self.setFixedSize(220, 140)
         self.setAlignment(Qt.AlignCenter)
-        # 添加细边框以替代间距
         self.setStyleSheet("border: 1px solid #ddd; background: transparent;")
         self.setScaledContents(False)
         self.time_text = f"{time_sec:.1f}s"
-        self._cached_scaled = None
-        self.update_pixmap()
-
-    def update_pixmap(self):
-        try:
-            if self.original_pixmap.isNull():
-                return
-            scaled = self.original_pixmap.scaled(
-                self.width(), self.height(),
-                Qt.KeepAspectRatio,
-                Qt.SmoothTransformation
-            )
-            self._cached_scaled = scaled
-            self.setPixmap(scaled)
-        except Exception as e:
-            logger.error(f"update_pixmap error: {e}")
+        self.setPixmap(pixmap.scaled(self.width(), self.height(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
 
     def resizeEvent(self, event):
-        self.update_pixmap()
+        # 不重新缩放，保持固定
         super().resizeEvent(event)
 
     def mousePressEvent(self, event):
@@ -90,61 +74,42 @@ class ClickableLabel(QLabel):
         self.update()
 
     def paintEvent(self, event):
-        try:
-            painter = QPainter(self)
-            painter.setRenderHint(QPainter.Antialiasing)
-            if self._cached_scaled and not self._cached_scaled.isNull():
-                rect = self.rect()
-                img_rect = self._cached_scaled.rect()
-                x = (rect.width() - img_rect.width()) // 2
-                y = (rect.height() - img_rect.height()) // 2
-                painter.drawPixmap(x, y, self._cached_scaled)
-            else:
-                painter.fillRect(self.rect(), QColor(100, 100, 100))
+        super().paintEvent(event)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
 
-            # 选中边框（蓝色）会覆盖灰色边框
-            if self.is_selected:
-                pen = QPen(QColor(33, 150, 243), 4)
-                painter.setPen(pen)
-                painter.drawRect(2, 2, self.width()-4, self.height()-4)
+        if self.is_selected:
+            pen = QPen(QColor(33, 150, 243), 3)
+            painter.setPen(pen)
+            painter.drawRect(2, 2, self.width()-4, self.height()-4)
+            painter.setBrush(QBrush(QColor(33, 150, 243)))
+            painter.setPen(Qt.NoPen)
+            painter.drawEllipse(6, 6, 12, 12)
 
-            # 选中圆点
-            if self.is_selected:
-                painter.setBrush(QBrush(QColor(33, 150, 243)))
-                painter.setPen(Qt.NoPen)
-                painter.drawEllipse(8, 8, 16, 16)
+        if self.is_locked:
+            painter.setFont(QFont("Segoe UI Emoji", 14))
+            painter.setPen(QColor(255, 0, 0))
+            painter.drawText(self.width()-24, 24, "📌")
 
-            # 锁定图钉（右上角）
-            if self.is_locked:
-                painter.setFont(QFont("Segoe UI Emoji", 20))
-                painter.setPen(QColor(255, 0, 0))
-                painter.drawText(self.width()-28, 28, "📌")
+        if self.time_sec >= 0:
+            painter.setPen(Qt.white)
+            painter.setBrush(QBrush(QColor(0, 0, 0, 150)))
+            painter.drawRect(4, self.height()-20, 60, 16)
+            painter.setPen(Qt.white)
+            painter.setFont(QFont("Arial", 8))
+            painter.drawText(6, self.height()-6, self.time_text)
 
-            # 时间戳
-            if self.time_sec >= 0:
-                painter.setPen(Qt.white)
-                painter.setBrush(QBrush(QColor(0, 0, 0, 150)))
-                painter.drawRect(4, self.height()-24, 80, 20)
-                painter.setPen(Qt.white)
-                painter.setFont(QFont("Arial", 10))
-                painter.drawText(6, self.height()-6, self.time_text)
+        if self.is_favorite:
+            painter.setFont(QFont("Arial", 14))
+            painter.setPen(QColor(255, 215, 0))
+            painter.drawText(6, 20, "★")
 
-            # 收藏星标
-            if self.is_favorite:
-                painter.setFont(QFont("Arial", 18))
-                painter.setPen(QColor(255, 215, 0))
-                painter.drawText(self.width()-30, 30, "★")
+        if self.is_exported:
+            painter.setBrush(QBrush(QColor(0, 200, 0)))
+            painter.setPen(Qt.NoPen)
+            painter.drawEllipse(self.width()-14, self.height()-14, 10, 10)
 
-            # 已导出标记（绿点）
-            if self.is_exported:
-                painter.setBrush(QBrush(QColor(0, 200, 0)))
-                painter.setPen(Qt.NoPen)
-                painter.drawEllipse(self.width()-18, self.height()-18, 12, 12)
-
-            painter.end()
-        except Exception as e:
-            logger.error(f"paintEvent error: {e}\n{traceback.format_exc()}")
-            super().paintEvent(event)
+        painter.end()
 
 
 class SegmentView(QWidget):
@@ -181,8 +146,6 @@ class SegmentView(QWidget):
         print("load_first_video called")
         if self.all_videos:
             asyncio.create_task(self.load_video(self.all_videos[0]))
-        else:
-            print("No videos found, please check path")
 
     def setup_ui(self):
         print("setup_ui start")
@@ -199,10 +162,6 @@ class SegmentView(QWidget):
         title = QLabel("📹 视频库")
         title.setFont(QFont("Arial", 14, QFont.Bold))
         left_layout.addWidget(title)
-
-        search_label = QLabel("Q搜索视频")
-        search_label.setStyleSheet("color: #888; padding: 4px; border: 1px solid #ccc; border-radius: 4px;")
-        left_layout.addWidget(search_label)
 
         self.video_list = QListWidget()
         self.video_list.setFont(QFont("Arial", 11))
@@ -323,9 +282,8 @@ class SegmentView(QWidget):
 
         self.grid_widget = QWidget()
         self.grid_layout = QGridLayout(self.grid_widget)
-        # 间距设为0，使图片紧挨
-        self.grid_layout.setSpacing(0)
-        self.grid_layout.setContentsMargins(0, 0, 0, 0)
+        self.grid_layout.setSpacing(4)
+        self.grid_layout.setContentsMargins(4, 4, 4, 4)
 
         self.scroll.setWidget(self.grid_widget)
         right_layout.addWidget(self.scroll, 1)
@@ -374,10 +332,6 @@ class SegmentView(QWidget):
         export_btn.clicked.connect(self.export_selected)
         bottom_bar.addWidget(export_btn)
 
-        zoom_btn = QPushButton("进入Zoom精修>")
-        zoom_btn.setStyleSheet("color: #2196F3;")
-        bottom_bar.addWidget(zoom_btn)
-
         right_layout.addLayout(bottom_bar)
 
         splitter = QSplitter(Qt.Horizontal)
@@ -391,7 +345,6 @@ class SegmentView(QWidget):
 
         print("setup_ui done")
 
-    # ---------- 全选/取消全选 ----------
     def select_all(self):
         if not self.video_path or not self.segments:
             return
@@ -409,7 +362,6 @@ class SegmentView(QWidget):
         else:
             self._update_selected_count()
 
-    # ---------- 视频选择 ----------
     def on_video_selected(self, item: QListWidgetItem):
         path = item.data(Qt.UserRole)
         if path:
@@ -450,11 +402,12 @@ class SegmentView(QWidget):
 
         self.current_seg_index = 0
         self._update_seg_buttons()
-        self._load_task = asyncio.create_task(self._load_segment(0, restore_locks=True, randomize=False))
+        self._load_task = asyncio.create_task(self._load_segment(0, randomize=False))
         await self._load_task
         self.progress_label_left.setText("加载完成")
 
     def _clear_grid(self):
+        # 清空布局，保留容器
         while self.grid_layout.count():
             child = self.grid_layout.takeAt(0)
             if child.widget():
@@ -468,11 +421,38 @@ class SegmentView(QWidget):
             self._update_seg_buttons()
             if self._load_task and not self._load_task.done():
                 self._load_task.cancel()
-            self._load_task = asyncio.create_task(self._load_segment(idx, restore_locks=True, randomize=False))
+            self._load_task = asyncio.create_task(self._load_segment(idx, randomize=False))
 
     def _update_seg_buttons(self):
+        if not self.video_path or not self.segments:
+            return
         for i, btn in enumerate(self.seg_buttons):
+            label = chr(ord('A') + i)
+            if i < len(self.segments):
+                seg_label = self.segments[i][0]
+                state = self._get_seg_state(seg_label)
+                btn.setText(f"{label}{state}")
+            else:
+                btn.setText(label)
             btn.setChecked(i == self.current_seg_index)
+
+    def _get_seg_state(self, seg_label: str) -> str:
+        if seg_label not in self.screenshots:
+            return ""
+        items = self.screenshots.get(seg_label, [])
+        if not items:
+            return ""
+        viewed = any(True for _ in items)
+        has_fav = any(item.get('favorite', False) for item in items)
+        has_export = any(item.get('exported', False) for item in items)
+        state = ""
+        if viewed:
+            state += "✓"
+        if has_fav:
+            state += "★"
+        if has_export:
+            state += "▼"
+        return state
 
     def show_exclude_dialog(self):
         if not self.video_path:
@@ -484,13 +464,11 @@ class SegmentView(QWidget):
             if self.video_path:
                 if self._load_task and not self._load_task.done():
                     self._load_task.cancel()
-                self._load_task = asyncio.create_task(self._load_segment(self.current_seg_index, restore_locks=True, randomize=False))
+                self._load_task = asyncio.create_task(self._load_segment(self.current_seg_index, randomize=False))
 
-    # ---------- 随机采样辅助 ----------
-    def _filter_excluded_random(self, times: List[float], start: float, end: float, target_count: int) -> List[float]:
+    def _filter_excluded(self, times: List[float], start: float, end: float, target_count: int) -> List[float]:
         if not self.excluded_ranges:
             return times
-
         valid = []
         for t in times:
             excluded = False
@@ -500,7 +478,7 @@ class SegmentView(QWidget):
                     break
             if not excluded:
                 valid.append(t)
-
+        # 补充随机点
         while len(valid) < target_count:
             t = random.uniform(start, end)
             excluded = False
@@ -510,17 +488,17 @@ class SegmentView(QWidget):
                     break
             if not excluded:
                 valid.append(t)
-
         if len(valid) > target_count:
             valid = valid[:target_count]
-
         valid.sort()
         return valid
 
-    # ---------- 加载分段 ----------
-    async def _load_segment(self, seg_idx: int, restore_locks: bool = True, randomize: bool = False):
+    async def _load_segment(self, seg_idx: int, randomize: bool = False):
         if not self.video_path or not self.segments:
             return
+
+        # 关键修复：更新当前分段索引
+        self.current_seg_index = seg_idx
 
         label, start, end = self.segments[seg_idx]
         offset = (end - start) * self.skip_ratio
@@ -535,33 +513,17 @@ class SegmentView(QWidget):
         duration_seg = end_cropped - start_cropped
         count = self.density
 
-        # 随机生成时间点
+        # 生成随机时间点
         times = [random.uniform(start_cropped, end_cropped) for _ in range(count)]
         times.sort()
-
-        times = self._filter_excluded_random(times, start_cropped, end_cropped, count)
+        times = self._filter_excluded(times, start_cropped, end_cropped, count)
 
         seg_key = label
         if seg_key not in self.screenshots:
             self.screenshots[seg_key] = []
 
-        old_items = self.screenshots.get(seg_key, [])
         new_items = []
-        total = len(times)
-        for idx, t in enumerate(times):
-            self.progress_label_left.setText(f"正在生成 {label} 第 {idx+1}/{total} 张 @ {t:.2f}s")
-            QApplication.processEvents()
-
-            matched = None
-            if restore_locks:
-                for item in old_items:
-                    if abs(item['time'] - t) < 0.5:
-                        matched = item
-                        break
-            if matched:
-                new_items.append(matched.copy())
-                continue
-
+        for t in times:
             temp_path = os.path.join(self.temp_dir, f"seg_{label}_{t:.2f}.jpg")
             success = await asyncio.to_thread(extract_frame, self.video_path, t, temp_path)
             if success:
@@ -572,7 +534,7 @@ class SegmentView(QWidget):
                     'favorite': False,
                     'exported': False,
                 })
-                logger.info(f"截图成功: {label} {idx} @ {t:.2f}s")
+                logger.info(f"截图成功: {label} {len(new_items)-1} @ {t:.2f}s")
             else:
                 new_items.append({
                     'time': t,
@@ -581,17 +543,18 @@ class SegmentView(QWidget):
                     'favorite': False,
                     'exported': False,
                 })
-                logger.warning(f"截图失败: {label} {idx} @ {t:.2f}s")
+                logger.warning(f"截图失败: {label} {len(new_items)-1} @ {t:.2f}s")
 
         self.screenshots[seg_key] = new_items
         self.selected_indices = set()
         self._refresh_grid(seg_idx)
+        self._update_seg_buttons()
         self.progress_label_left.setText(f"{label} 分段加载完成")
 
-    # ---------- 刷新网格 ----------
     def _refresh_grid(self, seg_idx: int):
         try:
-            logger.info("刷新网格开始")
+            logger.info(f"刷新网格开始, seg_idx={seg_idx}")
+            # 清空布局
             while self.grid_layout.count():
                 child = self.grid_layout.takeAt(0)
                 if child.widget():
@@ -601,16 +564,7 @@ class SegmentView(QWidget):
             items = self.screenshots.get(seg_label, [])
             count = len(items)
 
-            if self.density == 9:
-                cols = 3
-            elif self.density == 12:
-                cols = 3
-            elif self.density == 16:
-                cols = 4
-            elif self.density == 25:
-                cols = 5
-            else:
-                cols = 4
+            cols = 3 if self.density == 9 else (3 if self.density == 12 else (4 if self.density == 16 else 5))
 
             locked_count = sum(1 for it in items if it.get('locked', False))
             fav_count = sum(1 for it in items if it.get('favorite', False))
@@ -618,30 +572,27 @@ class SegmentView(QWidget):
             self.stat_fav.setText(f"收藏: {fav_count}")
 
             for pos, item in enumerate(items):
-                try:
-                    row = pos // cols
-                    col = pos % cols
+                row = pos // cols
+                col = pos % cols
 
-                    pixmap = QPixmap(360, 220)
-                    pixmap.fill(QColor(100, 100, 100))
-                    if item.get('path') and os.path.exists(item['path']):
-                        loaded = QPixmap(item['path'])
-                        if not loaded.isNull():
-                            pixmap = loaded
+                pixmap = QPixmap(220, 140)
+                pixmap.fill(QColor(100, 100, 100))
+                if item.get('path') and os.path.exists(item['path']):
+                    loaded = QPixmap(item['path'])
+                    if not loaded.isNull():
+                        pixmap = loaded
 
-                    label = ClickableLabel(pixmap, item['time'])
-                    label.setObjectName(f"{seg_idx}_{pos}")
-                    label.set_locked(item.get('locked', False))
-                    label.set_favorite(item.get('favorite', False))
-                    label.set_exported(item.get('exported', False))
-                    if (seg_idx, pos) in self.selected_indices:
-                        label.set_selected(True)
+                label = ClickableLabel(pixmap, item['time'])
+                label.setObjectName(f"{seg_idx}_{pos}")
+                label.set_locked(item.get('locked', False))
+                label.set_favorite(item.get('favorite', False))
+                label.set_exported(item.get('exported', False))
+                if (seg_idx, pos) in self.selected_indices:
+                    label.set_selected(True)
 
-                    label.clicked.connect(partial(self.on_image_click, seg_idx, pos))
-                    label.double_clicked.connect(partial(self.zoom_image, seg_idx, pos))
-                    self.grid_layout.addWidget(label, row, col)
-                except Exception as e:
-                    logger.error(f"创建第 {pos} 个标签时出错: {e}")
+                label.clicked.connect(partial(self.on_image_click, seg_idx, pos))
+                label.double_clicked.connect(partial(self.zoom_image, seg_idx, pos))
+                self.grid_layout.addWidget(label, row, col)
 
             self._update_selected_count()
 
@@ -662,7 +613,6 @@ class SegmentView(QWidget):
             self.selected_indices.add(key)
         self._refresh_grid(seg_idx)
 
-    # ---------- Zoom 精修 ----------
     def zoom_image(self, seg_idx: int, pos: int):
         seg_label = self.segments[seg_idx][0]
         items = self.screenshots.get(seg_label, [])
@@ -685,8 +635,8 @@ class SegmentView(QWidget):
         )
         dlg.exec()
         self._refresh_grid(self.current_seg_index)
+        self._update_seg_buttons()
 
-    # ---------- 其他操作 ----------
     def favorite_selected(self):
         try:
             if not self.selected_indices:
@@ -698,6 +648,7 @@ class SegmentView(QWidget):
                 if seg_idx == self.current_seg_index and pos < len(items):
                     items[pos]['favorite'] = True
             self._refresh_grid(self.current_seg_index)
+            self._update_seg_buttons()
             logger.info(f"收藏成功: {len(self.selected_indices)} 张")
         except Exception as e:
             logger.error(f"favorite_selected error: {e}\n{traceback.format_exc()}")
@@ -714,6 +665,7 @@ class SegmentView(QWidget):
                 if seg_idx == self.current_seg_index and pos < len(items):
                     items[pos]['favorite'] = False
             self._refresh_grid(self.current_seg_index)
+            self._update_seg_buttons()
             logger.info(f"取消收藏成功: {len(self.selected_indices)} 张")
         except Exception as e:
             logger.error(f"unfavorite_selected error: {e}\n{traceback.format_exc()}")
@@ -730,6 +682,7 @@ class SegmentView(QWidget):
                 if seg_idx == self.current_seg_index and pos < len(items):
                     items[pos]['locked'] = True
             self._refresh_grid(self.current_seg_index)
+            self._update_seg_buttons()
         except Exception as e:
             logger.error(f"lock_selected error: {e}")
 
@@ -744,10 +697,10 @@ class SegmentView(QWidget):
                 if seg_idx == self.current_seg_index and pos < len(items):
                     items[pos]['locked'] = False
             self._refresh_grid(self.current_seg_index)
+            self._update_seg_buttons()
         except Exception as e:
             logger.error(f"unlock_selected error: {e}")
 
-    # ---------- 刷新未锁定 ----------
     async def refresh_unlocked(self):
         try:
             seg_idx = self.current_seg_index
@@ -789,11 +742,11 @@ class SegmentView(QWidget):
                 else:
                     logger.warning(f"刷新未锁定失败: {seg_label} {pos}")
             self._refresh_grid(seg_idx)
+            self._update_seg_buttons()
             self.progress_label_left.setText("刷新完成")
         except Exception as e:
             logger.error(f"refresh_unlocked error: {e}\n{traceback.format_exc()}")
 
-    # ---------- 全部重抽 ----------
     async def reset_all(self):
         try:
             seg_idx = self.current_seg_index
@@ -803,14 +756,14 @@ class SegmentView(QWidget):
             self.selected_indices = set()
             if self._load_task and not self._load_task.done():
                 self._load_task.cancel()
-            self._load_task = asyncio.create_task(self._load_segment(seg_idx, restore_locks=False, randomize=True))
+            self._load_task = asyncio.create_task(self._load_segment(seg_idx, randomize=True))
             await self._load_task
             self._refresh_grid(seg_idx)
+            self._update_seg_buttons()
             logger.info(f"全部重抽完成: 分段 {seg_label}")
         except Exception as e:
             logger.error(f"reset_all error: {e}\n{traceback.format_exc()}")
 
-    # ---------- 导出选中 ----------
     def export_selected(self):
         try:
             if not self.selected_indices:
@@ -848,11 +801,11 @@ class SegmentView(QWidget):
             QMessageBox.information(self, "导出完成", f"成功导出 {exported} 张截图到:\n{export_dir}")
             self.selected_indices.clear()
             self._refresh_grid(self.current_seg_index)
+            self._update_seg_buttons()
         except Exception as e:
             logger.error(f"export_selected error: {e}\n{traceback.format_exc()}")
             QMessageBox.critical(self, "错误", f"导出失败: {str(e)}")
 
-    # ---------- 密度切换 ----------
     def on_density_changed(self, val: int):
         self.density = val
         for btn in self.density_buttons:
@@ -860,7 +813,7 @@ class SegmentView(QWidget):
         if self.video_path:
             if self._load_task and not self._load_task.done():
                 self._load_task.cancel()
-            self._load_task = asyncio.create_task(self._load_segment(self.current_seg_index, restore_locks=True, randomize=False))
+            self._load_task = asyncio.create_task(self._load_segment(self.current_seg_index, randomize=False))
 
     def _update_selected_count(self):
         count = len(self.selected_indices)

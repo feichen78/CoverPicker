@@ -345,3 +345,9 @@ git remote add origin https://kgithub.com/feichen78/CoverPicker.git
 git push -u origin main
 
 继续 CoverPicker 项目，开始第五阶段。https://github.com/feichen78/CoverPicker。本地代码已同步，环境正常。
+
+# CoverPicker 开发协作规则
+
+1. **代码提供方式**：每次修改任何 `.py` 文件时，必须提供该文件的**完整代码**（从头到尾），不得只提供修改的片段或函数。用户可以直接复制整个文件并覆盖原文件。
+2. **文件路径标注**：每次提供代码时，必须明确标注文件路径（如 `ui/views/segment_view.py`）。
+3. **依赖说明**：若新增或修改了依赖文件（如 `state_manager.py`），也必须提供完整文件。

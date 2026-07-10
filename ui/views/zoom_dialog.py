@@ -9,7 +9,7 @@ from functools import partial
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
     QGridLayout, QScrollArea, QFrame, QMessageBox, QApplication,
-    QWidget, QCheckBox
+    QWidget, QCheckBox, QSizePolicy
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QPixmap, QFont, QPainter, QPen, QBrush, QColor, QKeyEvent
@@ -30,9 +30,11 @@ class ZoomClickableLabel(QLabel):
         self.is_favorite = False
         self.is_exported = False
         self.original_pixmap = pixmap.copy() if not pixmap.isNull() else QPixmap(200, 120)
-        self.setFixedSize(200, 120)
+        # 允许拉伸以填充空间
+        self.setMinimumSize(200, 120)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setAlignment(Qt.AlignCenter)
-        self.setStyleSheet("border: 1px solid #ccc; background: transparent;")
+        self.setStyleSheet("border: 1px solid #ccc; background: transparent; margin:0; padding:0;")
         self.setScaledContents(False)
         self.time_text = f"{time_sec:.1f}s"
         self._cached_scaled = None
@@ -42,6 +44,7 @@ class ZoomClickableLabel(QLabel):
         try:
             if self.original_pixmap.isNull():
                 return
+            # 按当前控件大小缩放，保持比例
             scaled = self.original_pixmap.scaled(
                 self.width(), self.height(),
                 Qt.KeepAspectRatio,
@@ -210,10 +213,18 @@ class ZoomDialog(QDialog):
         self.scroll.setFrameShape(QFrame.NoFrame)
 
         self.grid_widget = QWidget()
+        self.grid_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.grid_layout = QGridLayout(self.grid_widget)
-        # 间距设为0，使图片紧挨
         self.grid_layout.setSpacing(0)
         self.grid_layout.setContentsMargins(0, 0, 0, 0)
+        # 设置三列等比例拉伸
+        self.grid_layout.setColumnStretch(0, 1)
+        self.grid_layout.setColumnStretch(1, 1)
+        self.grid_layout.setColumnStretch(2, 1)
+        # 行拉伸
+        self.grid_layout.setRowStretch(0, 1)
+        self.grid_layout.setRowStretch(1, 1)
+        self.grid_layout.setRowStretch(2, 1)
 
         self.scroll.setWidget(self.grid_widget)
         main_layout.addWidget(self.scroll, 1)
@@ -223,6 +234,13 @@ class ZoomDialog(QDialog):
 
         self.selected_label = QLabel("已选: 0 张")
         bottom_bar.addWidget(self.selected_label)
+
+        self.fav_label = QLabel("收藏: 0")
+        bottom_bar.addWidget(self.fav_label)
+
+        self.lock_label = QLabel("锁定: 0")
+        bottom_bar.addWidget(self.lock_label)
+
         bottom_bar.addStretch()
 
         fav_btn = QPushButton("⭐ 收藏")
@@ -251,6 +269,7 @@ class ZoomDialog(QDialog):
 
         main_layout.addLayout(bottom_bar)
 
+    # ---------- 核心逻辑保持不变，省略部分以节省篇幅（实际代码中需保留） ----------
     def on_level_clicked(self, level: int):
         for i, btn in enumerate(self.level_buttons):
             btn.setChecked(i == (level - 1))
@@ -279,7 +298,6 @@ class ZoomDialog(QDialog):
     def _generate_times(self, center_time: float) -> List[float]:
         if not self.segments:
             return [center_time]
-
         total_duration = self.segments[-1][2]
         if self.global_mode:
             t0 = max(0, center_time - 4)
@@ -295,10 +313,8 @@ class ZoomDialog(QDialog):
                 seg_end = total_duration
             t0 = max(seg_start, center_time - 4)
             t1 = min(seg_end, center_time + 4)
-
         if t1 - t0 < 0.5:
             return [center_time]
-
         step = (t1 - t0) / 10
         times = [t0 + step * (i+1) for i in range(9)]
         return [max(t0, min(t1, t)) for t in times]
@@ -306,10 +322,8 @@ class ZoomDialog(QDialog):
     async def load_level(self, level: int):
         if not self.video_path:
             return
-
         times = self._generate_times(self.center_time)
         count = len(times)
-
         self.progress_label.setText(f"正在加载 L{level}，共 {count} 张...")
         QApplication.processEvents()
 
@@ -323,7 +337,6 @@ class ZoomDialog(QDialog):
         for idx, t in enumerate(times):
             self.progress_label.setText(f"正在生成 L{level} 第 {idx+1}/{total} 张 @ {t:.2f}s")
             QApplication.processEvents()
-
             temp_path = os.path.join(self.temp_dir, f"zoom_L{level}_{t:.2f}.jpg")
             success = await asyncio.to_thread(extract_frame, self.video_path, t, temp_path)
             if success:
@@ -346,7 +359,6 @@ class ZoomDialog(QDialog):
         self.zoom_items = new_items
         self.selected_indices.clear()
         self._refresh_grid()
-
         self.progress_label.setText(f"L{level} 加载完成 ({len(new_items)} 张)")
         self.info_label.setText(f"中心: {self.center_time:.1f}s | 分段: {self.segment_label} | 层级: L{level}")
 
@@ -361,6 +373,7 @@ class ZoomDialog(QDialog):
         if count == 0:
             return
 
+        # 动态计算列数：总为3列
         cols = 3
         for pos, item in enumerate(items):
             row = pos // cols
@@ -385,12 +398,18 @@ class ZoomDialog(QDialog):
             label.double_clicked.connect(partial(self.zoom_image, pos))
             self.grid_layout.addWidget(label, row, col)
 
-        self._update_selected_count()
-
+        self._update_stats()
         self.grid_widget.updateGeometry()
         self.grid_widget.update()
         self.scroll.update()
         QApplication.processEvents()
+
+    def _update_stats(self):
+        fav_count = sum(1 for it in self.zoom_items if it.get('favorite', False))
+        lock_count = sum(1 for it in self.zoom_items if it.get('locked', False))
+        self.fav_label.setText(f"收藏: {fav_count}")
+        self.lock_label.setText(f"锁定: {lock_count}")
+        self.selected_label.setText(f"已选: {len(self.selected_indices)} 张")
 
     def on_image_click(self, pos: int):
         if pos in self.selected_indices:
@@ -426,6 +445,7 @@ class ZoomDialog(QDialog):
             current_seg_label = self.parent_view.segments[self.parent_view.current_seg_index][0]
             if current_seg_label == self.segment_label:
                 self.parent_view._refresh_grid(self.parent_view.current_seg_index)
+                self.parent_view._update_seg_buttons()  # 更新分段按钮状态
 
     def favorite_selected(self):
         for pos in self.selected_indices:
@@ -459,21 +479,17 @@ class ZoomDialog(QDialog):
         if not self.selected_indices:
             QMessageBox.information(self, "提示", "请先选中要导出的截图。")
             return
-
         export_paths = []
         for pos in self.selected_indices:
             item = self.zoom_items[pos]
             if item.get('path') and os.path.exists(item['path']):
                 export_paths.append((item['time'], item['path'], pos))
-
         if not export_paths:
             QMessageBox.warning(self, "警告", "选中的截图文件不存在。")
             return
-
         video_name = os.path.splitext(os.path.basename(self.video_path))[0]
         export_dir = os.path.join(self.export_base, video_name)
         os.makedirs(export_dir, exist_ok=True)
-
         exported = 0
         for time_sec, src_path, pos in export_paths:
             dest_name = f"cover_{time_sec:.2f}s.jpg"
@@ -484,14 +500,10 @@ class ZoomDialog(QDialog):
                 self.zoom_items[pos]['exported'] = True
             except Exception as e:
                 print(f"导出失败 {src_path}: {e}")
-
         QMessageBox.information(self, "导出完成", f"成功导出 {exported} 张截图到:\n{export_dir}")
         self.selected_indices.clear()
         self._refresh_grid()
         self._sync_to_parent()
-
-    def _update_selected_count(self):
-        self.selected_label.setText(f"已选: {len(self.selected_indices)} 张")
 
     def keyPressEvent(self, event: QKeyEvent):
         if event.key() == Qt.Key_Escape:
