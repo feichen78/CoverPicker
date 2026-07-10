@@ -45,6 +45,7 @@ def calculate_segments(duration: float) -> List[Tuple[str, float, float]]:
     """
     根据视频时长计算 A/B/C/D/E 分区
     返回 [(标签, 起始秒, 结束秒), ...]
+    如果 duration < 300 (5分钟)，仅返回一个分区 A
     """
     if duration < 300:  # <5分钟，合并为一个区
         return [("A", 0.0, duration)]
