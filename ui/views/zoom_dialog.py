@@ -1,3 +1,5 @@
+# ui/views/zoom_dialog.py
+
 import os
 import asyncio
 import random
@@ -25,12 +27,79 @@ class ZoomClickableLabel(QLabel):
         super().__init__(parent)
         self.time_sec = time_sec
         self.is_selected = False
-        self.setPixmap(pixmap)
-        self.setScaledContents(True)
-        self.setMinimumSize(100, 80)
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.setStyleSheet("border: 1px solid #ccc; background: transparent;")
+
+        # 保存原始图片
+        self.original_pixmap = pixmap
+        self.display_pixmap = QPixmap()
         self.time_text = f"{time_sec:.1f}s"
+
+        self.setMinimumSize(160, 120)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.setStyleSheet("border: 1px solid #ccc; background: #2a2a2a;")
+
+        self._update_display_pixmap()
+
+    def _update_display_pixmap(self):
+        """生成居中保持宽高比的显示图片"""
+        if self.original_pixmap.isNull():
+            self.display_pixmap = QPixmap(200, 150)
+            self.display_pixmap.fill(QColor(60, 60, 60))
+            self.update()
+            return
+
+        w = self.width() - 2
+        h = self.height() - 2
+        if w < 10 or h < 10:
+            w, h = 200, 150
+
+        scaled = self.original_pixmap.scaled(w, h, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+
+        self.display_pixmap = QPixmap(w, h)
+        self.display_pixmap.fill(QColor(30, 30, 30))
+
+        painter = QPainter(self.display_pixmap)
+        x = (w - scaled.width()) // 2
+        y = (h - scaled.height()) // 2
+        painter.drawPixmap(x, y, scaled)
+        painter.end()
+
+        self.update()
+
+    def set_original_pixmap(self, pixmap: QPixmap):
+        self.original_pixmap = pixmap
+        self._update_display_pixmap()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._update_display_pixmap()
+
+    def paintEvent(self, event):
+        if self.display_pixmap.isNull():
+            self._update_display_pixmap()
+            if self.display_pixmap.isNull():
+                painter = QPainter(self)
+                painter.fillRect(self.rect(), QColor(60, 60, 60))
+                painter.end()
+                return
+
+        painter = QPainter(self)
+        painter.drawPixmap(0, 0, self.display_pixmap)
+
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        if self.is_selected:
+            painter.setBrush(QBrush(QColor(33, 150, 243)))
+            painter.setPen(Qt.NoPen)
+            painter.drawEllipse(6, 6, 14, 14)
+
+        painter.setPen(Qt.white)
+        painter.setBrush(QBrush(QColor(0, 0, 0, 180)))
+        painter.drawRoundedRect(4, self.height() - 22, 60, 18, 3, 3)
+        painter.setPen(Qt.white)
+        painter.setFont(QFont("Arial", 8))
+        painter.drawText(6, self.height() - 7, self.time_text)
+
+        painter.end()
 
     def mousePressEvent(self, event):
         self.clicked.emit()
@@ -42,27 +111,6 @@ class ZoomClickableLabel(QLabel):
     def set_selected(self, selected: bool):
         self.is_selected = selected
         self.update()
-
-    def paintEvent(self, event):
-        super().paintEvent(event)
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-
-        # 选中圆点（左上角）
-        if self.is_selected:
-            painter.setBrush(QBrush(QColor(33, 150, 243)))
-            painter.setPen(Qt.NoPen)
-            painter.drawEllipse(6, 6, 14, 14)
-
-        # 时间戳（左下角）
-        painter.setPen(Qt.white)
-        painter.setBrush(QBrush(QColor(0, 0, 0, 150)))
-        painter.drawRect(4, self.height()-20, 60, 16)
-        painter.setPen(Qt.white)
-        painter.setFont(QFont("Arial", 8))
-        painter.drawText(6, self.height()-6, self.time_text)
-
-        painter.end()
 
 
 class ZoomDialog(QDialog):
@@ -89,8 +137,15 @@ class ZoomDialog(QDialog):
 
         self.setWindowTitle(f"Zoom 精修 - {os.path.basename(video_path)} @ {time_sec:.1f}s")
         self.setModal(True)
-        self.resize(900, 700)
-        self.setMinimumSize(700, 500)
+        # 设置窗口标志，支持最大化/最小化
+        self.setWindowFlags(
+            Qt.Window |
+            Qt.WindowCloseButtonHint |
+            Qt.WindowMinimizeButtonHint |
+            Qt.WindowMaximizeButtonHint
+        )
+        self.resize(1000, 750)
+        self.setMinimumSize(800, 600)
 
         self.setup_ui()
         QApplication.processEvents()
@@ -134,7 +189,7 @@ class ZoomDialog(QDialog):
         self.grid_widget = QWidget()
         self.grid_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.grid_layout = QGridLayout(self.grid_widget)
-        self.grid_layout.setSpacing(2)
+        self.grid_layout.setSpacing(4)
         self.grid_layout.setContentsMargins(2, 2, 2, 2)
 
         self.scroll.setWidget(self.grid_widget)
@@ -267,16 +322,20 @@ class ZoomDialog(QDialog):
                 return
 
             cols = 3
+            # 设置列宽均匀分配
+            for col in range(cols):
+                self.grid_layout.setColumnStretch(col, 1)
+
             for pos, item in enumerate(items):
                 row = pos // cols
                 col = pos % cols
 
                 pixmap = QPixmap(200, 150)
-                pixmap.fill(QColor(100, 100, 100))
+                pixmap.fill(QColor(60, 60, 60))
                 if item.get('path') and os.path.exists(item['path']):
                     loaded = QPixmap(item['path'])
                     if not loaded.isNull():
-                        pixmap = loaded.scaled(200, 150, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                        pixmap = loaded
 
                 label = ZoomClickableLabel(pixmap, item['time'])
                 label.setObjectName(f"zoom_{pos}")

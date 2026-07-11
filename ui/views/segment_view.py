@@ -1,9 +1,12 @@
+# ui/views/segment_view.py
+
 import os
 import asyncio
 import random
 import tempfile
 import shutil
 import logging
+import traceback
 from typing import Dict, List, Set, Tuple
 from functools import partial
 from datetime import timedelta
@@ -13,8 +16,8 @@ from PySide6.QtWidgets import (
     QGridLayout, QScrollArea, QFrame, QMessageBox, QApplication,
     QSplitter, QListWidget, QListWidgetItem, QSizePolicy, QDialog
 )
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QPixmap, QFont, QColor, QPainter, QPen, QBrush, QKeyEvent
+from PySide6.QtCore import Qt, Signal, QTimer
+from PySide6.QtGui import QPixmap, QFont, QColor, QPainter, QPen, QBrush, QKeyEvent, QResizeEvent
 
 from src.video_scanner import scan_videos, get_video_duration, calculate_segments, extract_frame
 from ui.views.zoom_dialog import ZoomDialog
@@ -25,22 +28,115 @@ logger = logging.getLogger(__name__)
 
 
 class ClickableLabel(QLabel):
+    """可点击的截图标签 - 固定尺寸，图片居中保持宽高比"""
     clicked = Signal()
     double_clicked = Signal()
 
-    def __init__(self, pixmap: QPixmap, time_sec: float, parent=None):
+    def __init__(self, pixmap: QPixmap, time_sec: float, index: int = 0, parent=None):
         super().__init__(parent)
         self.time_sec = time_sec
+        self.index = index
         self.is_selected = False
         self.is_locked = False
         self.is_favorite = False
         self.is_exported = False
-        self.setPixmap(pixmap)
-        self.setScaledContents(True)
-        self.setMinimumSize(100, 80)
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.setStyleSheet("border: 1px solid #ccc; background: transparent;")
+
+        self.original_pixmap = pixmap
+        self.display_pixmap = QPixmap()
         self.time_text = f"{time_sec:.1f}s"
+
+        self.setMinimumSize(160, 120)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.setStyleSheet("border: 1px solid #ccc; background: #2a2a2a;")
+
+        self._update_display_pixmap()
+
+    def _update_display_pixmap(self):
+        if self.original_pixmap.isNull():
+            self.display_pixmap = QPixmap(200, 150)
+            self.display_pixmap.fill(QColor(60, 60, 60))
+            self.update()
+            return
+
+        w = self.width() - 2
+        h = self.height() - 2
+        if w < 10 or h < 10:
+            w, h = 200, 150
+
+        scaled = self.original_pixmap.scaled(w, h, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+
+        self.display_pixmap = QPixmap(w, h)
+        self.display_pixmap.fill(QColor(30, 30, 30))
+
+        painter = QPainter(self.display_pixmap)
+        x = (w - scaled.width()) // 2
+        y = (h - scaled.height()) // 2
+        painter.drawPixmap(x, y, scaled)
+        painter.end()
+
+        self.update()
+
+    def set_original_pixmap(self, pixmap: QPixmap):
+        self.original_pixmap = pixmap
+        self._update_display_pixmap()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._update_display_pixmap()
+
+    def paintEvent(self, event):
+        if self.display_pixmap.isNull():
+            self._update_display_pixmap()
+            if self.display_pixmap.isNull():
+                painter = QPainter(self)
+                painter.fillRect(self.rect(), QColor(60, 60, 60))
+                painter.end()
+                return
+
+        painter = QPainter(self)
+        painter.drawPixmap(0, 0, self.display_pixmap)
+
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        if self.is_selected:
+            painter.setBrush(QBrush(QColor(33, 150, 243)))
+            painter.setPen(Qt.NoPen)
+            painter.drawEllipse(6, 6, 14, 14)
+
+        painter.setPen(Qt.white)
+        painter.setBrush(QBrush(QColor(0, 0, 0, 180)))
+        seq_rect_x = 6
+        seq_rect_y = 24 if self.is_selected else 6
+        seq_rect_w = 24
+        seq_rect_h = 18
+        painter.drawRoundedRect(seq_rect_x, seq_rect_y, seq_rect_w, seq_rect_h, 3, 3)
+        painter.setPen(Qt.white)
+        painter.setFont(QFont("Arial", 9, QFont.Bold))
+        painter.drawText(seq_rect_x + 4, seq_rect_y + 13, f"{self.index}")
+
+        painter.setPen(Qt.white)
+        painter.setBrush(QBrush(QColor(0, 0, 0, 180)))
+        painter.drawRoundedRect(4, self.height() - 22, 60, 18, 3, 3)
+        painter.setPen(Qt.white)
+        painter.setFont(QFont("Arial", 8))
+        painter.drawText(6, self.height() - 7, self.time_text)
+
+        if self.is_locked:
+            painter.setFont(QFont("Segoe UI Emoji", 13))
+            painter.setPen(QColor(255, 200, 0))
+            painter.drawText(self.width() - 28, 24, "🔒")
+
+        if self.is_favorite:
+            painter.setFont(QFont("Segoe UI Emoji", 16))
+            painter.setPen(QColor(255, 215, 0))
+            painter.drawText(self.width() - 24, 22, "⭐")
+
+        if self.is_exported:
+            painter.setBrush(QBrush(QColor(0, 200, 0)))
+            painter.setPen(Qt.NoPen)
+            painter.drawEllipse(self.width() - 14, self.height() - 14, 10, 10)
+
+        painter.end()
 
     def mousePressEvent(self, event):
         self.clicked.emit()
@@ -65,9 +161,74 @@ class ClickableLabel(QLabel):
         self.is_exported = exp
         self.update()
 
+
+class FavImageLabel(QLabel):
+    """收藏弹窗中的图片标签 - 固定尺寸，图片居中保持宽高比"""
+    clicked = Signal()
+    double_clicked = Signal()
+
+    def __init__(self, pixmap: QPixmap, time_sec: float, parent=None):
+        super().__init__(parent)
+        self.time_sec = time_sec
+        self.is_selected = False
+        self.time_text = f"{time_sec:.1f}s"
+
+        self.original_pixmap = pixmap
+        self.display_pixmap = QPixmap()
+        self.current_img_w = 160
+        self.current_img_h = 120
+
+        self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.setStyleSheet("border: 1px solid #ccc; background: #2a2a2a;")
+
+        self._update_display_pixmap()
+
+    def set_image_size(self, w: int, h: int):
+        if w != self.current_img_w or h != self.current_img_h:
+            self.current_img_w = w
+            self.current_img_h = h
+            self.setFixedSize(w + 2, h + 2)
+            self._update_display_pixmap()
+
+    def _update_display_pixmap(self):
+        if self.original_pixmap.isNull():
+            self.display_pixmap = QPixmap(self.current_img_w, self.current_img_h)
+            self.display_pixmap.fill(QColor(60, 60, 60))
+            self.update()
+            return
+
+        w = max(10, self.current_img_w)
+        h = max(10, self.current_img_h)
+
+        scaled = self.original_pixmap.scaled(w, h, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+
+        self.display_pixmap = QPixmap(w, h)
+        self.display_pixmap.fill(QColor(30, 30, 30))
+
+        painter = QPainter(self.display_pixmap)
+        x = (w - scaled.width()) // 2
+        y = (h - scaled.height()) // 2
+        painter.drawPixmap(x, y, scaled)
+        painter.end()
+
+        self.update()
+
+    def set_original_pixmap(self, pixmap: QPixmap):
+        self.original_pixmap = pixmap
+        self._update_display_pixmap()
+
     def paintEvent(self, event):
-        super().paintEvent(event)
+        if self.display_pixmap.isNull():
+            self._update_display_pixmap()
+            if self.display_pixmap.isNull():
+                painter = QPainter(self)
+                painter.fillRect(self.rect(), QColor(60, 60, 60))
+                painter.end()
+                return
+
         painter = QPainter(self)
+        painter.drawPixmap(0, 0, self.display_pixmap)
+
         painter.setRenderHint(QPainter.Antialiasing)
 
         if self.is_selected:
@@ -76,62 +237,13 @@ class ClickableLabel(QLabel):
             painter.drawEllipse(6, 6, 14, 14)
 
         painter.setPen(Qt.white)
-        painter.setBrush(QBrush(QColor(0, 0, 0, 150)))
-        painter.drawRect(4, self.height()-20, 60, 16)
+        painter.setBrush(QBrush(QColor(0, 0, 0, 180)))
+        painter.drawRoundedRect(4, self.height() - 22, 60, 18, 3, 3)
         painter.setPen(Qt.white)
         painter.setFont(QFont("Arial", 8))
-        painter.drawText(6, self.height()-6, self.time_text)
-
-        if self.is_locked:
-            painter.setFont(QFont("Segoe UI Emoji", 14))
-            painter.setPen(QColor(255, 0, 0))
-            painter.drawText(4, 28, "🔒")
-
-        if self.is_favorite:
-            painter.setFont(QFont("Segoe UI Emoji", 14))
-            painter.setPen(QColor(255, 215, 0))
-            painter.drawText(self.width()-20, 18, "⭐")
-
-        if self.is_exported:
-            painter.setBrush(QBrush(QColor(0, 200, 0)))
-            painter.setPen(Qt.NoPen)
-            painter.drawEllipse(self.width()-14, self.height()-14, 10, 10)
+        painter.drawText(6, self.height() - 7, self.time_text)
 
         painter.end()
-
-
-class FavImageLabel(QLabel):
-    clicked = Signal()
-    double_clicked = Signal()
-
-    def __init__(self, pixmap: QPixmap, time_sec: float, parent=None):
-        super().__init__(parent)
-        self.time_sec = time_sec
-        self.is_selected = False
-        self.fixed_pixmap = self._create_fixed_pixmap(pixmap)
-        super().setPixmap(self.fixed_pixmap)
-        self.setMinimumSize(0, 0)
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.setStyleSheet("border: 1px solid #ccc; background: transparent;")
-        self.setScaledContents(False)
-        self.time_text = f"{time_sec:.1f}s"
-
-    def _create_fixed_pixmap(self, pixmap: QPixmap) -> QPixmap:
-        if pixmap.isNull():
-            result = QPixmap(200, 150)
-            result.fill(QColor(100, 100, 100))
-            return result
-        return pixmap.scaled(200, 150, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-
-    def set_original_pixmap(self, pixmap: QPixmap):
-        self.fixed_pixmap = self._create_fixed_pixmap(pixmap)
-        super().setPixmap(self.fixed_pixmap)
-
-    def setPixmap(self, pixmap: QPixmap):
-        pass
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
 
     def mousePressEvent(self, event):
         self.clicked.emit()
@@ -144,25 +256,6 @@ class FavImageLabel(QLabel):
         self.is_selected = selected
         self.update()
 
-    def paintEvent(self, event):
-        super().paintEvent(event)
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-
-        if self.is_selected:
-            painter.setBrush(QBrush(QColor(33, 150, 243)))
-            painter.setPen(Qt.NoPen)
-            painter.drawEllipse(6, 6, 14, 14)
-
-        painter.setPen(Qt.white)
-        painter.setBrush(QBrush(QColor(0, 0, 0, 150)))
-        painter.drawRect(4, self.height()-20, 60, 16)
-        painter.setPen(Qt.white)
-        painter.setFont(QFont("Arial", 8))
-        painter.drawText(6, self.height()-6, self.time_text)
-
-        painter.end()
-
 
 class FavoritesDialog(QDialog):
     def __init__(self, favorites: List[dict], video_name: str, export_base: str, parent=None):
@@ -171,19 +264,35 @@ class FavoritesDialog(QDialog):
         self.export_base = export_base
         self.parent_view = parent
         self.selected_indices: set = set()
+        self._resize_timer = QTimer()
+        self._resize_timer.setSingleShot(True)
+        self._resize_timer.timeout.connect(self._on_resize_timeout)
+        self._image_labels: List[FavImageLabel] = []
+        self._grid_widgets: List[QWidget] = []
+        self._loaded = False
+        self._last_cols = 0
+
+        self.MAX_COLS = 9
+        self.MIN_IMG_W = 160
+        self.IMG_ASPECT = 0.75
 
         self.setWindowTitle(f"收藏截图 - {video_name}")
         self.setModal(True)
-        self.resize(900, 700)
-        self.setMinimumSize(700, 500)
+        self.setWindowFlags(
+            Qt.Window |
+            Qt.WindowCloseButtonHint |
+            Qt.WindowMinimizeButtonHint |
+            Qt.WindowMaximizeButtonHint
+        )
+        self.resize(1100, 900)
+        self.setMinimumSize(800, 700)
 
         self.setup_ui()
-        self.load_favorites()
 
     def setup_ui(self):
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(10, 10, 10, 10)
-        main_layout.setSpacing(8)
+        main_layout.setSpacing(6)
 
         top_bar = QHBoxLayout()
         self.info_label = QLabel("共 0 张收藏截图")
@@ -205,11 +314,14 @@ class FavoritesDialog(QDialog):
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setFrameShape(QFrame.NoFrame)
+        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
 
         self.content_widget = QWidget()
+        self.content_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.content_layout = QVBoxLayout(self.content_widget)
-        self.content_layout.setSpacing(10)
-        self.content_layout.setContentsMargins(0, 0, 0, 0)
+        self.content_layout.setSpacing(4)
+        self.content_layout.setContentsMargins(0, 2, 0, 2)
+        self.content_layout.setAlignment(Qt.AlignTop)
 
         self.scroll.setWidget(self.content_widget)
         main_layout.addWidget(self.scroll, 1)
@@ -220,11 +332,129 @@ class FavoritesDialog(QDialog):
         bottom_bar.addStretch()
         main_layout.addLayout(bottom_bar)
 
+    def showEvent(self, event):
+        super().showEvent(event)
+        if not self._loaded:
+            QTimer.singleShot(100, self.load_favorites)
+            self._loaded = True
+
+    def resizeEvent(self, event: QResizeEvent):
+        super().resizeEvent(event)
+        self._resize_timer.start(100)
+
+    def _on_resize_timeout(self):
+        """窗口大小变化后，重新计算并重建布局"""
+        if not self._image_labels:
+            return
+
+        vw, vh = self._get_viewport_size()
+        if vw < 100 or vh < 100:
+            return
+
+        total_items = len(self._image_labels)
+        cols, img_w, img_h = self._calculate_layout(vw, vh, total_items)
+
+        # 如果列数发生变化，需要重建布局
+        if cols != self._last_cols:
+            self._last_cols = cols
+            self.load_favorites()
+        else:
+            # 列数不变，只需更新图片尺寸
+            for label in self._image_labels:
+                label.set_image_size(img_w, img_h)
+            self._update_grid_cols(cols)
+            self._update_inner_widgets(img_w, img_h)
+
+    def _get_viewport_size(self) -> Tuple[int, int]:
+        """获取视口尺寸，使用窗口宽度作为备用"""
+        vw = self.scroll.viewport().width() - 10
+        vh = self.scroll.viewport().height() - 10
+
+        # 如果视口宽度小于窗口宽度的95%，使用窗口宽度
+        window_w = self.width()
+        if vw < 100 or vw < window_w * 0.95:
+            vw = window_w - 20
+
+        if vh < 100:
+            vh = 700
+
+        return vw, vh
+
+    def _calculate_layout(self, viewport_width: int, viewport_height: int, total_items: int) -> Tuple[int, int, int]:
+        if viewport_width < 100 or viewport_height < 100:
+            viewport_width = 1000
+            viewport_height = 700
+
+        spacing = 4
+        padding = 6
+        title_height = 26
+        seg_spacing = 4
+
+        max_cols_by_width = (viewport_width - padding * 2 + spacing) // (self.MIN_IMG_W + spacing)
+        max_cols_by_width = max(1, min(self.MAX_COLS, max_cols_by_width))
+
+        available_height = viewport_height - 10
+
+        grouped = self._get_seg_items()
+        seg_count = len(grouped)
+
+        header_height = seg_count * (title_height + seg_spacing)
+        img_available_height = max(100, available_height - header_height)
+
+        cols = max_cols_by_width
+        img_w = (viewport_width - padding * 2 - spacing * (cols - 1)) // cols
+        img_h = int(img_w * self.IMG_ASPECT)
+
+        max_rows = 0
+        for seg_label, items in grouped.items():
+            rows = (len(items) + cols - 1) // cols
+            max_rows = max(max_rows, rows)
+
+        ideal_img_h = img_available_height // max_rows if max_rows > 0 else img_h
+        img_h = max(int(self.MIN_IMG_W * self.IMG_ASPECT), ideal_img_h)
+        img_w = int(img_h / self.IMG_ASPECT)
+
+        max_img_w = (viewport_width - padding * 2 - spacing * (cols - 1)) // cols
+        if img_w > max_img_w:
+            img_w = max_img_w
+            img_h = int(img_w * self.IMG_ASPECT)
+
+        img_w = max(self.MIN_IMG_W, img_w)
+        img_h = max(int(self.MIN_IMG_W * self.IMG_ASPECT), img_h)
+
+        return cols, img_w, img_h
+
+    def _update_grid_cols(self, cols: int):
+        for widget in self._grid_widgets:
+            if widget and widget.layout() and isinstance(widget.layout(), QGridLayout):
+                grid_layout = widget.layout()
+                for col in range(grid_layout.columnCount()):
+                    grid_layout.setColumnStretch(col, 0)
+                for col in range(cols):
+                    grid_layout.setColumnStretch(col, 1)
+
+    def _update_inner_widgets(self, img_w: int, img_h: int):
+        inner_height = img_h + 22
+        for widget in self.findChildren(QWidget):
+            if widget.property("is_inner_container") == True:
+                widget.setFixedSize(img_w + 2, inner_height)
+
+    def _get_seg_items(self) -> Dict[str, List[dict]]:
+        grouped = {}
+        for item in self.favorites:
+            seg = item.get('segment', 'A')
+            if seg not in grouped:
+                grouped[seg] = []
+            grouped[seg].append(item)
+        return grouped
+
     def load_favorites(self):
         while self.content_layout.count():
             child = self.content_layout.takeAt(0)
             if child.widget():
                 child.widget().deleteLater()
+        self._image_labels = []
+        self._grid_widgets = []
 
         if not self.favorites:
             label = QLabel("暂无收藏截图")
@@ -234,37 +464,43 @@ class FavoritesDialog(QDialog):
             self.info_label.setText("共 0 张收藏截图")
             return
 
-        total = 0
-        grouped = {}
-        for item in self.favorites:
-            seg = item.get('segment', 'A')
-            if seg not in grouped:
-                grouped[seg] = []
-            grouped[seg].append(item)
+        grouped = self._get_seg_items()
+        total = len(self.favorites)
+        self.info_label.setText(f"共 {total} 张收藏截图")
 
-        for seg_label, items in sorted(grouped.items()):
-            total += len(items)
+        vw, vh = self._get_viewport_size()
+        if vw < 100 or vh < 100:
+            vw = 1000
+            vh = 700
+
+        cols, img_w, img_h = self._calculate_layout(vw, vh, total)
+        self._last_cols = cols
+        inner_height = img_h + 22
+
+        for seg_label in sorted(grouped.keys()):
+            items = grouped[seg_label]
 
             seg_title = QLabel(f"【{seg_label} 区】 {len(items)} 张")
-            seg_title.setFont(QFont("Arial", 10, QFont.Bold))
-            seg_title.setStyleSheet("color: #666; margin-top: 6px;")
+            seg_title.setFont(QFont("Arial", 11, QFont.Bold))
+            seg_title.setStyleSheet("color: #555; margin-top: 2px; padding: 2px 0 2px 0; border-bottom: 1px solid #ddd;")
             self.content_layout.addWidget(seg_title)
 
             grid_widget = QWidget()
+            grid_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
             grid_layout = QGridLayout(grid_widget)
             grid_layout.setSpacing(4)
-            grid_layout.setContentsMargins(0, 0, 0, 0)
+            grid_layout.setContentsMargins(2, 2, 2, 2)
 
-            cols = 1 if len(items) == 1 else min(4, len(items))
+            for col in range(self.MAX_COLS):
+                grid_layout.setColumnStretch(col, 1 if col < cols else 0)
+
+            rows = (len(items) + cols - 1) // cols
+            for row in range(rows):
+                grid_layout.setRowStretch(row, 1)
+
             for pos, item in enumerate(items):
                 row = pos // cols
                 col = pos % cols
-
-                container = QWidget()
-                container.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-                container_layout = QVBoxLayout(container)
-                container_layout.setSpacing(2)
-                container_layout.setContentsMargins(0, 0, 0, 0)
 
                 pixmap = QPixmap()
                 if item.get('path') and os.path.exists(item['path']):
@@ -272,23 +508,42 @@ class FavoritesDialog(QDialog):
                     if not loaded.isNull():
                         pixmap = loaded
 
+                cell_widget = QWidget()
+                cell_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+                cell_layout = QHBoxLayout(cell_widget)
+                cell_layout.setSpacing(0)
+                cell_layout.setContentsMargins(0, 0, 0, 0)
+                cell_layout.setAlignment(Qt.AlignCenter)
+
+                inner_widget = QWidget()
+                inner_widget.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+                inner_widget.setFixedSize(img_w + 2, inner_height)
+                inner_widget.setProperty("is_inner_container", True)
+                inner_layout = QVBoxLayout(inner_widget)
+                inner_layout.setSpacing(2)
+                inner_layout.setContentsMargins(0, 0, 0, 0)
+
                 img_label = FavImageLabel(pixmap, item['time'])
                 img_label.setObjectName(f"{seg_label}_{pos}")
                 img_label.clicked.connect(partial(self.on_fav_item_click, seg_label, pos, img_label))
                 img_label.double_clicked.connect(partial(self.preview_fav_item, seg_label, pos))
+                img_label.set_image_size(img_w, img_h)
+                self._image_labels.append(img_label)
 
                 time_label = QLabel(f"{item['time']:.1f}s")
                 time_label.setAlignment(Qt.AlignCenter)
-                time_label.setStyleSheet("font-size: 9px; color: #888;")
+                time_label.setStyleSheet("font-size: 9px; color: #888; padding: 1px 0;")
 
-                container_layout.addWidget(img_label)
-                container_layout.addWidget(time_label)
-                grid_layout.addWidget(container, row, col)
+                inner_layout.addWidget(img_label, 0, Qt.AlignCenter)
+                inner_layout.addWidget(time_label, 0, Qt.AlignCenter)
+
+                cell_layout.addWidget(inner_widget)
+
+                grid_layout.addWidget(cell_widget, row, col)
 
             self.content_layout.addWidget(grid_widget)
+            self._grid_widgets.append(grid_widget)
 
-        self.info_label.setText(f"共 {total} 张收藏截图")
-        self.content_layout.addStretch()
         self.selected_label.setText("已选: 0 张")
         self.export_btn.setEnabled(False)
 
@@ -515,7 +770,7 @@ class SegmentView(QWidget):
         self.grid_widget = QWidget()
         self.grid_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.grid_layout = QGridLayout(self.grid_widget)
-        self.grid_layout.setSpacing(2)
+        self.grid_layout.setSpacing(4)
         self.grid_layout.setContentsMargins(2, 2, 2, 2)
 
         self.scroll.setWidget(self.grid_widget)
@@ -644,7 +899,6 @@ class SegmentView(QWidget):
         logger.info(f"取消收藏成功: {len(self.selected_indices)} 张")
 
     def _restore_favorites_to_screenshots(self):
-        """从收藏池恢复收藏标记到当前 screenshots"""
         if not self.video_path:
             return
         fav_items = [f for f in self.favorites if f.get('video_path') == self.video_path]
@@ -877,7 +1131,6 @@ class SegmentView(QWidget):
         self.screenshots[seg_key] = new_items
         self.selected_indices = set()
 
-        # ===== 关键修复：切换分区后立即恢复收藏状态 =====
         self._restore_favorites_to_screenshots()
 
         self._refresh_grid(seg_idx)
@@ -911,6 +1164,9 @@ class SegmentView(QWidget):
             else:
                 cols = 4
 
+            for col in range(cols):
+                self.grid_layout.setColumnStretch(col, 1)
+
             locked_count = sum(1 for it in items if it.get('locked', False))
             self.stat_locked.setText(f"锁定: {locked_count}")
 
@@ -919,13 +1175,14 @@ class SegmentView(QWidget):
                 col = pos % cols
 
                 pixmap = QPixmap(200, 150)
-                pixmap.fill(QColor(100, 100, 100))
+                pixmap.fill(QColor(60, 60, 60))
                 if item.get('path') and os.path.exists(item['path']):
                     loaded = QPixmap(item['path'])
                     if not loaded.isNull():
-                        pixmap = loaded.scaled(200, 150, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                        pixmap = loaded
 
-                label = ClickableLabel(pixmap, item['time'])
+                index_num = pos + 1
+                label = ClickableLabel(pixmap, item['time'], index_num)
                 label.setObjectName(f"{seg_idx}_{pos}")
                 label.set_locked(item.get('locked', False))
                 label.set_favorite(item.get('favorite', False))
