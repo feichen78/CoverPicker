@@ -8,16 +8,18 @@ from functools import partial
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
     QGridLayout, QScrollArea, QFrame, QMessageBox, QApplication,
-    QWidget, QCheckBox, QSizePolicy
+    QWidget, QSizePolicy
 )
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QPixmap, QFont, QColor
+from PySide6.QtGui import QPixmap, QFont, QColor, QPainter, QBrush, QPen
 
 from src.video_scanner import extract_frame
+from ui.views.zoom_preview import ZoomPreviewDialog
 
 
 class ZoomClickableLabel(QLabel):
     clicked = Signal()
+    double_clicked = Signal()
 
     def __init__(self, pixmap: QPixmap, time_sec: float, parent=None):
         super().__init__(parent)
@@ -34,9 +36,33 @@ class ZoomClickableLabel(QLabel):
         self.clicked.emit()
         super().mousePressEvent(event)
 
+    def mouseDoubleClickEvent(self, event):
+        self.double_clicked.emit()
+
     def set_selected(self, selected: bool):
         self.is_selected = selected
-        self.setStyleSheet(f"border: 3px solid {'#2196F3' if selected else '#ccc'}; background: transparent;")
+        self.update()
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        # 选中圆点（左上角）
+        if self.is_selected:
+            painter.setBrush(QBrush(QColor(33, 150, 243)))
+            painter.setPen(Qt.NoPen)
+            painter.drawEllipse(6, 6, 14, 14)
+
+        # 时间戳（左下角）
+        painter.setPen(Qt.white)
+        painter.setBrush(QBrush(QColor(0, 0, 0, 150)))
+        painter.drawRect(4, self.height()-20, 60, 16)
+        painter.setPen(Qt.white)
+        painter.setFont(QFont("Arial", 8))
+        painter.drawText(6, self.height()-6, self.time_text)
+
+        painter.end()
 
 
 class ZoomDialog(QDialog):
@@ -60,7 +86,6 @@ class ZoomDialog(QDialog):
         self.current_level = 1
         self.zoom_items: List[dict] = []
         self.selected_indices: set = set()
-        self._load_task = None
 
         self.setWindowTitle(f"Zoom 精修 - {os.path.basename(video_path)} @ {time_sec:.1f}s")
         self.setModal(True)
@@ -68,6 +93,7 @@ class ZoomDialog(QDialog):
         self.setMinimumSize(700, 500)
 
         self.setup_ui()
+        QApplication.processEvents()
         asyncio.create_task(self.load_level(1))
 
     def setup_ui(self):
@@ -81,7 +107,6 @@ class ZoomDialog(QDialog):
         top_bar.addWidget(self.info_label)
         top_bar.addStretch()
 
-        # 层级按钮
         self.level_buttons = []
         for level in [1, 2, 3, 4]:
             btn = QPushButton(f"L{level}")
@@ -107,6 +132,7 @@ class ZoomDialog(QDialog):
         self.scroll.setFrameShape(QFrame.NoFrame)
 
         self.grid_widget = QWidget()
+        self.grid_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.grid_layout = QGridLayout(self.grid_widget)
         self.grid_layout.setSpacing(2)
         self.grid_layout.setContentsMargins(2, 2, 2, 2)
@@ -132,16 +158,20 @@ class ZoomDialog(QDialog):
         main_layout.addLayout(bottom_bar)
 
     def on_level_clicked(self, level: int):
+        # 只有选中单张时才能切换到下一层级
+        if len(self.selected_indices) != 1:
+            QMessageBox.information(self, "提示", "请只选中一张截图，再切换层级。")
+            # 取消选中状态，恢复到之前选中的按钮
+            for i, btn in enumerate(self.level_buttons):
+                btn.setChecked(i == (self.current_level - 1))
+            return
+
         for i, btn in enumerate(self.level_buttons):
             btn.setChecked(i == (level - 1))
         self.current_level = level
-        if self.selected_indices:
-            pos = next(iter(self.selected_indices))
-            if pos < len(self.zoom_items):
-                self.center_time = self.zoom_items[pos]['time']
-        else:
-            if level == 1:
-                self.center_time = self.initial_time
+        pos = next(iter(self.selected_indices))
+        if pos < len(self.zoom_items):
+            self.center_time = self.zoom_items[pos]['time']
         asyncio.create_task(self.load_level(level))
 
     def reset_center(self):
@@ -163,7 +193,6 @@ class ZoomDialog(QDialog):
                 seg_start, seg_end = start, end
                 break
 
-        # 固定 ±4 秒，9 张
         t0 = max(seg_start, center_time - 4)
         t1 = min(seg_end, center_time + 4)
         if t1 - t0 < 0.5:
@@ -174,87 +203,99 @@ class ZoomDialog(QDialog):
         return [max(t0, min(t1, t)) for t in times]
 
     async def load_level(self, level: int):
-        if not self.video_path:
-            return
+        try:
+            if not self.video_path:
+                return
 
-        times = self._generate_times(self.center_time)
-        count = len(times)
+            times = self._generate_times(self.center_time)
+            count = len(times)
 
-        self.progress_label.setText(f"正在加载 L{level}，共 {count} 张...")
-        QApplication.processEvents()
-
-        while self.grid_layout.count():
-            child = self.grid_layout.takeAt(0)
-            if child.widget():
-                child.widget().deleteLater()
-
-        new_items = []
-        total = len(times)
-        for idx, t in enumerate(times):
-            self.progress_label.setText(f"正在生成 L{level} 第 {idx+1}/{total} 张 @ {t:.2f}s")
+            self.progress_label.setText(f"正在加载 L{level}，共 {count} 张...")
             QApplication.processEvents()
-            temp_path = os.path.join(self.temp_dir, f"zoom_L{level}_{t:.2f}.jpg")
-            success = await asyncio.to_thread(extract_frame, self.video_path, t, temp_path)
-            if success:
-                new_items.append({
-                    'time': t,
-                    'path': temp_path,
-                    'locked': False,
-                    'favorite': False,
-                    'exported': False,
-                })
-            else:
-                new_items.append({
-                    'time': t,
-                    'path': None,
-                    'locked': False,
-                    'favorite': False,
-                    'exported': False,
-                })
 
-        self.zoom_items = new_items
-        self.selected_indices.clear()
-        self._refresh_grid()
+            while self.grid_layout.count():
+                child = self.grid_layout.takeAt(0)
+                if child.widget():
+                    child.widget().deleteLater()
 
-        self.progress_label.setText(f"L{level} 加载完成 ({len(new_items)} 张)")
-        self.info_label.setText(f"中心: {self.center_time:.1f}s | 分段: {self.segment_label} | 层级: L{level}")
+            new_items = []
+            total = len(times)
+            for idx, t in enumerate(times):
+                self.progress_label.setText(f"正在生成 L{level} 第 {idx+1}/{total} 张 @ {t:.2f}s")
+                QApplication.processEvents()
+                temp_path = os.path.join(self.temp_dir, f"zoom_L{level}_{t:.2f}.jpg")
+                success = await asyncio.to_thread(extract_frame, self.video_path, t, temp_path)
+                if success:
+                    new_items.append({
+                        'time': t,
+                        'path': temp_path,
+                        'locked': False,
+                        'favorite': False,
+                        'exported': False,
+                    })
+                else:
+                    new_items.append({
+                        'time': t,
+                        'path': None,
+                        'locked': False,
+                        'favorite': False,
+                        'exported': False,
+                    })
+
+            self.zoom_items = new_items
+            self.selected_indices.clear()
+            self._refresh_grid()
+
+            self.progress_label.setText(f"L{level} 加载完成 ({len(new_items)} 张)")
+            self.info_label.setText(f"中心: {self.center_time:.1f}s | 分段: {self.segment_label} | 层级: L{level}")
+        except Exception as e:
+            print(f"load_level error: {e}")
+            import traceback
+            traceback.print_exc()
+            QMessageBox.critical(self, "错误", f"加载 Zoom 层级失败: {str(e)}")
 
     def _refresh_grid(self):
-        while self.grid_layout.count():
-            child = self.grid_layout.takeAt(0)
-            if child.widget():
-                child.widget().deleteLater()
+        try:
+            while self.grid_layout.count():
+                child = self.grid_layout.takeAt(0)
+                if child.widget():
+                    child.widget().deleteLater()
 
-        items = self.zoom_items
-        count = len(items)
-        if count == 0:
-            return
+            items = self.zoom_items
+            count = len(items)
+            if count == 0:
+                return
 
-        cols = 3
-        for pos, item in enumerate(items):
-            row = pos // cols
-            col = pos % cols
+            cols = 3
+            for pos, item in enumerate(items):
+                row = pos // cols
+                col = pos % cols
 
-            pixmap = QPixmap(200, 150)
-            pixmap.fill(QColor(100, 100, 100))
-            if item.get('path') and os.path.exists(item['path']):
-                loaded = QPixmap(item['path'])
-                if not loaded.isNull():
-                    pixmap = loaded.scaled(200, 150, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                pixmap = QPixmap(200, 150)
+                pixmap.fill(QColor(100, 100, 100))
+                if item.get('path') and os.path.exists(item['path']):
+                    loaded = QPixmap(item['path'])
+                    if not loaded.isNull():
+                        pixmap = loaded.scaled(200, 150, Qt.KeepAspectRatio, Qt.SmoothTransformation)
 
-            label = ZoomClickableLabel(pixmap, item['time'])
-            label.setObjectName(f"zoom_{pos}")
-            if pos in self.selected_indices:
-                label.set_selected(True)
+                label = ZoomClickableLabel(pixmap, item['time'])
+                label.setObjectName(f"zoom_{pos}")
+                if pos in self.selected_indices:
+                    label.set_selected(True)
 
-            label.clicked.connect(partial(self.on_image_click, pos))
-            self.grid_layout.addWidget(label, row, col)
+                label.clicked.connect(partial(self.on_image_click, pos))
+                label.double_clicked.connect(partial(self.preview_image, pos))
+                self.grid_layout.addWidget(label, row, col)
 
-        self.selected_label.setText(f"已选: {len(self.selected_indices)} 张")
-        self.grid_widget.updateGeometry()
-        self.grid_widget.update()
-        self.scroll.update()
-        QApplication.processEvents()
+            self.selected_label.setText(f"已选: {len(self.selected_indices)} 张")
+            self.grid_widget.updateGeometry()
+            self.grid_widget.update()
+            self.scroll.update()
+            QApplication.processEvents()
+        except Exception as e:
+            print(f"_refresh_grid error: {e}")
+            import traceback
+            traceback.print_exc()
 
     def on_image_click(self, pos: int):
         if pos in self.selected_indices:
@@ -263,17 +304,31 @@ class ZoomDialog(QDialog):
             self.selected_indices.add(pos)
         self._refresh_grid()
 
+    def preview_image(self, pos: int):
+        item = self.zoom_items[pos]
+        if not item.get('path') or not os.path.exists(item['path']):
+            QMessageBox.warning(self, "警告", "图片文件不存在。")
+            return
+        pixmap = QPixmap(item['path'])
+        if pixmap.isNull():
+            return
+        dlg = ZoomPreviewDialog(pixmap, item['time'], self)
+        dlg.exec()
+
     def _sync_to_parent(self):
         if not self.parent_view:
             return
-        for seg_label, items in self.screenshots.items():
-            for item in items:
-                for zoom_item in self.zoom_items:
-                    if abs(zoom_item['time'] - item['time']) < 0.01 and zoom_item['path'] == item['path']:
-                        item['locked'] = zoom_item.get('locked', False)
-                        item['favorite'] = zoom_item.get('favorite', False)
-                        item['exported'] = zoom_item.get('exported', False)
-                        break
+        try:
+            for seg_label, items in self.screenshots.items():
+                for item in items:
+                    for zoom_item in self.zoom_items:
+                        if abs(zoom_item['time'] - item['time']) < 0.01 and zoom_item['path'] == item['path']:
+                            item['locked'] = zoom_item.get('locked', False)
+                            item['favorite'] = zoom_item.get('favorite', False)
+                            item['exported'] = zoom_item.get('exported', False)
+                            break
+        except Exception as e:
+            print(f"_sync_to_parent error: {e}")
 
     def export_selected(self):
         if not self.selected_indices:

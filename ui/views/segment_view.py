@@ -17,12 +17,14 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QPixmap, QFont, QColor, QPainter, QPen, QBrush, QKeyEvent
 
 from src.video_scanner import scan_videos, get_video_duration, calculate_segments, extract_frame
+from ui.views.zoom_dialog import ZoomDialog
+from ui.views.zoom_preview import ZoomPreviewDialog
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 
-class SimpleClickableLabel(QLabel):
+class ClickableLabel(QLabel):
     clicked = Signal()
     double_clicked = Signal()
 
@@ -49,7 +51,7 @@ class SimpleClickableLabel(QLabel):
 
     def set_selected(self, selected: bool):
         self.is_selected = selected
-        self.setStyleSheet(f"border: 3px solid {'#2196F3' if selected else '#ccc'}; background: transparent;")
+        self.update()
 
     def set_locked(self, locked: bool):
         self.is_locked = locked
@@ -68,7 +70,11 @@ class SimpleClickableLabel(QLabel):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
 
-        # 时间戳（左下角）
+        if self.is_selected:
+            painter.setBrush(QBrush(QColor(33, 150, 243)))
+            painter.setPen(Qt.NoPen)
+            painter.drawEllipse(6, 6, 14, 14)
+
         painter.setPen(Qt.white)
         painter.setBrush(QBrush(QColor(0, 0, 0, 150)))
         painter.drawRect(4, self.height()-20, 60, 16)
@@ -76,25 +82,281 @@ class SimpleClickableLabel(QLabel):
         painter.setFont(QFont("Arial", 8))
         painter.drawText(6, self.height()-6, self.time_text)
 
-        # 锁定标记（左上角）
         if self.is_locked:
             painter.setFont(QFont("Segoe UI Emoji", 14))
             painter.setPen(QColor(255, 0, 0))
-            painter.drawText(4, 18, "🔒")
+            painter.drawText(4, 28, "🔒")
 
-        # 收藏标记（右上角）
         if self.is_favorite:
             painter.setFont(QFont("Segoe UI Emoji", 14))
             painter.setPen(QColor(255, 215, 0))
             painter.drawText(self.width()-20, 18, "⭐")
 
-        # 导出标记（右下角）
         if self.is_exported:
             painter.setBrush(QBrush(QColor(0, 200, 0)))
             painter.setPen(Qt.NoPen)
             painter.drawEllipse(self.width()-14, self.height()-14, 10, 10)
 
         painter.end()
+
+
+class FavImageLabel(QLabel):
+    clicked = Signal()
+    double_clicked = Signal()
+
+    def __init__(self, pixmap: QPixmap, time_sec: float, parent=None):
+        super().__init__(parent)
+        self.time_sec = time_sec
+        self.is_selected = False
+        self.fixed_pixmap = self._create_fixed_pixmap(pixmap)
+        super().setPixmap(self.fixed_pixmap)
+        self.setMinimumSize(0, 0)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.setStyleSheet("border: 1px solid #ccc; background: transparent;")
+        self.setScaledContents(False)
+        self.time_text = f"{time_sec:.1f}s"
+
+    def _create_fixed_pixmap(self, pixmap: QPixmap) -> QPixmap:
+        if pixmap.isNull():
+            result = QPixmap(200, 150)
+            result.fill(QColor(100, 100, 100))
+            return result
+        return pixmap.scaled(200, 150, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+
+    def set_original_pixmap(self, pixmap: QPixmap):
+        self.fixed_pixmap = self._create_fixed_pixmap(pixmap)
+        super().setPixmap(self.fixed_pixmap)
+
+    def setPixmap(self, pixmap: QPixmap):
+        pass
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+
+    def mousePressEvent(self, event):
+        self.clicked.emit()
+        super().mousePressEvent(event)
+
+    def mouseDoubleClickEvent(self, event):
+        self.double_clicked.emit()
+
+    def set_selected(self, selected: bool):
+        self.is_selected = selected
+        self.update()
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        if self.is_selected:
+            painter.setBrush(QBrush(QColor(33, 150, 243)))
+            painter.setPen(Qt.NoPen)
+            painter.drawEllipse(6, 6, 14, 14)
+
+        painter.setPen(Qt.white)
+        painter.setBrush(QBrush(QColor(0, 0, 0, 150)))
+        painter.drawRect(4, self.height()-20, 60, 16)
+        painter.setPen(Qt.white)
+        painter.setFont(QFont("Arial", 8))
+        painter.drawText(6, self.height()-6, self.time_text)
+
+        painter.end()
+
+
+class FavoritesDialog(QDialog):
+    def __init__(self, favorites: List[dict], video_name: str, export_base: str, parent=None):
+        super().__init__(parent)
+        self.favorites = favorites
+        self.export_base = export_base
+        self.parent_view = parent
+        self.selected_indices: set = set()
+
+        self.setWindowTitle(f"收藏截图 - {video_name}")
+        self.setModal(True)
+        self.resize(900, 700)
+        self.setMinimumSize(700, 500)
+
+        self.setup_ui()
+        self.load_favorites()
+
+    def setup_ui(self):
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setSpacing(8)
+
+        top_bar = QHBoxLayout()
+        self.info_label = QLabel("共 0 张收藏截图")
+        self.info_label.setFont(QFont("Arial", 12, QFont.Bold))
+        top_bar.addWidget(self.info_label)
+        top_bar.addStretch()
+
+        self.export_btn = QPushButton("📥 导出选中")
+        self.export_btn.clicked.connect(self.export_selected)
+        self.export_btn.setEnabled(False)
+        top_bar.addWidget(self.export_btn)
+
+        close_btn = QPushButton("关闭")
+        close_btn.clicked.connect(self.accept)
+        top_bar.addWidget(close_btn)
+
+        main_layout.addLayout(top_bar)
+
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setFrameShape(QFrame.NoFrame)
+
+        self.content_widget = QWidget()
+        self.content_layout = QVBoxLayout(self.content_widget)
+        self.content_layout.setSpacing(10)
+        self.content_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.scroll.setWidget(self.content_widget)
+        main_layout.addWidget(self.scroll, 1)
+
+        bottom_bar = QHBoxLayout()
+        self.selected_label = QLabel("已选: 0 张")
+        bottom_bar.addWidget(self.selected_label)
+        bottom_bar.addStretch()
+        main_layout.addLayout(bottom_bar)
+
+    def load_favorites(self):
+        while self.content_layout.count():
+            child = self.content_layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
+
+        if not self.favorites:
+            label = QLabel("暂无收藏截图")
+            label.setAlignment(Qt.AlignCenter)
+            label.setStyleSheet("font-size: 16px; color: #999; padding: 40px;")
+            self.content_layout.addWidget(label)
+            self.info_label.setText("共 0 张收藏截图")
+            return
+
+        total = 0
+        grouped = {}
+        for item in self.favorites:
+            seg = item.get('segment', 'A')
+            if seg not in grouped:
+                grouped[seg] = []
+            grouped[seg].append(item)
+
+        for seg_label, items in sorted(grouped.items()):
+            total += len(items)
+
+            seg_title = QLabel(f"【{seg_label} 区】 {len(items)} 张")
+            seg_title.setFont(QFont("Arial", 10, QFont.Bold))
+            seg_title.setStyleSheet("color: #666; margin-top: 6px;")
+            self.content_layout.addWidget(seg_title)
+
+            grid_widget = QWidget()
+            grid_layout = QGridLayout(grid_widget)
+            grid_layout.setSpacing(4)
+            grid_layout.setContentsMargins(0, 0, 0, 0)
+
+            cols = 1 if len(items) == 1 else min(4, len(items))
+            for pos, item in enumerate(items):
+                row = pos // cols
+                col = pos % cols
+
+                container = QWidget()
+                container.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+                container_layout = QVBoxLayout(container)
+                container_layout.setSpacing(2)
+                container_layout.setContentsMargins(0, 0, 0, 0)
+
+                pixmap = QPixmap()
+                if item.get('path') and os.path.exists(item['path']):
+                    loaded = QPixmap(item['path'])
+                    if not loaded.isNull():
+                        pixmap = loaded
+
+                img_label = FavImageLabel(pixmap, item['time'])
+                img_label.setObjectName(f"{seg_label}_{pos}")
+                img_label.clicked.connect(partial(self.on_fav_item_click, seg_label, pos, img_label))
+                img_label.double_clicked.connect(partial(self.preview_fav_item, seg_label, pos))
+
+                time_label = QLabel(f"{item['time']:.1f}s")
+                time_label.setAlignment(Qt.AlignCenter)
+                time_label.setStyleSheet("font-size: 9px; color: #888;")
+
+                container_layout.addWidget(img_label)
+                container_layout.addWidget(time_label)
+                grid_layout.addWidget(container, row, col)
+
+            self.content_layout.addWidget(grid_widget)
+
+        self.info_label.setText(f"共 {total} 张收藏截图")
+        self.content_layout.addStretch()
+        self.selected_label.setText("已选: 0 张")
+        self.export_btn.setEnabled(False)
+
+    def on_fav_item_click(self, seg_label: str, pos: int, label: FavImageLabel):
+        key = (seg_label, pos)
+        if key in self.selected_indices:
+            self.selected_indices.remove(key)
+            label.set_selected(False)
+        else:
+            self.selected_indices.add(key)
+            label.set_selected(True)
+        self.selected_label.setText(f"已选: {len(self.selected_indices)} 张")
+        self.export_btn.setEnabled(len(self.selected_indices) > 0)
+
+    def preview_fav_item(self, seg_label: str, pos: int):
+        items = [item for item in self.favorites if item.get('segment') == seg_label]
+        if pos < len(items):
+            item = items[pos]
+            if item.get('path') and os.path.exists(item['path']):
+                pixmap = QPixmap(item['path'])
+                if not pixmap.isNull():
+                    dlg = ZoomPreviewDialog(pixmap, item['time'], self)
+                    dlg.exec()
+
+    def export_selected(self):
+        if not self.selected_indices:
+            QMessageBox.information(self, "提示", "请先选中要导出的截图。")
+            return
+
+        export_paths = []
+        for seg_label, pos in self.selected_indices:
+            items = [item for item in self.favorites if item.get('segment') == seg_label]
+            if pos < len(items):
+                item = items[pos]
+                if item.get('path') and os.path.exists(item['path']):
+                    export_paths.append((item['time'], item['path'], seg_label, pos))
+
+        if not export_paths:
+            QMessageBox.warning(self, "警告", "选中的截图文件不存在。")
+            return
+
+        video_name = os.path.splitext(os.path.basename(self.favorites[0].get('video_path', '')))[0]
+        if not video_name:
+            video_name = "favorites"
+        export_dir = os.path.join(self.export_base, video_name)
+        os.makedirs(export_dir, exist_ok=True)
+
+        exported = 0
+        for time_sec, src_path, seg_label, pos in export_paths:
+            dest_name = f"cover_{time_sec:.2f}s.jpg"
+            dest_path = os.path.join(export_dir, dest_name)
+            try:
+                shutil.copy2(src_path, dest_path)
+                exported += 1
+                for item in self.favorites:
+                    if item.get('segment') == seg_label and abs(item.get('time', 0) - time_sec) < 0.01:
+                        item['exported'] = True
+                        break
+            except Exception as e:
+                print(f"导出失败 {src_path}: {e}")
+
+        QMessageBox.information(self, "导出完成", f"成功导出 {exported} 张截图到:\n{export_dir}")
+        self.selected_indices.clear()
+        self.load_favorites()
+
+        if self.parent_view:
+            self.parent_view._refresh_grid(self.parent_view.current_seg_index)
+            self.parent_view._update_seg_buttons()
 
 
 class SegmentView(QWidget):
@@ -111,9 +373,7 @@ class SegmentView(QWidget):
         self.selected_indices: Set[tuple] = set()
         self.all_videos = []
 
-        # 跨视频状态缓存
-        self.all_videos_screenshots: Dict[str, Dict[str, List[dict]]] = {}
-        self.all_videos_selected: Dict[str, Set[tuple]] = {}
+        self.favorites: List[dict] = []
 
         self.temp_dir = tempfile.mkdtemp(prefix="CoverPicker_")
         self.export_base = os.path.join(os.getcwd(), "StillPic")
@@ -142,7 +402,6 @@ class SegmentView(QWidget):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # 左侧面板
         left_panel = QWidget()
         left_panel.setFixedWidth(280)
         left_layout = QVBoxLayout(left_panel)
@@ -200,7 +459,6 @@ class SegmentView(QWidget):
 
         left_layout.addStretch()
 
-        # 右侧主工作区
         right_panel = QWidget()
         right_layout = QVBoxLayout(right_panel)
         right_layout.setContentsMargins(10, 10, 10, 10)
@@ -216,7 +474,6 @@ class SegmentView(QWidget):
         top_bar.addWidget(self.time_display)
         right_layout.addLayout(top_bar)
 
-        # 控制栏
         control_bar = QHBoxLayout()
         control_bar.setSpacing(8)
 
@@ -264,7 +521,6 @@ class SegmentView(QWidget):
         self.scroll.setWidget(self.grid_widget)
         right_layout.addWidget(self.scroll, 1)
 
-        # 底部操作栏
         bottom_bar = QHBoxLayout()
         bottom_bar.setSpacing(8)
 
@@ -272,6 +528,15 @@ class SegmentView(QWidget):
         bottom_bar.addWidget(self.selected_label)
 
         bottom_bar.addStretch()
+
+        view_fav_btn = QPushButton("⭐ 查看收藏")
+        view_fav_btn.clicked.connect(self.show_favorites)
+        bottom_bar.addWidget(view_fav_btn)
+
+        zoom_btn = QPushButton("🔍 细选")
+        zoom_btn.clicked.connect(self.zoom_selected)
+        zoom_btn.setStyleSheet("background: #2196F3; color: white; font-weight: bold;")
+        bottom_bar.addWidget(zoom_btn)
 
         fav_btn = QPushButton("⭐ 收藏")
         fav_btn.clicked.connect(self.favorite_selected)
@@ -314,6 +579,114 @@ class SegmentView(QWidget):
 
         print("setup_ui done")
 
+    def show_favorites(self):
+        if not self.video_path:
+            QMessageBox.information(self, "提示", "请先加载视频。")
+            return
+        current_favs = [f for f in self.favorites if f.get('video_path') == self.video_path]
+        if not current_favs:
+            QMessageBox.information(self, "提示", "当前视频没有收藏截图。")
+            return
+        dlg = FavoritesDialog(current_favs, os.path.basename(self.video_path), self.export_base, self)
+        dlg.exec()
+        self._refresh_grid(self.current_seg_index)
+        self._update_seg_buttons()
+
+    def _update_fav_count(self):
+        if not self.video_path:
+            self.stat_fav.setText("收藏: 0")
+            return
+        count = sum(1 for f in self.favorites if f.get('video_path') == self.video_path)
+        self.stat_fav.setText(f"收藏: {count}")
+
+    def favorite_selected(self):
+        if not self.selected_indices:
+            QMessageBox.information(self, "提示", "请先选中要收藏的截图。")
+            return
+        seg_label = self.segments[self.current_seg_index][0]
+        items = self.screenshots.get(seg_label, [])
+        for (seg_idx, pos) in list(self.selected_indices):
+            if seg_idx == self.current_seg_index and pos < len(items):
+                item = items[pos]
+                if not item.get('favorite', False):
+                    item['favorite'] = True
+                    self.favorites.append({
+                        'video_path': self.video_path,
+                        'segment': seg_label,
+                        'time': item['time'],
+                        'path': item['path'],
+                    })
+        self._refresh_grid(self.current_seg_index)
+        self._update_seg_buttons()
+        self._update_fav_count()
+        logger.info(f"收藏成功: {len(self.selected_indices)} 张")
+
+    def unfavorite_selected(self):
+        if not self.selected_indices:
+            QMessageBox.information(self, "提示", "请先选中要取消收藏的截图。")
+            return
+        seg_label = self.segments[self.current_seg_index][0]
+        items = self.screenshots.get(seg_label, [])
+        for (seg_idx, pos) in list(self.selected_indices):
+            if seg_idx == self.current_seg_index and pos < len(items):
+                item = items[pos]
+                if item.get('favorite', False):
+                    item['favorite'] = False
+                    self.favorites = [
+                        f for f in self.favorites
+                        if not (f.get('video_path') == self.video_path and
+                                f.get('segment') == seg_label and
+                                abs(f.get('time', 0) - item['time']) < 0.01)
+                    ]
+        self._refresh_grid(self.current_seg_index)
+        self._update_seg_buttons()
+        self._update_fav_count()
+        logger.info(f"取消收藏成功: {len(self.selected_indices)} 张")
+
+    def _restore_favorites_to_screenshots(self):
+        """从收藏池恢复收藏标记到当前 screenshots"""
+        if not self.video_path:
+            return
+        fav_items = [f for f in self.favorites if f.get('video_path') == self.video_path]
+        if not fav_items:
+            return
+        for seg_label, items in self.screenshots.items():
+            for item in items:
+                for fav in fav_items:
+                    if fav.get('segment') == seg_label and abs(fav.get('time', 0) - item['time']) < 0.01:
+                        item['favorite'] = True
+                        break
+
+    def zoom_selected(self):
+        if len(self.selected_indices) > 1:
+            QMessageBox.information(self, "提示", "细选只能针对单张截图，请只选中一张截图。")
+            return
+        if not self.selected_indices:
+            QMessageBox.information(self, "提示", "请先选中一张截图，然后点击'细选'。")
+            return
+        seg_idx, pos = next(iter(self.selected_indices))
+        seg_label = self.segments[seg_idx][0]
+        items = self.screenshots.get(seg_label, [])
+        if pos >= len(items):
+            return
+        item = items[pos]
+        if not item.get('path') or not os.path.exists(item['path']):
+            QMessageBox.warning(self, "警告", "图片文件不存在。")
+            return
+
+        dlg = ZoomDialog(
+            video_path=self.video_path,
+            time_sec=item['time'],
+            segment_label=seg_label,
+            segments=self.segments,
+            screenshots=self.screenshots,
+            temp_dir=self.temp_dir,
+            export_base=self.export_base,
+            parent=self
+        )
+        dlg.exec()
+        self._refresh_grid(self.current_seg_index)
+
     def on_video_selected(self, item: QListWidgetItem):
         path = item.data(Qt.UserRole)
         if path:
@@ -322,11 +695,6 @@ class SegmentView(QWidget):
     async def load_video(self, video_path: str):
         logger.info(f"加载视频: {video_path}")
         print(f"加载视频: {video_path}")
-
-        if self.video_path and self.screenshots:
-            self.all_videos_screenshots[self.video_path] = self.screenshots.copy()
-            self.all_videos_selected[self.video_path] = self.selected_indices.copy()
-
         self.video_path = video_path
         self.video_name_label.setText(os.path.basename(video_path))
         self.info_name.setText(os.path.basename(video_path))
@@ -349,17 +717,6 @@ class SegmentView(QWidget):
         size_mb = os.path.getsize(video_path) / (1024*1024)
         self.info_size.setText(f"大小: {size_mb:.2f} MB")
 
-        if video_path in self.all_videos_screenshots:
-            self.screenshots = self.all_videos_screenshots[video_path].copy()
-            self.selected_indices = self.all_videos_selected.get(video_path, set()).copy()
-            for btn in self.seg_buttons:
-                btn.setEnabled(True)
-            self.current_seg_index = 0
-            self._update_seg_buttons()
-            self._refresh_grid(0)
-            self.progress_label_left.setText("已从缓存加载")
-            return
-
         self.screenshots = {}
         self.selected_indices = set()
 
@@ -370,6 +727,9 @@ class SegmentView(QWidget):
         self._update_seg_buttons()
         self._load_task = asyncio.create_task(self._load_segment(0, restore_locks=True, randomize=False))
         await self._load_task
+        self._restore_favorites_to_screenshots()
+        self._refresh_grid(0)
+        self._update_fav_count()
         self.progress_label_left.setText("加载完成")
 
     def _clear_grid(self):
@@ -516,6 +876,10 @@ class SegmentView(QWidget):
 
         self.screenshots[seg_key] = new_items
         self.selected_indices = set()
+
+        # ===== 关键修复：切换分区后立即恢复收藏状态 =====
+        self._restore_favorites_to_screenshots()
+
         self._refresh_grid(seg_idx)
         self._update_seg_buttons()
         self.progress_label_left.setText(f"{label} 分段加载完成 ({len(new_items)} 张)")
@@ -548,9 +912,7 @@ class SegmentView(QWidget):
                 cols = 4
 
             locked_count = sum(1 for it in items if it.get('locked', False))
-            fav_count = sum(1 for it in items if it.get('favorite', False))
             self.stat_locked.setText(f"锁定: {locked_count}")
-            self.stat_fav.setText(f"收藏: {fav_count}")
 
             for pos, item in enumerate(items):
                 row = pos // cols
@@ -563,7 +925,7 @@ class SegmentView(QWidget):
                     if not loaded.isNull():
                         pixmap = loaded.scaled(200, 150, Qt.KeepAspectRatio, Qt.SmoothTransformation)
 
-                label = SimpleClickableLabel(pixmap, item['time'])
+                label = ClickableLabel(pixmap, item['time'])
                 label.setObjectName(f"{seg_idx}_{pos}")
                 label.set_locked(item.get('locked', False))
                 label.set_favorite(item.get('favorite', False))
@@ -606,77 +968,32 @@ class SegmentView(QWidget):
         pixmap = QPixmap(item['path'])
         if pixmap.isNull():
             return
-        dlg = QDialog(self)
-        dlg.setWindowTitle(f"预览 - {item['time']:.1f}s")
-        dlg.resize(600, 400)
-        layout = QVBoxLayout(dlg)
-        label = QLabel()
-        scaled = pixmap.scaled(600, 400, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        label.setPixmap(scaled)
-        layout.addWidget(label)
+        dlg = ZoomPreviewDialog(pixmap, item['time'], self)
         dlg.exec()
 
-    def favorite_selected(self):
-        try:
-            if not self.selected_indices:
-                QMessageBox.information(self, "提示", "请先选中要收藏的截图。")
-                return
-            seg_label = self.segments[self.current_seg_index][0]
-            items = self.screenshots.get(seg_label, [])
-            for (seg_idx, pos) in list(self.selected_indices):
-                if seg_idx == self.current_seg_index and pos < len(items):
-                    items[pos]['favorite'] = True
-            self._refresh_grid(self.current_seg_index)
-            self._update_seg_buttons()
-            logger.info(f"收藏成功: {len(self.selected_indices)} 张")
-        except Exception as e:
-            logger.error(f"favorite_selected error: {e}")
-
-    def unfavorite_selected(self):
-        try:
-            if not self.selected_indices:
-                QMessageBox.information(self, "提示", "请先选中要取消收藏的截图。")
-                return
-            seg_label = self.segments[self.current_seg_index][0]
-            items = self.screenshots.get(seg_label, [])
-            for (seg_idx, pos) in list(self.selected_indices):
-                if seg_idx == self.current_seg_index and pos < len(items):
-                    items[pos]['favorite'] = False
-            self._refresh_grid(self.current_seg_index)
-            self._update_seg_buttons()
-            logger.info(f"取消收藏成功: {len(self.selected_indices)} 张")
-        except Exception as e:
-            logger.error(f"unfavorite_selected error: {e}")
-
     def lock_selected(self):
-        try:
-            if not self.selected_indices:
-                QMessageBox.information(self, "提示", "请先选中要锁定的截图。")
-                return
-            seg_label = self.segments[self.current_seg_index][0]
-            items = self.screenshots.get(seg_label, [])
-            for (seg_idx, pos) in list(self.selected_indices):
-                if seg_idx == self.current_seg_index and pos < len(items):
-                    items[pos]['locked'] = True
-            self._refresh_grid(self.current_seg_index)
-            self._update_seg_buttons()
-        except Exception as e:
-            logger.error(f"lock_selected error: {e}")
+        if not self.selected_indices:
+            QMessageBox.information(self, "提示", "请先选中要锁定的截图。")
+            return
+        seg_label = self.segments[self.current_seg_index][0]
+        items = self.screenshots.get(seg_label, [])
+        for (seg_idx, pos) in list(self.selected_indices):
+            if seg_idx == self.current_seg_index and pos < len(items):
+                items[pos]['locked'] = True
+        self._refresh_grid(self.current_seg_index)
+        self._update_seg_buttons()
 
     def unlock_selected(self):
-        try:
-            if not self.selected_indices:
-                QMessageBox.information(self, "提示", "请先选中要解锁的截图。")
-                return
-            seg_label = self.segments[self.current_seg_index][0]
-            items = self.screenshots.get(seg_label, [])
-            for (seg_idx, pos) in list(self.selected_indices):
-                if seg_idx == self.current_seg_index and pos < len(items):
-                    items[pos]['locked'] = False
-            self._refresh_grid(self.current_seg_index)
-            self._update_seg_buttons()
-        except Exception as e:
-            logger.error(f"unlock_selected error: {e}")
+        if not self.selected_indices:
+            QMessageBox.information(self, "提示", "请先选中要解锁的截图。")
+            return
+        seg_label = self.segments[self.current_seg_index][0]
+        items = self.screenshots.get(seg_label, [])
+        for (seg_idx, pos) in list(self.selected_indices):
+            if seg_idx == self.current_seg_index and pos < len(items):
+                items[pos]['locked'] = False
+        self._refresh_grid(self.current_seg_index)
+        self._update_seg_buttons()
 
     async def refresh_unlocked(self):
         try:
