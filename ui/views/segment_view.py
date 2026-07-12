@@ -116,22 +116,18 @@ class ClickableLabel(QLabel):
 
         painter.setRenderHint(QPainter.Antialiasing)
 
+        # 选中标记（蓝色圆点）
         if self.is_selected:
             painter.setBrush(QBrush(QColor(33, 150, 243)))
             painter.setPen(Qt.NoPen)
             painter.drawEllipse(6, 6, 14, 14)
 
-        painter.setPen(Qt.white)
-        painter.setBrush(QBrush(QColor(0, 0, 0, 180)))
-        seq_rect_x = 6
-        seq_rect_y = 24 if self.is_selected else 6
-        seq_rect_w = 24
-        seq_rect_h = 18
-        painter.drawRoundedRect(seq_rect_x, seq_rect_y, seq_rect_w, seq_rect_h, 3, 3)
-        painter.setPen(Qt.white)
-        painter.setFont(QFont("Arial", 9, QFont.Bold))
-        painter.drawText(seq_rect_x + 4, seq_rect_y + 13, f"{self.index}")
+        # 收藏标记（黄色星星）- 收藏弹窗中所有图片都是收藏
+        painter.setFont(QFont("Segoe UI Emoji", 16))
+        painter.setPen(QColor(255, 215, 0))
+        painter.drawText(self.width() - 28, 24, "⭐")
 
+        # 时间戳
         painter.setPen(Qt.white)
         painter.setBrush(QBrush(QColor(0, 0, 0, 180)))
         painter.drawRoundedRect(4, self.height() - 22, 60, 18, 3, 3)
@@ -139,20 +135,11 @@ class ClickableLabel(QLabel):
         painter.setFont(QFont("Arial", 8))
         painter.drawText(6, self.height() - 7, self.time_text)
 
-        if self.is_locked:
-            painter.setFont(QFont("Segoe UI Emoji", 13))
-            painter.setPen(QColor(255, 200, 0))
-            painter.drawText(self.width() - 28, 24, "🔒")
-
-        if self.is_favorite:
-            painter.setFont(QFont("Segoe UI Emoji", 16))
-            painter.setPen(QColor(255, 215, 0))
-            painter.drawText(self.width() - 24, 22, "⭐")
-
+        # 导出标记（绿色圆点）
         if self.is_exported:
             painter.setBrush(QBrush(QColor(0, 200, 0)))
             painter.setPen(Qt.NoPen)
-            painter.drawEllipse(self.width() - 14, self.height() - 14, 10, 10)
+            painter.drawEllipse(self.width() - 20, self.height() - 20, 10, 10)
 
         painter.end()
 
@@ -172,10 +159,12 @@ class ClickableLabel(QLabel):
         self.update()
 
     def set_favorite(self, fav: bool):
+        logger.debug(f"[ClickableLabel] set_favorite: time={self.time_sec:.2f}, fav={fav}")
         self.is_favorite = fav
         self.update()
 
     def set_exported(self, exp: bool):
+        logger.debug(f"[ClickableLabel] set_exported: time={self.time_sec:.2f}, exp={exp}")
         self.is_exported = exp
         self.update()
 
@@ -189,6 +178,8 @@ class FavImageLabel(QLabel):
         super().__init__(parent)
         self.time_sec = time_sec
         self.is_selected = False
+        self.is_exported = False
+        self.is_favorite = False
         self.time_text = f"{time_sec:.1f}s"
 
         self.original_pixmap = pixmap
@@ -229,6 +220,137 @@ class FavImageLabel(QLabel):
         painter.drawPixmap(x, y, scaled)
         painter.end()
 
+        self.update()
+
+    def set_original_pixmap(self, pixmap: QPixmap):
+        self.original_pixmap = pixmap
+        self._update_display_pixmap()
+
+    def paintEvent(self, event):
+        if self.display_pixmap.isNull():
+            self._update_display_pixmap()
+            if self.display_pixmap.isNull():
+                painter = QPainter(self)
+                painter.fillRect(self.rect(), QColor(60, 60, 60))
+                painter.end()
+                return
+
+        painter = QPainter(self)
+        painter.drawPixmap(0, 0, self.display_pixmap)
+
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        # 选中标记（蓝色圆点）
+        if self.is_selected:
+            painter.setBrush(QBrush(QColor(33, 150, 243)))
+            painter.setPen(Qt.NoPen)
+            painter.drawEllipse(6, 6, 14, 14)
+
+        # 收藏标记（黄色星星）
+        if self.is_favorite:
+            painter.setFont(QFont("Segoe UI Emoji", 16))
+            painter.setPen(QColor(255, 215, 0))
+            painter.drawText(self.width() - 28, 24, "⭐")
+
+        # 时间戳
+        painter.setPen(Qt.white)
+        painter.setBrush(QBrush(QColor(0, 0, 0, 180)))
+        painter.drawRoundedRect(4, self.height() - 22, 60, 18, 3, 3)
+        painter.setPen(Qt.white)
+        painter.setFont(QFont("Arial", 8))
+        painter.drawText(6, self.height() - 7, self.time_text)
+
+        # 导出标记（绿色圆点）
+        if self.is_exported:
+            painter.setBrush(QBrush(QColor(0, 200, 0)))
+            painter.setPen(Qt.NoPen)
+            painter.drawEllipse(self.width() - 20, self.height() - 20, 10, 10)
+
+        painter.end()
+
+    def mousePressEvent(self, event):
+        self.clicked.emit()
+        super().mousePressEvent(event)
+
+    def mouseDoubleClickEvent(self, event):
+        self.double_clicked.emit()
+
+    def set_selected(self, selected: bool):
+        self.is_selected = selected
+        self.update()
+
+    def set_favorite(self, fav: bool):
+        self.is_favorite = fav
+        self.update()
+
+    def set_exported(self, exp: bool):
+        logger.debug(f"[FavImageLabel] set_exported: time={self.time_sec:.2f}, exp={exp}")
+        self.is_exported = exp
+        self.update()
+
+    def set_original_pixmap(self, pixmap: QPixmap):
+        self.original_pixmap = pixmap
+        self._update_display_pixmap()
+
+    def paintEvent(self, event):
+        if self.display_pixmap.isNull():
+            self._update_display_pixmap()
+            if self.display_pixmap.isNull():
+                painter = QPainter(self)
+                painter.fillRect(self.rect(), QColor(60, 60, 60))
+                painter.end()
+                return
+
+        painter = QPainter(self)
+        painter.drawPixmap(0, 0, self.display_pixmap)
+
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        if self.is_selected:
+            painter.setBrush(QBrush(QColor(33, 150, 243)))
+            painter.setPen(Qt.NoPen)
+            painter.drawEllipse(6, 6, 14, 14)
+
+        painter.setPen(Qt.white)
+        painter.setBrush(QBrush(QColor(0, 0, 0, 180)))
+        painter.drawRoundedRect(4, self.height() - 22, 60, 18, 3, 3)
+        painter.setPen(Qt.white)
+        painter.setFont(QFont("Arial", 8))
+        painter.drawText(6, self.height() - 7, self.time_text)
+
+        if self.is_exported:
+            logger.debug(f"[FavImageLabel] paintEvent 绘制绿点: time={self.time_sec:.2f}, is_exported={self.is_exported}")
+            painter.setBrush(QBrush(QColor(0, 200, 0)))
+            painter.setPen(Qt.NoPen)
+            # 计算图片在标签中的实际位置（居中）
+            label_w = self.width()
+            label_h = self.height()
+            img_w = self.current_img_w
+            img_h = self.current_img_h
+            offset_x = (label_w - img_w) // 2
+            offset_y = (label_h - img_h) // 2
+            # 在图片右下角绘制，相对于标签
+            draw_x = offset_x + img_w - 14
+            draw_y = offset_y + img_h - 14
+            painter.drawEllipse(draw_x, draw_y, 10, 10)
+        else:
+            logger.debug(f"[FavImageLabel] paintEvent 不绘制绿点: time={self.time_sec:.2f}, is_exported={self.is_exported}")
+
+        painter.end()
+
+    def mousePressEvent(self, event):
+        self.clicked.emit()
+        super().mousePressEvent(event)
+
+    def mouseDoubleClickEvent(self, event):
+        self.double_clicked.emit()
+
+    def set_selected(self, selected: bool):
+        self.is_selected = selected
+        self.update()
+
+    def set_exported(self, exp: bool):
+        self.is_exported = exp
         self.update()
 
     def set_original_pixmap(self, pixmap: QPixmap):
@@ -375,6 +497,7 @@ class FavoritesDialog(QDialog):
                 'segment': item.get('segment', 'A'),
                 'time': item['time'],
                 'path': item.get('path', ''),
+                'exported': item.get('exported', False),
             })
         return result
 
@@ -642,6 +765,15 @@ class FavoritesDialog(QDialog):
                 img_label.clicked.connect(partial(self.on_fav_item_click, seg_label, pos, img_label))
                 img_label.double_clicked.connect(partial(self.preview_fav_item, seg_label, pos))
                 img_label.set_image_size(img_w, img_h)
+                logger.debug(f"[收藏弹窗] 创建 FavImageLabel: time={item['time']:.2f}")
+                exported_val = item.get('exported', False)
+                logger.debug(f"[收藏弹窗] 设置 exported: time={item['time']:.2f}, exported={exported_val}")
+                try:
+                    img_label.set_exported(exported_val)
+                    logger.debug(f"[收藏弹窗] set_exported 调用成功: time={item['time']:.2f}")
+                except Exception as e:
+                    logger.error(f"[收藏弹窗] set_exported 调用失败: {e}")
+                img_label.set_favorite(True)
                 self._image_labels.append(img_label)
 
                 time_label = QLabel(f"{item['time']:.1f}s")
@@ -811,6 +943,22 @@ class FavoritesDialog(QDialog):
                     if item.get('segment') == seg_label and abs(item.get('time', 0) - time_sec) < 0.01:
                         item['exported'] = True
                         logger.debug(f"[收藏弹窗导出] 标记 self.favorites 为已导出: time={time_sec}, segment={seg_label}")
+                        # 更新数据库中的导出状态
+                        if self.parent_view and self.parent_view.video_id:
+                            timestamp_ms = int(time_sec * 1000)
+                            self.parent_view.db.update_favorite_exported(
+                                self.parent_view.video_id,
+                                seg_label,
+                                timestamp_ms
+                            )
+                        # 同步更新父视图的 screenshots
+                        if self.parent_view:
+                            p_items = self.parent_view.screenshots.get(seg_label, [])
+                            for p_item in p_items:
+                                if abs(p_item['time'] - time_sec) < 0.01:
+                                    p_item['exported'] = True
+                                    logger.debug(f"[收藏弹窗导出] 同步父视图 screenshots: seg={seg_label}, time={time_sec:.2f}")
+                                    break
                         break
             except Exception as e:
                 print(f"导出失败 {src_path}: {e}")
@@ -855,14 +1003,16 @@ class FavoritesDialog(QDialog):
             
             # 刷新父视图
             logger.info("[收藏弹窗导出] 准备更新父视图")
-            self.parent_view._refresh_grid(self.parent_view.current_seg_index)
-            self.parent_view._update_seg_buttons()
-            self.parent_view._update_video_list_icon(self.parent_view.video_path)
             
+            # 先保存状态到数据库（确保导出标记持久化）
             if self.parent_view.video_id:
                 logger.info("[收藏弹窗导出] 调用 _save_state_to_db()")
                 self.parent_view._save_state_to_db()
                 logger.info("[收藏弹窗导出] _save_state_to_db() 完成")
+            
+            self.parent_view._refresh_grid(self.parent_view.current_seg_index)
+            self.parent_view._update_seg_buttons()
+            self.parent_view._update_video_list_icon(self.parent_view.video_path)
         else:
             logger.warning("[收藏弹窗导出] 父视图不存在")
 
@@ -1011,17 +1161,21 @@ class SegmentView(QWidget):
         control_bar.setSpacing(8)
 
         seg_group = QHBoxLayout()
-        seg_group.setSpacing(4)
+        seg_group.setSpacing(3)
+        seg_group.setContentsMargins(0, 0, 0, 0)
         self.seg_buttons = []
         for label in ['A', 'B', 'C', 'D', 'E']:
             btn = QPushButton(label)
             btn.setCheckable(True)
-            btn.setFixedSize(55, 30)
-            btn.setFont(QFont("Arial", 11, QFont.Bold))
+            btn.setMinimumWidth(120)
+            btn.setMaximumWidth(220)
+            btn.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Fixed)
+            btn.setFixedHeight(40)
+            btn.setFont(QFont("Arial", 10, QFont.Bold))
             btn.clicked.connect(lambda checked, lbl=label: self.on_seg_clicked(lbl))
             seg_group.addWidget(btn)
             self.seg_buttons.append(btn)
-        control_bar.addLayout(seg_group)
+        control_bar.addLayout(seg_group, 1)
 
         control_bar.addStretch()
 
@@ -1188,6 +1342,12 @@ class SegmentView(QWidget):
         count = sum(1 for f in self.favorites if f.get('video_path') == self.video_path)
         self.stat_fav.setText(f"收藏: {count}")
 
+    def _format_time(self, seconds: float) -> str:
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        secs = int(seconds % 60)
+        return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+
     def _save_state_to_db(self):
         if not self.video_path or not self.video_id:
             logger.debug(f"[保存状态] 跳过: video_path={self.video_path}, video_id={self.video_id}")
@@ -1195,44 +1355,126 @@ class SegmentView(QWidget):
 
         logger.info(f"[保存状态] 开始保存: video_path={self.video_path}, video_id={self.video_id}")
 
-        seg_states = {}
+        # 1. 保存分区状态
         for seg_label, items in self.screenshots.items():
             has_starred = any(item.get('favorite', False) for item in items)
             has_exported = any(item.get('exported', False) for item in items)
-            seg_states[seg_label] = {
-                'is_viewed': seg_label in self._loaded_segments,
-                'has_starred': has_starred,
-                'has_exported': has_exported
-            }
-            logger.debug(f"[保存状态] 分区 {seg_label}: has_starred={has_starred}, has_exported={has_exported}")
+            is_viewed = seg_label in self._loaded_segments
+            self.db.update_segment_state(
+                self.video_id,
+                seg_label,
+                is_viewed=is_viewed,
+                has_starred=has_starred,
+                has_exported=has_exported
+            )
 
-        # 修复：从 screenshots 中检查是否有任何收藏，而不是从 self.favorites
+        # 2. 计算视频整体状态
         is_starred = any(
             item.get('favorite', False)
             for seg_label, items in self.screenshots.items()
             for item in items
         )
-
         is_exported = any(
             item.get('exported', False)
             for seg_label, items in self.screenshots.items()
             for item in items
         )
+        is_viewed = bool(self._loaded_segments)
+
+        # 3. 保存视频状态
+        self.db.update_video_state(
+            self.video_id,
+            is_viewed=is_viewed,
+            is_starred=is_starred,
+            is_exported=is_exported
+        )
+
+        # 4. 增量更新收藏到 favorites 表（只增不改不删）
+        existing_favs = self.db.get_favorites(self.video_id)
+        existing_set = set()
+        for fav in existing_favs:
+            key = (fav['segment_label'], int(fav['timestamp_ms']))
+            existing_set.add(key)
+
+        # 获取当前 screenshots 中的收藏并更新/新增
+        for seg_label, items in self.screenshots.items():
+            for item in items:
+                if item.get('favorite', False):
+                    timestamp_ms = int(item['time'] * 1000)
+                    current_key = (seg_label, timestamp_ms)
+                    if current_key not in existing_set:
+                        # 新增收藏
+                        self.db.add_favorite(
+                            self.video_id,
+                            seg_label,
+                            timestamp_ms,
+                            item.get('path', ''),
+                            is_exported=item.get('exported', False)
+                        )
+                        logger.debug(f"[保存状态] 新增收藏: seg={seg_label}, time={item['time']:.2f}")
+                    else:
+                        # 更新导出状态
+                        self.db.update_favorite_exported(self.video_id, seg_label, timestamp_ms)
+                        logger.debug(f"[保存状态] 更新导出状态: seg={seg_label}, time={item['time']:.2f}")
+
+        # 不再删除任何收藏（收藏是独立于当前网格的永久数据）
+        # 取消收藏由用户通过"取消收藏"按钮主动触发
 
         logger.info(f"[保存状态] is_starred={is_starred}, is_exported={is_exported}")
-
-        self.db.update_video_state(self.video_id, is_viewed=bool(self._loaded_segments),
-                                   is_starred=is_starred, is_exported=is_exported)
-
-        for seg_label, state in seg_states.items():
-            self.db.update_segment_state(self.video_id, seg_label,
-                                         is_viewed=state['is_viewed'],
-                                         has_starred=state['has_starred'],
-                                         has_exported=state['has_exported'])
-
         self._update_video_list_icon(self.video_path)
         logger.info(f"[保存状态] 完成")
 
+    def _restore_favorites_from_db(self):
+        if not self.video_path or not self.video_id:
+            return
+        db_favs = self.db.get_favorites(self.video_id)
+        if not db_favs:
+            self.favorites = []
+            logger.debug("[恢复收藏] 数据库无收藏记录")
+            return
+        self.favorites = []
+        for fav in db_favs:
+            exported = bool(fav.get('is_exported', 0))
+            self.favorites.append({
+                'video_path': self.video_path,
+                'segment': fav['segment_label'],
+                'time': fav['timestamp_ms'] / 1000,
+                'path': fav['thumbnail_path'],
+                'exported': exported,
+            })
+            logger.debug(f"[恢复收藏] 从数据库恢复: seg={fav['segment_label']}, time={fav['timestamp_ms']/1000:.2f}, exported={exported}")
+        logger.info(f"[恢复收藏] 共恢复 {len(self.favorites)} 个收藏")
+        # 打印收藏时间列表用于调试
+        times = [f['time'] for f in self.favorites if f.get('video_path') == self.video_path]
+        logger.debug(f"[恢复收藏] 收藏时间列表: {[f'{t:.2f}' for t in times]}")
+
+    def _restore_favorites_to_screenshots(self):
+        logger.debug(f"[恢复收藏] 开始恢复: video_path={self.video_path}, favorites数量={len(self.favorites)}")
+        logger.debug(f"[恢复收藏] screenshots分区: {list(self.screenshots.keys())}")
+        if not self.video_path:
+            return
+        fav_items = [f for f in self.favorites if f.get('video_path') == self.video_path]
+        if not fav_items:
+            return
+
+        logger.debug(f"[恢复收藏] 从数据库恢复 {len(fav_items)} 个收藏到 screenshots")
+        for seg_label, items in self.screenshots.items():
+            for item in items:
+                # 查找所有匹配的收藏（时间差 < 0.1 秒，提高精度）
+                matched_favs = []
+                for fav in fav_items:
+                    if fav.get('segment') == seg_label and abs(fav.get('time', 0) - item['time']) < 0.1:
+                        matched_favs.append(fav)
+                if matched_favs:
+                    # 优先选择 exported=True 的收藏
+                    matched = next((f for f in matched_favs if f.get('exported', False)), matched_favs[0])
+                    item['favorite'] = True
+                    item['exported'] = matched.get('exported', False)
+                    logger.debug(f"[恢复收藏] 标记为收藏: seg={seg_label}, time={item['time']:.2f}, exported={item['exported']}")
+                    if item['exported']:
+                        logger.debug(f"[恢复收藏] 恢复导出标记: seg={seg_label}, time={item['time']:.2f}")
+                    logger.debug(f"[恢复收藏] 恢复: seg={seg_label}, time={item['time']:.2f}, exported={item['exported']}")
+                    logger.debug(f"[恢复收藏] 匹配成功: fav.time={matched.get('time'):.2f}, item.time={item['time']:.2f}, 差值={abs(matched.get('time', 0) - item['time']):.3f}")
     def favorite_selected(self):
         if not self.selected_indices:
             QMessageBox.information(self, "提示", "请先选中要收藏的截图。")
@@ -1262,7 +1504,11 @@ class SegmentView(QWidget):
                     if self.video_id:
                         timestamp_ms = int(item['time'] * 1000)
                         if not self.db.is_favorite(self.video_id, seg_label, timestamp_ms):
-                            self.db.add_favorite(self.video_id, seg_label, timestamp_ms, item.get('path', ''))
+                            self.db.add_favorite(
+                                self.video_id, seg_label, timestamp_ms,
+                                item.get('path', ''),
+                                is_exported=item.get('exported', False)
+                            )
                         else:
                             logger.warning(f"[收藏操作] 数据库中已存在: time={item['time']}")
                     self.favorites.append({
@@ -1270,13 +1516,14 @@ class SegmentView(QWidget):
                         'segment': seg_label,
                         'time': item['time'],
                         'path': item['path'],
+                        'exported': item.get('exported', False),
                     })
                     added_count += 1
                     logger.debug(f"[收藏操作] 添加收藏: time={item['time']}, pos={pos}")
                 else:
                     logger.debug(f"[收藏操作] 已收藏: time={item['time']}, pos={pos}")
 
-        logger.info(f"[收藏操作] 完成: 添加={added_count}, 跳过重复={skipped_count}, 已收藏={len(processed_keys) - added_count - skipped_count}")
+        logger.info(f"[收藏操作] 完成: 添加={added_count}, 跳过重复={skipped_count}")
 
         if added_count > 0:
             self._refresh_grid(self.current_seg_index)
@@ -1320,37 +1567,6 @@ class SegmentView(QWidget):
         else:
             logger.info("没有收藏被取消")
 
-    def _restore_favorites_from_db(self):
-        if not self.video_path or not self.video_id:
-            return
-        db_favs = self.db.get_favorites(self.video_id)
-        for fav in db_favs:
-            exists = any(
-                f.get('segment') == fav['segment_label'] and
-                abs(f.get('time', 0) - fav['timestamp_ms'] / 1000) < 0.01
-                for f in self.favorites if f.get('video_path') == self.video_path
-            )
-            if not exists:
-                self.favorites.append({
-                    'video_path': self.video_path,
-                    'segment': fav['segment_label'],
-                    'time': fav['timestamp_ms'] / 1000,
-                    'path': fav['thumbnail_path'],
-                })
-
-    def _restore_favorites_to_screenshots(self):
-        if not self.video_path:
-            return
-        fav_items = [f for f in self.favorites if f.get('video_path') == self.video_path]
-        if not fav_items:
-            return
-        for seg_label, items in self.screenshots.items():
-            for item in items:
-                for fav in fav_items:
-                    if fav.get('segment') == seg_label and abs(fav.get('time', 0) - item['time']) < 0.01:
-                        item['favorite'] = True
-                        break
-
     def zoom_selected(self):
         if len(self.selected_indices) > 1:
             QMessageBox.information(self, "提示", "细选只能针对单张截图，请只选中一张截图。")
@@ -1387,8 +1603,6 @@ class SegmentView(QWidget):
             asyncio.create_task(self.load_video(path))
 
     async def load_video(self, video_path: str):
-        """加载视频 - 修复：添加任务取消逻辑防止协程冲突"""
-        # 取消正在进行的加载任务（修复快速切换视频时的协程冲突）
         if self._load_task and not self._load_task.done():
             self._load_task.cancel()
             logger.debug(f"取消之前的加载任务: {self.video_path}")
@@ -1403,7 +1617,6 @@ class SegmentView(QWidget):
         self._clear_grid()
         self.progress_label_left.setText("加载中...")
 
-        # 再次检查并取消可能残留的任务
         if self._load_task and not self._load_task.done():
             self._load_task.cancel()
         self._load_task = None
@@ -1424,7 +1637,6 @@ class SegmentView(QWidget):
             video_path, file_name, int(duration), "", int(os.path.getsize(video_path)), int(os.path.getmtime(video_path))
         )
 
-        # 从数据库恢复当前视频的收藏
         self.favorites = []
         self._restore_favorites_from_db()
 
@@ -1440,16 +1652,15 @@ class SegmentView(QWidget):
 
         self.current_seg_index = 0
         self._update_seg_buttons()
-        
-        # 创建加载任务并保存引用
+
         self._load_task = asyncio.create_task(self._load_segment(0, restore_locks=True, randomize=False))
         await self._load_task
         self._load_task = None
-        
+
         self._restore_favorites_to_screenshots()
         self._refresh_grid(0)
-        # 更新收藏计数
         self._update_fav_count()
+        self._update_seg_buttons()
 
         if self._loaded_segments:
             self.db.update_video_state(self.video_id, is_viewed=True)
@@ -1482,7 +1693,10 @@ class SegmentView(QWidget):
             if i < len(self.segments):
                 seg_label = self.segments[i][0]
                 state = self._get_seg_state(seg_label)
-                btn.setText(f"{label}{state}")
+                seg_start = self.segments[i][1]
+                seg_end = self.segments[i][2]
+                time_range = f"{self._format_time(seg_start)} - {self._format_time(seg_end)}"
+                btn.setText(f"{label} {time_range}{state}")
                 btn.setVisible(True)
                 btn.setEnabled(True)
             else:
@@ -1541,11 +1755,9 @@ class SegmentView(QWidget):
         return valid
 
     async def _load_segment(self, seg_idx: int, restore_locks: bool = True, randomize: bool = False):
-        """加载分段 - 修复：添加取消检查和异常处理"""
         if not self.video_path or not self.segments:
             return
 
-        # 检查当前任务是否被取消
         current_task = asyncio.current_task()
         if current_task and current_task.cancelled():
             logger.debug(f"分段 {seg_idx} 加载被取消（任务状态检查）")
@@ -1562,7 +1774,6 @@ class SegmentView(QWidget):
             end_cropped = end
         logger.info(f"加载分段 {label}: {start_cropped:.1f}s - {end_cropped:.1f}s")
 
-        duration_seg = end_cropped - start_cropped
         count = self.density
 
         seg_key = label
@@ -1575,7 +1786,6 @@ class SegmentView(QWidget):
         new_items = []
         total = len(new_times)
         for idx, t in enumerate(new_times):
-            # 检查是否被取消
             if current_task and current_task.cancelled():
                 logger.debug(f"分段 {seg_idx} 加载被取消（循环中检查）")
                 return
@@ -1600,7 +1810,7 @@ class SegmentView(QWidget):
             QApplication.processEvents()
 
             temp_path = os.path.join(self.temp_dir, f"seg_{label}_{t:.2f}.jpg")
-            
+
             try:
                 success = await asyncio.to_thread(extract_frame, self.video_path, t, temp_path)
                 if success:
@@ -1624,16 +1834,13 @@ class SegmentView(QWidget):
                     logger.warning(f"截图失败: {label} {idx} @ {t:.2f}s")
             except asyncio.CancelledError:
                 logger.debug(f"截图任务被取消: {label} {idx} @ {t:.2f}s")
-                # 清理临时文件
                 if os.path.exists(temp_path):
                     try:
                         os.remove(temp_path)
                     except:
                         pass
-                # 重新抛出以便上层处理
                 raise
 
-        # 再次检查是否被取消
         if current_task and current_task.cancelled():
             logger.debug(f"分段 {seg_idx} 加载被取消（完成后检查）")
             return
@@ -1664,6 +1871,10 @@ class SegmentView(QWidget):
             seg_label, _, _ = self.segments[seg_idx]
             items = self.screenshots.get(seg_label, [])
             count = len(items)
+
+            # 打印当前截图时间列表用于调试
+            times = [item['time'] for item in items]
+            logger.debug(f"[刷新网格] 当前截图时间列表: {[f'{t:.2f}' for t in times]}")
 
             if self.density == 9:
                 cols = 3
@@ -1700,8 +1911,12 @@ class SegmentView(QWidget):
                 label = ClickableLabel(pixmap, item['time'], index_num)
                 label.setObjectName(f"{seg_idx}_{pos}")
                 label.set_locked(item.get('locked', False))
-                label.set_favorite(item.get('favorite', False))
-                label.set_exported(item.get('exported', False))
+                # 只有真正被收藏的才显示星星
+                is_fav = item.get('favorite', False)
+                logger.debug(f"[刷新网格] item.favorite: time={item['time']:.2f}, favorite={is_fav}")
+                label.set_favorite(is_fav)
+                if is_fav:
+                    logger.debug(f"[刷新网格] 设置星星: seg={seg_label}, time={item['time']:.2f}")
                 if (seg_idx, pos) in self.selected_indices:
                     label.set_selected(True)
 
@@ -1913,10 +2128,9 @@ class SegmentView(QWidget):
 
     def closeEvent(self, event):
         try:
-            # 取消正在进行的任务
             if self._load_task and not self._load_task.done():
                 self._load_task.cancel()
-            
+
             if self.video_id and self.video_path:
                 self._save_state_to_db()
             if hasattr(self, 'db'):

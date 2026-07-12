@@ -79,7 +79,7 @@ class Database:
             )
         """)
 
-        # 创建 favorites 表
+        # 创建 favorites 表 - 包含 is_exported 字段
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS favorites (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -87,10 +87,19 @@ class Database:
                 segment_label TEXT NOT NULL,
                 timestamp_ms INTEGER NOT NULL,
                 thumbnail_path TEXT,
+                is_exported INTEGER DEFAULT 0,
                 created_at INTEGER DEFAULT (strftime('%s','now')),
                 FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE
             )
         """)
+
+        # 迁移：为已存在的 favorites 表添加 is_exported 列（如果不存在）
+        try:
+            cursor.execute("ALTER TABLE favorites ADD COLUMN is_exported INTEGER DEFAULT 0")
+            logger.info("数据库迁移: favorites 表添加 is_exported 列")
+        except sqlite3.OperationalError:
+            # 列已存在，忽略
+            pass
 
         # 创建索引
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_videos_viewed ON videos(is_viewed)")
@@ -273,14 +282,15 @@ class Database:
     # ========== 收藏操作 ==========
 
     def add_favorite(self, video_id: int, segment_label: str,
-                     timestamp_ms: int, thumbnail_path: str = "") -> int:
+                     timestamp_ms: int, thumbnail_path: str = "",
+                     is_exported: bool = False) -> int:
         """添加收藏"""
         conn = self._get_conn()
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO favorites (video_id, segment_label, timestamp_ms, thumbnail_path)
-            VALUES (?, ?, ?, ?)
-        """, (video_id, segment_label, timestamp_ms, thumbnail_path))
+            INSERT INTO favorites (video_id, segment_label, timestamp_ms, thumbnail_path, is_exported)
+            VALUES (?, ?, ?, ?, ?)
+        """, (video_id, segment_label, timestamp_ms, thumbnail_path, 1 if is_exported else 0))
         conn.commit()
         return cursor.lastrowid
 
@@ -294,12 +304,29 @@ class Database:
         """, (video_id, segment_label, timestamp_ms))
         conn.commit()
 
+    def update_favorite_exported(self, video_id: int, segment_label: str, timestamp_ms: int) -> None:
+        """标记收藏为已导出"""
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE favorites SET is_exported = 1
+            WHERE video_id = ? AND segment_label = ? AND timestamp_ms = ?
+        """, (video_id, segment_label, timestamp_ms))
+        conn.commit()
+
+    def clear_favorites(self, video_id: int) -> None:
+        """清空视频的所有收藏"""
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM favorites WHERE video_id = ?", (video_id,))
+        conn.commit()
+
     def get_favorites(self, video_id: int) -> List[Dict]:
         """获取视频的所有收藏"""
         conn = self._get_conn()
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT segment_label, timestamp_ms, thumbnail_path, created_at
+            SELECT segment_label, timestamp_ms, thumbnail_path, is_exported, created_at
             FROM favorites
             WHERE video_id = ?
             ORDER BY segment_label, timestamp_ms
@@ -315,13 +342,6 @@ class Database:
             WHERE video_id = ? AND segment_label = ? AND timestamp_ms = ?
         """, (video_id, segment_label, timestamp_ms))
         return cursor.fetchone() is not None
-
-    def clear_favorites(self, video_id: int) -> None:
-        """清空视频的所有收藏"""
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM favorites WHERE video_id = ?", (video_id,))
-        conn.commit()
 
     # ========== 批量操作 ==========
 
