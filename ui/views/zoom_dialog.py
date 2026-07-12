@@ -28,7 +28,6 @@ class ZoomClickableLabel(QLabel):
         self.time_sec = time_sec
         self.is_selected = False
 
-        # 保存原始图片
         self.original_pixmap = pixmap
         self.display_pixmap = QPixmap()
         self.time_text = f"{time_sec:.1f}s"
@@ -40,7 +39,6 @@ class ZoomClickableLabel(QLabel):
         self._update_display_pixmap()
 
     def _update_display_pixmap(self):
-        """生成居中保持宽高比的显示图片"""
         if self.original_pixmap.isNull():
             self.display_pixmap = QPixmap(200, 150)
             self.display_pixmap.fill(QColor(60, 60, 60))
@@ -137,7 +135,6 @@ class ZoomDialog(QDialog):
 
         self.setWindowTitle(f"Zoom 精修 - {os.path.basename(video_path)} @ {time_sec:.1f}s")
         self.setModal(True)
-        # 设置窗口标志，支持最大化/最小化
         self.setWindowFlags(
             Qt.Window |
             Qt.WindowCloseButtonHint |
@@ -176,6 +173,17 @@ class ZoomDialog(QDialog):
         reset_btn.clicked.connect(self.reset_center)
         top_bar.addWidget(reset_btn)
 
+        # 全选 / 取消全选按钮
+        self.select_all_btn = QPushButton("☑ 全选")
+        self.select_all_btn.clicked.connect(self.select_all)
+        self.select_all_btn.setEnabled(False)
+        top_bar.addWidget(self.select_all_btn)
+
+        self.deselect_all_btn = QPushButton("☐ 取消全选")
+        self.deselect_all_btn.clicked.connect(self.deselect_all)
+        self.deselect_all_btn.setEnabled(False)
+        top_bar.addWidget(self.deselect_all_btn)
+
         main_layout.addLayout(top_bar)
 
         self.progress_label = QLabel("")
@@ -212,11 +220,25 @@ class ZoomDialog(QDialog):
 
         main_layout.addLayout(bottom_bar)
 
+    def select_all(self):
+        """全选当前所有图片"""
+        self.selected_indices = set(range(len(self.zoom_items)))
+        self._refresh_grid()
+        self.selected_label.setText(f"已选: {len(self.selected_indices)} 张")
+        self.select_all_btn.setEnabled(False)
+        self.deselect_all_btn.setEnabled(True)
+
+    def deselect_all(self):
+        """取消全选"""
+        self.selected_indices.clear()
+        self._refresh_grid()
+        self.selected_label.setText("已选: 0 张")
+        self.select_all_btn.setEnabled(len(self.zoom_items) > 0)
+        self.deselect_all_btn.setEnabled(False)
+
     def on_level_clicked(self, level: int):
-        # 只有选中单张时才能切换到下一层级
         if len(self.selected_indices) != 1:
             QMessageBox.information(self, "提示", "请只选中一张截图，再切换层级。")
-            # 取消选中状态，恢复到之前选中的按钮
             for i, btn in enumerate(self.level_buttons):
                 btn.setChecked(i == (self.current_level - 1))
             return
@@ -319,12 +341,16 @@ class ZoomDialog(QDialog):
             items = self.zoom_items
             count = len(items)
             if count == 0:
+                self.select_all_btn.setEnabled(False)
+                self.deselect_all_btn.setEnabled(False)
                 return
 
             cols = 3
-            # 设置列宽均匀分配
             for col in range(cols):
                 self.grid_layout.setColumnStretch(col, 1)
+
+            self.select_all_btn.setEnabled(len(self.selected_indices) < count)
+            self.deselect_all_btn.setEnabled(len(self.selected_indices) > 0)
 
             for pos, item in enumerate(items):
                 row = pos // cols
