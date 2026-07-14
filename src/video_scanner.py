@@ -24,6 +24,22 @@ def scan_videos(root_dir: str, extensions: tuple = None) -> List[str]:
     return video_files
 
 
+def scan_videos_in_directory(directory: str, extensions: tuple = None) -> List[str]:
+    """
+    递归扫描指定目录下的所有视频文件（用于导入功能）
+    """
+    if extensions is None:
+        extensions = ('.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm',
+                      '.m4v', '.mpg', '.mpeg', '.ts', '.m2ts', '.3gp')
+
+    video_files = []
+    for dirpath, _, filenames in os.walk(directory):
+        for filename in filenames:
+            if filename.lower().endswith(extensions):
+                video_files.append(os.path.join(dirpath, filename))
+    return video_files
+
+
 def get_video_duration(video_path: str) -> Optional[float]:
     """
     使用 ffprobe 获取视频时长（秒）
@@ -36,7 +52,14 @@ def get_video_duration(video_path: str) -> Optional[float]:
             '-of', 'default=noprint_wrappers=1:nokey=1',
             video_path
         ]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            errors='ignore',
+            timeout=30
+        )
         if result.returncode == 0 and result.stdout.strip():
             return float(result.stdout.strip())
         return None
@@ -80,7 +103,14 @@ def extract_frame(video_path: str, time_sec: float, output_path: str) -> bool:
             '-q:v', '2',
             output_path
         ]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            errors='ignore',
+            timeout=30
+        )
         return result.returncode == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 0
     except Exception as e:
         logger.error(f"提取帧失败 {video_path} @ {time_sec}s: {e}")
@@ -95,14 +125,14 @@ def extract_video_clip(
     re_encode: bool = False
 ) -> bool:
     """
-    使用 ffmpeg 导出视频片段（无损复制）
+    使用 ffmpeg 导出视频片段
     
     Args:
         video_path: 源视频路径
         start_time: 起始时间（秒）
         end_time: 结束时间（秒）
         output_path: 输出文件路径
-        re_encode: 是否重新编码（默认 False，使用 -c copy 无损复制）
+        re_encode: 是否重新编码（默认 False，优先使用 -c copy 无损复制）
     
     Returns:
         是否成功
@@ -111,14 +141,17 @@ def extract_video_clip(
         logger.error(f"无效的时间范围: {start_time} -> {end_time}")
         return False
 
-    # 确保输出目录存在
     output_dir = os.path.dirname(output_path)
     if output_dir:
         os.makedirs(output_dir, exist_ok=True)
 
+    video_ext = os.path.splitext(video_path)[1].lower()
+    need_reencode_exts = ('.wmv', '.flv', '.webm', '.avi', '.mov', '.mkv')
+
+    force_reencode = re_encode or video_ext in need_reencode_exts
+
     try:
-        if re_encode:
-            # 重新编码（兼容性更好，但慢且可能损失质量）
+        if force_reencode:
             cmd = [
                 'ffmpeg',
                 '-y',
@@ -128,10 +161,10 @@ def extract_video_clip(
                 '-c:v', 'libx264',
                 '-c:a', 'aac',
                 '-preset', 'fast',
+                '-crf', '23',
                 output_path
             ]
         else:
-            # 无损复制（快，但可能不支持所有格式）
             cmd = [
                 'ffmpeg',
                 '-y',
@@ -142,13 +175,25 @@ def extract_video_clip(
                 output_path
             ]
 
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            errors='ignore',
+            timeout=300
+        )
+
         if result.returncode == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 0:
             logger.info(f"视频片段导出成功: {output_path} ({start_time:.2f}s - {end_time:.2f}s)")
             return True
         else:
-            logger.error(f"视频片段导出失败: {result.stderr}")
-            return False
+            if not force_reencode:
+                logger.warning(f"无损复制失败，尝试重新编码: {output_path}")
+                return extract_video_clip(video_path, start_time, end_time, output_path, re_encode=True)
+            else:
+                logger.error(f"视频片段导出失败: {result.stderr}")
+                return False
     except subprocess.TimeoutExpired:
         logger.error(f"视频片段导出超时")
         return False

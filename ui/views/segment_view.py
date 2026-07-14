@@ -11,12 +11,13 @@ from datetime import timedelta
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
     QGridLayout, QScrollArea, QFrame, QMessageBox, QApplication,
-    QSplitter, QListWidget, QListWidgetItem, QSizePolicy, QComboBox
+    QSplitter, QListWidget, QListWidgetItem, QSizePolicy, QComboBox,
+    QLineEdit, QMenu, QFileDialog
 )
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QPixmap, QFont, QColor
+from PySide6.QtGui import QPixmap, QFont, QColor, QAction
 
-from src.video_scanner import scan_videos
+from src.video_scanner import scan_videos, scan_videos_in_directory, get_video_duration
 from src.controllers import SegmentController
 from ui.views.zoom_dialog import ZoomDialog
 from ui.views.zoom_preview import ZoomPreviewDialog
@@ -54,6 +55,7 @@ class SegmentView(QWidget):
 
         self.selected_indices: Set[tuple] = set()
         self.all_videos: List[str] = []
+        self.filtered_videos: List[str] = []
 
         self.seg_buttons_layout = QHBoxLayout()
         self.seg_buttons: List[QPushButton] = []
@@ -61,11 +63,11 @@ class SegmentView(QWidget):
         self.preview_panel_visible = False
 
         self.all_videos = scan_videos("Z:\\")
+        self.filtered_videos = self.all_videos.copy()
         logger.info(f"扫描到 {len(self.all_videos)} 个视频")
 
         self.setup_ui()
         self.setFocusPolicy(Qt.StrongFocus)
-        QTimer.singleShot(100, self.load_first_video)
 
     # ============================================================
     # UI 构建
@@ -76,14 +78,14 @@ class SegmentView(QWidget):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # ===== 左侧面板（视频列表）- 宽度缩小到 220px =====
+        # ===== 左侧面板 =====
         left_panel = QWidget()
         left_panel.setFixedWidth(220)
         left_layout = QVBoxLayout(left_panel)
         left_layout.setContentsMargins(8, 8, 8, 8)
-        left_layout.setSpacing(6)
+        left_layout.setSpacing(4)
 
-        # 标题栏 + 预览切换按钮
+        # 标题栏 + 预览切换按钮 + 导入按钮
         title_layout = QHBoxLayout()
 
         title = QLabel("📹 视频库")
@@ -91,6 +93,26 @@ class SegmentView(QWidget):
         title_layout.addWidget(title)
 
         title_layout.addStretch()
+
+        # 导入按钮
+        self.import_btn = QPushButton("+")
+        self.import_btn.setFixedSize(30, 30)
+        self.import_btn.setToolTip("导入视频")
+        self.import_btn.setStyleSheet("""
+            QPushButton {
+                border: 1px solid #888;
+                border-radius: 4px;
+                background: transparent;
+                font-size: 16px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background: #3a3a3a;
+                color: #2196F3;
+            }
+        """)
+        self.import_btn.clicked.connect(self._show_import_menu)
+        title_layout.addWidget(self.import_btn)
 
         # 预览面板切换按钮
         self.preview_toggle_btn = QPushButton("🎬")
@@ -122,13 +144,70 @@ class SegmentView(QWidget):
 
         left_layout.addLayout(title_layout)
 
+        # 搜索框
+        search_layout = QHBoxLayout()
+        search_layout.setSpacing(2)
+
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("🔍 搜索视频...")
+        self.search_input.setStyleSheet("""
+            QLineEdit {
+                padding: 4px 8px;
+                border: 1px solid #555;
+                border-radius: 4px;
+                background: #2a2a2a;
+                color: #eee;
+                font-size: 11px;
+            }
+            QLineEdit:focus {
+                border-color: #2196F3;
+            }
+        """)
+        self.search_input.textChanged.connect(self._on_search_text_changed)
+        search_layout.addWidget(self.search_input)
+
+        self.clear_search_btn = QPushButton("✕")
+        self.clear_search_btn.setFixedSize(24, 24)
+        self.clear_search_btn.setToolTip("清空搜索")
+        self.clear_search_btn.setVisible(False)
+        self.clear_search_btn.setStyleSheet("""
+            QPushButton {
+                border: none;
+                border-radius: 12px;
+                background: #555;
+                color: white;
+                font-size: 11px;
+            }
+            QPushButton:hover {
+                background: #e74c3c;
+            }
+        """)
+        self.clear_search_btn.clicked.connect(self._clear_search)
+        search_layout.addWidget(self.clear_search_btn)
+
+        left_layout.addLayout(search_layout)
+
+        # 视频列表
         self.video_list = QListWidget()
         self.video_list.setFont(QFont("Arial", 10))
-        self.video_list.setStyleSheet("QListWidget::item { padding: 3px; }")
+        self.video_list.setStyleSheet("""
+            QListWidget::item { 
+                padding: 3px 5px;
+                border-radius: 2px;
+            }
+            QListWidget::item:selected {
+                background: #2196F3;
+                color: white;
+            }
+            QListWidget::item:hover {
+                background: #3a3a3a;
+            }
+        """)
         self.video_list.itemDoubleClicked.connect(self.on_video_selected)
         self._refresh_video_list()
         left_layout.addWidget(self.video_list)
 
+        # 信息组
         info_group = QFrame()
         info_group.setFrameShape(QFrame.StyledPanel)
         info_group.setStyleSheet("background: #f8f8f8; border-radius: 4px;")
@@ -151,11 +230,13 @@ class SegmentView(QWidget):
         info_layout.addStretch()
         left_layout.addWidget(info_group)
 
+        # 进度标签
         self.progress_label_left = QLabel("")
         self.progress_label_left.setStyleSheet("color: #666; font-size: 13px; font-weight: bold; padding: 4px;")
         self.progress_label_left.setWordWrap(True)
         left_layout.addWidget(self.progress_label_left)
 
+        # 统计行
         stat_layout = QHBoxLayout()
         self.stat_locked = QLabel("锁定: 0")
         self.stat_fav = QLabel("收藏: 0")
@@ -165,7 +246,7 @@ class SegmentView(QWidget):
 
         left_layout.addStretch()
 
-        # ===== 中间主工作区 + 右侧预览面板（使用 QSplitter） =====
+        # ===== 中间主工作区 + 右侧预览面板 =====
         self.right_splitter = QSplitter(Qt.Horizontal)
 
         # 主工作区
@@ -184,6 +265,7 @@ class SegmentView(QWidget):
         top_bar.addWidget(self.time_display)
         right_layout.addLayout(top_bar)
 
+        # 控制栏
         control_bar = QHBoxLayout()
         control_bar.setSpacing(6)
 
@@ -226,6 +308,7 @@ class SegmentView(QWidget):
 
         right_layout.addLayout(control_bar)
 
+        # 网格区域
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setFrameShape(QFrame.NoFrame)
@@ -239,6 +322,7 @@ class SegmentView(QWidget):
         self.scroll.setWidget(self.grid_widget)
         right_layout.addWidget(self.scroll, 1)
 
+        # 底部操作栏
         bottom_bar = QHBoxLayout()
         bottom_bar.setSpacing(6)
 
@@ -296,16 +380,15 @@ class SegmentView(QWidget):
 
         right_layout.addLayout(bottom_bar)
 
-        # ===== 右侧预览面板 =====
+        # 右侧预览面板
         self.preview_panel = PreviewPanel()
         self.preview_panel.export_clip_requested.connect(self._on_clip_exported)
 
-        # 组装右侧区域
         self.right_splitter.addWidget(right_panel)
         self.right_splitter.addWidget(self.preview_panel)
-        self.right_splitter.setSizes([10000, 0])  # 预览面板默认隐藏
+        self.right_splitter.setSizes([10000, 0])
 
-        # ===== 主布局 =====
+        # 主布局
         main_splitter = QSplitter(Qt.Horizontal)
         main_splitter.addWidget(left_panel)
         main_splitter.addWidget(self.right_splitter)
@@ -317,16 +400,152 @@ class SegmentView(QWidget):
             btn.setEnabled(False)
 
     # ============================================================
+    # 导入功能
+    # ============================================================
+
+    def _show_import_menu(self):
+        """显示导入菜单"""
+        menu = QMenu(self)
+
+        action_files = QAction("📄 导入视频文件", self)
+        action_files.triggered.connect(self._import_video_files)
+        menu.addAction(action_files)
+
+        action_folder = QAction("📁 导入文件夹", self)
+        action_folder.triggered.connect(self._import_folder)
+        menu.addAction(action_folder)
+
+        menu.exec(self.import_btn.mapToGlobal(self.import_btn.rect().bottomLeft()))
+
+    def _import_video_files(self):
+        """导入单个或多个视频文件"""
+        file_dialog = QFileDialog(self)
+        file_dialog.setWindowTitle("选择视频文件")
+        file_dialog.setNameFilter(
+            "视频文件 (*.mp4 *.mkv *.avi *.mov *.wmv *.flv *.webm *.m4v *.mpg *.mpeg *.ts *.m2ts *.3gp)"
+        )
+        file_dialog.setFileMode(QFileDialog.ExistingFiles)
+
+        if file_dialog.exec():
+            files = file_dialog.selectedFiles()
+            if files:
+                self._add_videos(files)
+
+    def _import_folder(self):
+        """导入文件夹（递归扫描）"""
+        folder = QFileDialog.getExistingDirectory(
+            self,
+            "选择包含视频的文件夹",
+            "",
+            QFileDialog.ShowDirsOnly
+        )
+        if folder:
+            video_files = scan_videos_in_directory(folder)
+            if video_files:
+                self._add_videos(video_files)
+                QMessageBox.information(
+                    self,
+                    "导入完成",
+                    f"从文件夹中扫描到 {len(video_files)} 个视频文件。"
+                )
+            else:
+                QMessageBox.information(
+                    self,
+                    "提示",
+                    "该文件夹中没有找到视频文件。"
+                )
+
+    def _add_videos(self, video_paths: List[str]):
+        """添加视频到列表和数据库（基于文件名去重）"""
+        # 构建现有文件名集合（小写）
+        existing_names = {os.path.basename(p).lower() for p in self.all_videos}
+        added = 0
+        skipped = 0
+
+        for path in video_paths:
+            name = os.path.basename(path)
+            name_lower = name.lower()
+
+            # 检查是否已存在同名文件
+            if name_lower in existing_names:
+                skipped += 1
+                continue
+
+            # 添加到内存列表
+            self.all_videos.append(path)
+            existing_names.add(name_lower)
+
+            # 添加到数据库
+            try:
+                duration = get_video_duration(path)
+                if duration is None:
+                    duration = 0
+                size = int(os.path.getsize(path))
+                mtime = int(os.path.getmtime(path))
+                self.controller.db.get_or_create_video(
+                    path, name, int(duration), "", size, mtime
+                )
+                added += 1
+            except Exception as e:
+                logger.error(f"添加视频到数据库失败 {path}: {e}")
+                # 如果数据库添加失败，从列表移除
+                if path in self.all_videos:
+                    self.all_videos.remove(path)
+                    existing_names.remove(name_lower)
+                continue
+
+        # 刷新视频列表
+        self.filtered_videos = self.all_videos.copy()
+        self._refresh_video_list()
+
+        # 如果搜索框有内容，重新应用过滤
+        if self.search_input.text().strip():
+            self._on_search_text_changed(self.search_input.text())
+
+        QMessageBox.information(
+            self,
+            "导入完成",
+            f"成功导入 {added} 个视频。\n"
+            f"跳过已存在（同名）: {skipped} 个。"
+        )
+
+    # ============================================================
+    # 搜索功能
+    # ============================================================
+
+    def _on_search_text_changed(self, text: str):
+        self.clear_search_btn.setVisible(len(text) > 0)
+
+        if not text.strip():
+            self.filtered_videos = self.all_videos.copy()
+        else:
+            search_text = text.strip().lower()
+            self.filtered_videos = [
+                path for path in self.all_videos
+                if search_text in os.path.basename(path).lower()
+            ]
+
+        self._refresh_video_list()
+
+        current_path = self.controller.get_video_path()
+        if current_path and current_path not in self.filtered_videos:
+            self.video_list.clearSelection()
+
+    def _clear_search(self):
+        self.search_input.clear()
+        self.clear_search_btn.setVisible(False)
+        self.filtered_videos = self.all_videos.copy()
+        self._refresh_video_list()
+
+    # ============================================================
     # 预览面板控制
     # ============================================================
 
     def toggle_preview_panel(self):
-        """切换预览面板显示/隐藏"""
         self.preview_panel_visible = not self.preview_panel_visible
         if self.preview_panel_visible:
             self.preview_panel.show_panel()
-            self.right_splitter.setSizes([7000, 3000])
-            # 如果视频已加载，同步到预览面板
+            self.right_splitter.setSizes([0, 10000])
             if self.controller.get_video_path():
                 self.preview_panel.set_video(
                     self.controller.get_video_path(),
@@ -337,13 +556,7 @@ class SegmentView(QWidget):
             self.preview_panel.hide_panel()
             self.right_splitter.setSizes([10000, 0])
 
-    # ============================================================
-    # 预览面板回调
-    # ============================================================
-
     def _on_clip_exported(self, output_path: str):
-        """片段导出完成回调"""
-        # 可以在这里添加额外处理，如通知用户
         pass
 
     # ============================================================
@@ -352,7 +565,7 @@ class SegmentView(QWidget):
 
     def _refresh_video_list(self):
         self.video_list.clear()
-        for path in self.all_videos:
+        for path in self.filtered_videos:
             name = os.path.basename(path)
             item = QListWidgetItem(name)
             item.setData(Qt.UserRole, path)
@@ -382,10 +595,6 @@ class SegmentView(QWidget):
     # ============================================================
     # 视频加载
     # ============================================================
-
-    def load_first_video(self):
-        if self.all_videos:
-            asyncio.create_task(self._load_video(self.all_videos[0]))
 
     def on_video_selected(self, item: QListWidgetItem):
         path = item.data(Qt.UserRole)
@@ -417,9 +626,11 @@ class SegmentView(QWidget):
         self._refresh_all_video_icons()
         self.progress_label_left.setText("加载完成")
 
-        # 如果预览面板可见，同步视频信息
         if self.preview_panel.is_visible():
             self.preview_panel.set_video(video_path, duration, self.controller.get_temp_dir())
+
+        for btn in self.seg_buttons:
+            btn.setEnabled(True)
 
     # ============================================================
     # 分段按钮管理

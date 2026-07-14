@@ -91,19 +91,16 @@ class ZoomThumbLabel(QLabel):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
 
-        # 绘制背景和图片
         painter.fillRect(self.rect(), QColor(30, 30, 30))
         x = (self.width() - self.display_pixmap.width()) // 2
         y = (self.height() - self.display_pixmap.height()) // 2
         painter.drawPixmap(x, y, self.display_pixmap)
 
-        # 选中状态：蓝色边框
         if self.is_selected:
             painter.setPen(QPen(QColor(33, 150, 243), 3))
             painter.setBrush(Qt.NoBrush)
             painter.drawRect(2, 2, self.width() - 5, self.height() - 5)
 
-        # 序号（左上角）
         painter.setPen(Qt.white)
         painter.setBrush(QBrush(QColor(0, 0, 0, 180)))
         painter.drawRoundedRect(4, 4, 22, 18, 3, 3)
@@ -111,7 +108,6 @@ class ZoomThumbLabel(QLabel):
         painter.setFont(QFont("Arial", 9, QFont.Bold))
         painter.drawText(6, 17, f"{self.index}")
 
-        # 时间戳（左下角）
         painter.setPen(Qt.white)
         painter.setBrush(QBrush(QColor(0, 0, 0, 180)))
         painter.drawRoundedRect(4, self.height() - 22, 55, 18, 3, 3)
@@ -143,7 +139,6 @@ class ZoomDialog(QDialog):
     L4: ±0.5秒, 间隔0.125秒
     """
 
-    # 层级配置: (半范围, 间隔)
     LEVEL_CONFIG = {
         1: (4.0, 1.0),
         2: (2.0, 0.5),
@@ -160,9 +155,9 @@ class ZoomDialog(QDialog):
         center_time: float,
         level: int = 1,
         parent=None,
-        source: str = "main",  # "main" 或 "favorites"
-        favorites_data: Optional[List[dict]] = None,  # 收藏弹窗专用
-        original_fav_item: Optional[dict] = None,  # 原始收藏项引用
+        source: str = "main",
+        favorites_data: Optional[List[dict]] = None,
+        original_fav_item: Optional[dict] = None,
     ):
         super().__init__(parent)
         self.controller = controller
@@ -180,27 +175,22 @@ class ZoomDialog(QDialog):
         self.duration = controller.get_duration()
         self.export_base = controller.get_export_base()
 
-        # 当前层级的范围配置
         half_range, step = self.LEVEL_CONFIG.get(level, (4.0, 1.0))
         self.half_range = half_range
         self.step = step
 
-        # 计算搜索范围（边界裁剪）
         self.range_start = max(0, center_time - half_range)
         self.range_end = min(self.duration, center_time + half_range)
 
-        # 如果范围太小，调整
         if self.range_end - self.range_start < 0.5:
             self.range_start = max(0, center_time - 0.25)
             self.range_end = min(self.duration, center_time + 0.25)
 
-        # 状态
         self.candidate_items: List[dict] = []
         self.selected_index: Optional[int] = None
         self._load_task: Optional[asyncio.Task] = None
         self.is_loading = False
 
-        # UI 标题
         level_names = {1: "L1 · 初选", 2: "L2 · 精选", 3: "L3 · 细选", 4: "L4 · 定稿"}
         self.setWindowTitle(
             f"🔍 {level_names.get(level, '精修')} - {seg_label}区 · {center_time:.2f}s"
@@ -216,8 +206,6 @@ class ZoomDialog(QDialog):
         self.setMinimumSize(800, 700)
 
         self.setup_ui()
-
-        # 加载候选帧
         QTimer.singleShot(50, self.load_candidates)
 
     def setup_ui(self):
@@ -225,9 +213,7 @@ class ZoomDialog(QDialog):
         main_layout.setContentsMargins(12, 12, 12, 12)
         main_layout.setSpacing(8)
 
-        # ===== 顶部信息栏 =====
         top_bar = QHBoxLayout()
-
         info_text = (
             f"📍 {self.seg_label}区  ·  "
             f"中心 {self.center_time:.2f}s  ·  "
@@ -240,22 +226,17 @@ class ZoomDialog(QDialog):
         self.info_label.setFont(QFont("Arial", 11))
         top_bar.addWidget(self.info_label)
         top_bar.addStretch()
-
-        # 层级指示器
         level_label = QLabel(f"L{self.level}")
         level_label.setFont(QFont("Arial", 12, QFont.Bold))
         level_label.setStyleSheet("color: #2196F3;")
         top_bar.addWidget(level_label)
-
         main_layout.addLayout(top_bar)
 
-        # ===== 分隔线 =====
         line = QFrame()
         line.setFrameShape(QFrame.HLine)
         line.setFrameShadow(QFrame.Sunken)
         main_layout.addWidget(line)
 
-        # ===== 网格区域 =====
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setFrameShape(QFrame.NoFrame)
@@ -269,16 +250,13 @@ class ZoomDialog(QDialog):
         self.scroll.setWidget(self.grid_widget)
         main_layout.addWidget(self.scroll, 1)
 
-        # ===== 进度标签 =====
         self.progress_label = QLabel("")
         self.progress_label.setStyleSheet("color: #666; font-size: 12px; padding: 4px;")
         main_layout.addWidget(self.progress_label)
 
-        # ===== 底部操作栏 =====
         bottom_bar = QHBoxLayout()
         bottom_bar.setSpacing(8)
 
-        # 左侧：选中计数 + 操作按钮
         self.selected_label = QLabel("已选: 0 张")
         self.selected_label.setFont(QFont("Arial", 11))
         bottom_bar.addWidget(self.selected_label)
@@ -295,46 +273,39 @@ class ZoomDialog(QDialog):
 
         bottom_bar.addStretch()
 
-        # 收藏按钮
         self.fav_btn = QPushButton("⭐ 收藏")
         self.fav_btn.setEnabled(False)
         self.fav_btn.clicked.connect(self.favorite_selected)
         bottom_bar.addWidget(self.fav_btn)
 
-        # 导出按钮
         self.export_btn = QPushButton("📥 导出")
         self.export_btn.setEnabled(False)
         self.export_btn.clicked.connect(self.export_selected)
         bottom_bar.addWidget(self.export_btn)
 
-        # 预览按钮
         self.preview_btn = QPushButton("🔍 预览")
         self.preview_btn.setEnabled(False)
         self.preview_btn.clicked.connect(self.preview_selected)
         bottom_bar.addWidget(self.preview_btn)
 
-        # 细选按钮（进入下一层）
         self.zoom_btn = QPushButton("🔍 细选 →")
         self.zoom_btn.setEnabled(False)
         self.zoom_btn.setStyleSheet("background: #FF9800; color: white; font-weight: bold;")
         self.zoom_btn.clicked.connect(self.zoom_selected)
         bottom_bar.addWidget(self.zoom_btn)
 
-        # 替换按钮（替换原图）
         self.replace_btn = QPushButton("📥 替换原图")
         self.replace_btn.setEnabled(False)
         self.replace_btn.setStyleSheet("background: #2196F3; color: white; font-weight: bold; padding: 8px 20px;")
         self.replace_btn.clicked.connect(self.replace_selected)
         bottom_bar.addWidget(self.replace_btn)
 
-        # 关闭按钮
         close_btn = QPushButton("✕ 关闭")
         close_btn.clicked.connect(self.reject)
         bottom_bar.addWidget(close_btn)
 
         main_layout.addLayout(bottom_bar)
 
-        # ===== 底部提示 =====
         hint_label = QLabel("💡 单击选中 · 双击放大预览 · 通过按钮执行细选/替换/收藏/导出")
         hint_label.setStyleSheet("color: #888; font-size: 10px;")
         main_layout.addWidget(hint_label)
@@ -344,7 +315,6 @@ class ZoomDialog(QDialog):
     # ============================================================
 
     def load_candidates(self):
-        """加载当前层级的候选帧"""
         if self._load_task and not self._load_task.done():
             self._load_task.cancel()
 
@@ -354,7 +324,6 @@ class ZoomDialog(QDialog):
         self._check_task_complete()
 
     def _check_task_complete(self):
-        """检查异步任务是否完成"""
         if self._load_task and self._load_task.done():
             try:
                 self._load_task.result()
@@ -371,11 +340,8 @@ class ZoomDialog(QDialog):
             QTimer.singleShot(100, self._check_task_complete)
 
     async def _load_candidates_async(self):
-        """异步加载候选帧"""
-        # 生成 9 个时间点（3×3 网格）
         times = self._generate_times()
         items = []
-
         total = len(times)
         for idx, t in enumerate(times):
             if self._load_task and self._load_task.cancelled():
@@ -391,7 +357,6 @@ class ZoomDialog(QDialog):
                 if success:
                     items.append({'time': t, 'path': temp_path})
                 else:
-                    # 提取失败，使用备用时间
                     fallback_t = random.uniform(self.range_start, self.range_end)
                     fallback_path = os.path.join(
                         self.temp_dir, f"zoom_L{self.level}_{self.seg_label}_{fallback_t:.2f}_{idx}_fallback.jpg"
@@ -409,13 +374,8 @@ class ZoomDialog(QDialog):
         self.selected_index = None
 
     def _generate_times(self) -> List[float]:
-        """
-        生成 9 个时间点（3×3 网格）
-        中心是 center_time，周围 8 个点均匀分布在范围内
-        """
         half = self.half_range
         step = self.step
-
         if half < 0.1:
             return [self.center_time] * 9
 
@@ -426,7 +386,6 @@ class ZoomDialog(QDialog):
             t = max(self.range_start, min(self.range_end, t))
             positions.append(t)
 
-        # 去重并补全
         unique_positions = []
         seen = set()
         for t in positions:
@@ -446,8 +405,6 @@ class ZoomDialog(QDialog):
     # ============================================================
 
     def _render_grid(self):
-        """渲染候选帧网格"""
-        # 清空网格
         while self.grid_layout.count():
             child = self.grid_layout.takeAt(0)
             if child.widget():
@@ -455,7 +412,6 @@ class ZoomDialog(QDialog):
 
         items = self.candidate_items
         count = len(items)
-
         if count == 0:
             label = QLabel("⚠️ 没有可用的候选帧\n请尝试关闭并重新打开")
             label.setAlignment(Qt.AlignCenter)
@@ -463,10 +419,8 @@ class ZoomDialog(QDialog):
             self.grid_layout.addWidget(label, 0, 0)
             return
 
-        # 3×3 网格
         cols = 3
         img_w, img_h = 250, 188
-
         viewport_width = self.scroll.viewport().width() - 20
         if viewport_width > 0:
             max_w = (viewport_width - 16) // 3 - 10
@@ -511,7 +465,6 @@ class ZoomDialog(QDialog):
     # ============================================================
 
     def on_thumb_click(self, pos: int):
-        """单击候选帧 - 选中/取消选中"""
         if self.selected_index == pos:
             self.selected_index = None
         else:
@@ -521,7 +474,6 @@ class ZoomDialog(QDialog):
         self._update_selected_count()
 
     def _update_selected_count(self):
-        """更新底部选中计数和按钮状态"""
         has_selected = self.selected_index is not None
         count = 1 if has_selected else 0
 
@@ -539,14 +491,12 @@ class ZoomDialog(QDialog):
     # ============================================================
 
     def select_all(self):
-        """全选（Zoom 中只能选一个，选中第一个）"""
         if self.candidate_items:
             self.selected_index = 0
             self._render_grid()
             self._update_selected_count()
 
     def deselect_all(self):
-        """取消全选"""
         self.selected_index = None
         self._render_grid()
         self._update_selected_count()
@@ -556,7 +506,6 @@ class ZoomDialog(QDialog):
     # ============================================================
 
     def favorite_selected(self):
-        """收藏选中的候选帧"""
         if self.selected_index is None:
             return
 
@@ -564,7 +513,46 @@ class ZoomDialog(QDialog):
         time_sec = item['time']
 
         if self.source == "favorites":
-            QMessageBox.information(self, "提示", "收藏弹窗中请直接使用'替换原图'，收藏操作请在主界面进行。")
+            # 收藏弹窗模式：将候选帧作为新的收藏添加
+            # 需要添加到 self.favorites_data 和 self.controller.favorites，并更新数据库
+            if self.favorites_data is None:
+                QMessageBox.warning(self, "警告", "收藏数据不存在")
+                return
+
+            # 检查是否已存在相同时间点的收藏（避免重复）
+            for fav in self.favorites_data:
+                if abs(fav.get('time', 0) - time_sec) < 0.01:
+                    QMessageBox.information(self, "提示", "该时间点已收藏")
+                    return
+
+            # 构造新收藏项
+            new_fav = {
+                'video_path': self.controller.video_path,
+                'segment': self.seg_label,
+                'time': time_sec,
+                'path': item['path'],
+                'exported': False,
+            }
+            # 添加到本地列表
+            self.favorites_data.append(new_fav)
+            self.controller.favorites.append(new_fav.copy())  # 复制，避免引用问题
+
+            # 更新数据库
+            if self.controller.video_id:
+                timestamp_ms = int(time_sec * 1000)
+                self.controller.db.add_favorite(
+                    self.controller.video_id,
+                    self.seg_label,
+                    timestamp_ms,
+                    item['path'],
+                    is_exported=False
+                )
+
+            # 刷新父视图（收藏弹窗）
+            if self.parent() and hasattr(self.parent(), 'load_favorites'):
+                self.parent().load_favorites()
+
+            QMessageBox.information(self, "完成", f"已收藏 {time_sec:.2f}s 的截图")
             return
 
         # 主界面模式
@@ -584,7 +572,6 @@ class ZoomDialog(QDialog):
     # ============================================================
 
     def export_selected(self):
-        """导出选中的候选帧"""
         if self.selected_index is None:
             return
 
@@ -614,7 +601,6 @@ class ZoomDialog(QDialog):
     # ============================================================
 
     def preview_selected(self):
-        """预览选中的候选帧"""
         if self.selected_index is None:
             return
 
@@ -636,7 +622,6 @@ class ZoomDialog(QDialog):
     # ============================================================
 
     def zoom_selected(self):
-        """进入下一层精修"""
         if self.selected_index is None:
             return
         if self.level >= 4:
@@ -646,7 +631,6 @@ class ZoomDialog(QDialog):
         item = self.candidate_items[self.selected_index]
         next_level = self.level + 1
 
-        # 关闭当前窗口，打开下一层
         dlg = ZoomDialog(
             controller=self.controller,
             seg_label=self.seg_label,
@@ -669,7 +653,6 @@ class ZoomDialog(QDialog):
     # ============================================================
 
     def replace_selected(self):
-        """替换原图（通过按钮执行）"""
         if self.selected_index is None:
             return
 
@@ -703,7 +686,6 @@ class ZoomDialog(QDialog):
             QMessageBox.critical(self, "错误", f"替换失败: {str(e)}")
 
     def _replace_in_main(self, time_sec: float, src_path: str):
-        """替换主界面中的截图"""
         items = self.controller.get_segment_items(self.seg_label)
         if self.pos >= len(items):
             QMessageBox.warning(self, "警告", "原截图已不存在")
@@ -751,7 +733,6 @@ class ZoomDialog(QDialog):
         QMessageBox.information(self, "完成", f"已成功替换为 {time_sec:.2f}s 的截图")
 
     def _replace_in_favorites(self, time_sec: float, src_path: str):
-        """替换收藏弹窗中的截图"""
         if not self.original_fav_item:
             QMessageBox.warning(self, "警告", "未找到原始收藏项，无法替换")
             return

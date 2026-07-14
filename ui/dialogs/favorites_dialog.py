@@ -442,7 +442,6 @@ class FavoritesDialog(QDialog):
                     dlg.exec()
 
     def zoom_selected(self):
-        """打开 Zoom 精修对话框（收藏弹窗模式）"""
         if len(self.selected_indices) != 1:
             QMessageBox.information(self, "提示", "请只选中一张截图进行细选。")
             return
@@ -455,7 +454,6 @@ class FavoritesDialog(QDialog):
         time_sec = item['time']
         seg_label = item['segment']
 
-        # 获取原始收藏项引用
         original_fav_item = item.get('original_item')
         if not original_fav_item:
             QMessageBox.warning(self, "警告", "无法获取原始收藏项")
@@ -465,7 +463,6 @@ class FavoritesDialog(QDialog):
             QMessageBox.warning(self, "警告", "图片文件不存在。")
             return
 
-        # 找到对应的 seg_idx
         seg_idx = -1
         for i, (label, _, _) in enumerate(self.parent_view.controller.get_segments()):
             if label == seg_label:
@@ -476,7 +473,6 @@ class FavoritesDialog(QDialog):
             QMessageBox.warning(self, "警告", "未找到对应的分段")
             return
 
-        # 打开 ZoomDialog（收藏弹窗模式）
         from ui.views.zoom_dialog import ZoomDialog
         dlg = ZoomDialog(
             controller=self.parent_view.controller,
@@ -488,11 +484,9 @@ class FavoritesDialog(QDialog):
             parent=self,
             source="favorites",
             favorites_data=self.favorites,
-            original_fav_item=original_fav_item,  # 传递原始收藏项引用
+            original_fav_item=original_fav_item,
         )
         dlg.exec()
-
-        # 刷新收藏弹窗
         self.load_favorites()
 
     def unfavorite_selected(self):
@@ -524,12 +518,16 @@ class FavoritesDialog(QDialog):
                 if not (f.get('segment') == seg_label and abs(f.get('time', 0) - time_sec) < 0.01)
             ]
 
-            if self.parent_view and self.parent_view.video_id:
+            if self.parent_view and self.parent_view.controller.video_id:
                 timestamp_ms = int(time_sec * 1000)
-                self.parent_view.db.remove_favorite(self.parent_view.video_id, seg_label, timestamp_ms)
+                self.parent_view.controller.db.remove_favorite(
+                    self.parent_view.controller.video_id,
+                    seg_label,
+                    timestamp_ms
+                )
 
             if self.parent_view:
-                items = self.parent_view.screenshots.get(seg_label, [])
+                items = self.parent_view.controller.screenshots.get(seg_label, [])
                 for item in items:
                     if abs(item['time'] - time_sec) < 0.01:
                         item['favorite'] = False
@@ -537,18 +535,18 @@ class FavoritesDialog(QDialog):
             removed += 1
 
         if self.parent_view:
-            self.parent_view.favorites = [
-                f for f in self.parent_view.favorites
+            self.parent_view.controller.favorites = [
+                f for f in self.parent_view.controller.favorites
                 if not any(
                     f.get('segment') == seg_label and abs(f.get('time', 0) - time_sec) < 0.01
                     for seg_label, time_sec in to_remove
                 )
             ]
             self.parent_view._update_fav_count()
-            self.parent_view._update_seg_buttons()
-            if self.parent_view.video_path:
-                self.parent_view._update_video_list_icon(self.parent_view.video_path)
-            self.parent_view._save_state_to_db()
+            self.parent_view._update_seg_buttons_state()
+            if self.parent_view.controller.video_path:
+                self.parent_view._update_video_list_icon(self.parent_view.controller.video_path)
+            self.parent_view.controller._save_state_to_db()
 
         self.selected_indices.clear()
         self.selected_label.setText("已选: 0 张")
@@ -557,7 +555,6 @@ class FavoritesDialog(QDialog):
         self.zoom_btn.setEnabled(False)
 
         self.load_favorites()
-
         QMessageBox.information(self, "完成", f"成功取消收藏 {removed} 张截图。")
 
     def export_selected(self):
@@ -612,10 +609,10 @@ class FavoritesDialog(QDialog):
                         if item.get('segment') == seg_label and abs(item.get('time', 0) - time_sec) < 0.01:
                             item['exported'] = True
                             break
-                    if self.parent_view and self.parent_view.video_id:
+                    if self.parent_view and self.parent_view.controller.video_id:
                         timestamp_ms = int(time_sec * 1000)
-                        self.parent_view.db.update_favorite_exported(
-                            self.parent_view.video_id,
+                        self.parent_view.controller.db.update_favorite_exported(
+                            self.parent_view.controller.video_id,
                             seg_label,
                             timestamp_ms
                         )
@@ -634,24 +631,26 @@ class FavoritesDialog(QDialog):
         )
 
         if self.parent_view:
+            # 同步到父视图的 controller.favorites 和 controller.screenshots
             for time_sec, _, seg_label in export_paths:
-                for fav in self.parent_view.favorites:
-                    if (fav.get('video_path') == self.parent_view.video_path and
+                for fav in self.parent_view.controller.favorites:
+                    if (fav.get('video_path') == self.parent_view.controller.video_path and
                         fav.get('segment') == seg_label and
                         abs(fav.get('time', 0) - time_sec) < 0.01):
                         fav['exported'] = True
                         break
-                items = self.parent_view.screenshots.get(seg_label, [])
+                items = self.parent_view.controller.screenshots.get(seg_label, [])
                 for item in items:
                     if abs(item['time'] - time_sec) < 0.01:
                         item['exported'] = True
                         break
 
-            self.parent_view._refresh_grid(self.parent_view.current_seg_index)
-            self.parent_view._update_seg_buttons()
-            self.parent_view._update_video_list_icon(self.parent_view.video_path)
-            if self.parent_view.video_id:
-                self.parent_view._save_state_to_db()
+            # 刷新视图
+            self.parent_view._refresh_grid()
+            self.parent_view._update_video_list_icon(self.parent_view.controller.video_path)
+            # 调用 controller 的 _save_state_to_db
+            self.parent_view.controller._save_state_to_db()
+            # 强制刷新所有视频列表图标
             self.parent_view._refresh_all_video_icons()
 
         self.selected_indices.clear()

@@ -28,8 +28,8 @@ class SegmentController:
         self.video_name: str = ""
 
         # 分段信息
-        self.num_segments: int = 5
-        self.segments: List[Tuple[str, float, float]] = []
+        self.num_segments: int = 5  # 默认 5 个分区，-1 表示自定义分区
+        self.segments: List[Tuple[str, float, float]] = []  # [(label, start, end), ...]
         self.current_seg_index: int = 0
 
         # 截图数据
@@ -94,6 +94,36 @@ class SegmentController:
         return self.num_segments
 
     # ============================================================
+    # 自定义分区（时间轴自定义）
+    # ============================================================
+
+    def apply_custom_segments(self, segments: List[Tuple[str, float, float]]):
+        """
+        应用自定义分区列表
+        segments: [(label, start, end), ...]
+        """
+        if not segments or len(segments) < 2:
+            logger.warning("自定义分区至少需要2个区")
+            return
+
+        # 验证分区是否有效
+        for label, start, end in segments:
+            if start >= end or start < 0 or end > self.duration:
+                logger.error(f"无效分区: {label} {start}-{end}")
+                return
+
+        self.num_segments = -1  # 标记为自定义
+        self.segments = segments
+        self.screenshots = {}
+        self.loaded_segments = set()
+        self.current_seg_index = 0
+        self._notify_data_changed()
+
+        # 自动加载第一个分区
+        if self.video_path:
+            asyncio.create_task(self.load_segment(0, restore_locks=True, randomize=False))
+
+    # ============================================================
     # 视频加载
     # ============================================================
 
@@ -111,6 +141,9 @@ class SegmentController:
             return False
 
         self.duration = duration
+        # 如果之前是自定义分区，重置为默认 5
+        if self.num_segments == -1:
+            self.num_segments = 5
         self.segments = calculate_segments(duration, self.num_segments)
 
         file_name = os.path.basename(video_path)
@@ -391,10 +424,6 @@ class SegmentController:
         new_path: str,
         old_time: float
     ) -> bool:
-        """
-        替换指定位置的截图，保留锁定/收藏/导出状态
-        返回是否成功
-        """
         items = self.screenshots.get(seg_label, [])
         if pos >= len(items):
             logger.error(f"替换失败: pos {pos} 超出范围")
@@ -402,12 +431,10 @@ class SegmentController:
 
         original = items[pos]
 
-        # 保存原有状态
         locked = original.get('locked', False)
         favorite = original.get('favorite', False)
         exported = original.get('exported', False)
 
-        # 复制新图片到临时目录
         import shutil
         new_temp_path = os.path.join(self.temp_dir, f"seg_{seg_label}_{new_time:.2f}_replaced.jpg")
         try:
@@ -416,22 +443,17 @@ class SegmentController:
             logger.error(f"复制图片失败: {e}")
             return False
 
-        # 更新数据
         original['time'] = new_time
         original['path'] = new_temp_path
         original['locked'] = locked
         original['favorite'] = favorite
         original['exported'] = exported
 
-        # 如果已收藏，更新收藏数据库
         if favorite and self.video_id:
             old_timestamp_ms = int(old_time * 1000)
             new_timestamp_ms = int(new_time * 1000)
 
-            # 移除旧收藏
             self.db.remove_favorite(self.video_id, seg_label, old_timestamp_ms)
-
-            # 添加新收藏
             self.db.add_favorite(
                 self.video_id,
                 seg_label,
@@ -440,7 +462,6 @@ class SegmentController:
                 is_exported=exported
             )
 
-            # 更新内存中的 favorites
             for fav in self.favorites:
                 if (fav.get('video_path') == self.video_path and
                     fav.get('segment') == seg_label and
@@ -450,9 +471,7 @@ class SegmentController:
                     fav['exported'] = exported
                     break
 
-        # 通知数据变化
         self._notify_data_changed()
-
         logger.info(f"替换成功: {seg_label} pos={pos} {old_time:.2f}s -> {new_time:.2f}s")
         return True
 
