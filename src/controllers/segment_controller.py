@@ -6,8 +6,9 @@ import random
 import tempfile
 import shutil
 import logging
-from typing import Dict, List, Set, Tuple, Optional
+from typing import Dict, List, Set, Tuple, Optional, Any
 from datetime import timedelta
+from dataclasses import dataclass
 
 from src.database import Database
 from src.video_scanner import get_video_duration, calculate_segments, extract_frame
@@ -15,8 +16,19 @@ from src.video_scanner import get_video_duration, calculate_segments, extract_fr
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class Action:
+    """撤销/重做操作记录"""
+    type: str          # 'favorite', 'unfavorite', 'lock', 'unlock'
+    video_id: int
+    seg_label: str
+    timestamp_ms: int
+    old_state: bool
+    new_state: bool
+
+
 class SegmentController:
-    """业务逻辑控制器 - 管理视频数据、截图、收藏、持久化"""
+    """业务逻辑控制器 - 管理视频数据、截图、收藏、持久化、撤销/重做"""
 
     def __init__(self):
         self.db = Database()
@@ -55,6 +67,11 @@ class SegmentController:
         # 异步任务
         self._load_task: Optional[asyncio.Task] = None
 
+        # 撤销/重做
+        self.undo_stack: List[Action] = []
+        self.redo_stack: List[Action] = []
+        self._is_undo_or_redo: bool = False  # 防止操作重新入栈
+
         # 回调
         self._on_data_changed: Optional[callable] = None
         self._on_progress_update: Optional[callable] = None
@@ -88,6 +105,7 @@ class SegmentController:
             self.screenshots = {}
             self.loaded_segments = set()
             self.current_seg_index = 0
+            self._clear_history()
             self._notify_data_changed()
 
     def get_num_segments(self) -> int:
@@ -117,6 +135,7 @@ class SegmentController:
         self.screenshots = {}
         self.loaded_segments = set()
         self.current_seg_index = 0
+        self._clear_history()
         self._notify_data_changed()
 
         # 自动加载第一个分区
@@ -163,6 +182,8 @@ class SegmentController:
         self.loaded_segments = set()
 
         self.current_seg_index = 0
+
+        self._clear_history()  # 切换视频清空撤销历史
 
         self._load_task = asyncio.create_task(self._load_segment(0, restore_locks=True, randomize=False))
         await self._load_task
@@ -292,10 +313,17 @@ class SegmentController:
         self._notify_data_changed()
 
     # ============================================================
-    # 收藏管理
+    # 收藏管理（增强撤销记录）
     # ============================================================
 
     def favorite_selected(self, seg_label: str, positions: List[int]) -> Tuple[int, int]:
+        if self._is_undo_or_redo:
+            # 撤销/重做过程中不记录新操作
+            return self._favorite_selected_impl(seg_label, positions, record_history=False)
+
+        return self._favorite_selected_impl(seg_label, positions, record_history=True)
+
+    def _favorite_selected_impl(self, seg_label: str, positions: List[int], record_history: bool) -> Tuple[int, int]:
         items = self.screenshots.get(seg_label, [])
         processed_keys = set()
         added_count = 0
@@ -313,6 +341,8 @@ class SegmentController:
             processed_keys.add(key)
 
             if not item.get('favorite', False):
+                old_state = False
+                new_state = True
                 item['favorite'] = True
                 if self.video_id:
                     timestamp_ms = int(item['time'] * 1000)
@@ -331,6 +361,16 @@ class SegmentController:
                 })
                 added_count += 1
 
+                if record_history:
+                    self._push_action(Action(
+                        type='favorite',
+                        video_id=self.video_id,
+                        seg_label=seg_label,
+                        timestamp_ms=timestamp_ms,
+                        old_state=old_state,
+                        new_state=new_state
+                    ))
+
         if added_count > 0:
             self._save_state_to_db()
             self._notify_data_changed()
@@ -338,6 +378,12 @@ class SegmentController:
         return added_count, skipped_count
 
     def unfavorite_selected(self, seg_label: str, positions: List[int]) -> int:
+        if self._is_undo_or_redo:
+            return self._unfavorite_selected_impl(seg_label, positions, record_history=False)
+
+        return self._unfavorite_selected_impl(seg_label, positions, record_history=True)
+
+    def _unfavorite_selected_impl(self, seg_label: str, positions: List[int], record_history: bool) -> int:
         items = self.screenshots.get(seg_label, [])
         removed_count = 0
 
@@ -346,6 +392,8 @@ class SegmentController:
                 continue
             item = items[pos]
             if item.get('favorite', False):
+                old_state = True
+                new_state = False
                 item['favorite'] = False
                 if self.video_id:
                     timestamp_ms = int(item['time'] * 1000)
@@ -357,6 +405,16 @@ class SegmentController:
                             abs(f.get('time', 0) - item['time']) < 0.01)
                 ]
                 removed_count += 1
+
+                if record_history:
+                    self._push_action(Action(
+                        type='unfavorite',
+                        video_id=self.video_id,
+                        seg_label=seg_label,
+                        timestamp_ms=timestamp_ms,
+                        old_state=old_state,
+                        new_state=new_state
+                    ))
 
         if removed_count > 0:
             self._save_state_to_db()
@@ -476,30 +534,191 @@ class SegmentController:
         return True
 
     # ============================================================
-    # 锁定/解锁
+    # 锁定/解锁（增强撤销记录）
     # ============================================================
 
     def lock_selected(self, seg_label: str, positions: List[int]) -> int:
+        if self._is_undo_or_redo:
+            return self._lock_selected_impl(seg_label, positions, record_history=False)
+
+        return self._lock_selected_impl(seg_label, positions, record_history=True)
+
+    def _lock_selected_impl(self, seg_label: str, positions: List[int], record_history: bool) -> int:
         items = self.screenshots.get(seg_label, [])
         count = 0
         for pos in positions:
             if pos < len(items):
-                items[pos]['locked'] = True
-                count += 1
+                item = items[pos]
+                if not item.get('locked', False):
+                    old_state = False
+                    new_state = True
+                    item['locked'] = True
+                    count += 1
+                    if record_history and self.video_id:
+                        timestamp_ms = int(item['time'] * 1000)
+                        self._push_action(Action(
+                            type='lock',
+                            video_id=self.video_id,
+                            seg_label=seg_label,
+                            timestamp_ms=timestamp_ms,
+                            old_state=old_state,
+                            new_state=new_state
+                        ))
         if count > 0:
             self._notify_data_changed()
         return count
 
     def unlock_selected(self, seg_label: str, positions: List[int]) -> int:
+        if self._is_undo_or_redo:
+            return self._unlock_selected_impl(seg_label, positions, record_history=False)
+
+        return self._unlock_selected_impl(seg_label, positions, record_history=True)
+
+    def _unlock_selected_impl(self, seg_label: str, positions: List[int], record_history: bool) -> int:
         items = self.screenshots.get(seg_label, [])
         count = 0
         for pos in positions:
             if pos < len(items):
-                items[pos]['locked'] = False
-                count += 1
+                item = items[pos]
+                if item.get('locked', False):
+                    old_state = True
+                    new_state = False
+                    item['locked'] = False
+                    count += 1
+                    if record_history and self.video_id:
+                        timestamp_ms = int(item['time'] * 1000)
+                        self._push_action(Action(
+                            type='unlock',
+                            video_id=self.video_id,
+                            seg_label=seg_label,
+                            timestamp_ms=timestamp_ms,
+                            old_state=old_state,
+                            new_state=new_state
+                        ))
         if count > 0:
             self._notify_data_changed()
         return count
+
+    # ============================================================
+    # 撤销/重做实现
+    # ============================================================
+
+    def _push_action(self, action: Action):
+        """压入撤销栈，清空重做栈"""
+        self.undo_stack.append(action)
+        self.redo_stack.clear()
+        # 限制栈大小（避免内存过大）
+        if len(self.undo_stack) > 100:
+            self.undo_stack = self.undo_stack[-100:]
+
+    def _clear_history(self):
+        self.undo_stack.clear()
+        self.redo_stack.clear()
+
+    def can_undo(self) -> bool:
+        return len(self.undo_stack) > 0
+
+    def can_redo(self) -> bool:
+        return len(self.redo_stack) > 0
+
+    def undo(self):
+        if not self.can_undo():
+            return
+        action = self.undo_stack.pop()
+        self._execute_action(action, reverse=True)
+        self.redo_stack.append(action)
+        self._save_state_to_db()
+        self._notify_data_changed()
+
+    def redo(self):
+        if not self.can_redo():
+            return
+        action = self.redo_stack.pop()
+        self._execute_action(action, reverse=False)
+        self.undo_stack.append(action)
+        self._save_state_to_db()
+        self._notify_data_changed()
+
+    def _execute_action(self, action: Action, reverse: bool):
+        """执行或反转一个操作（直接修改内存和数据库）"""
+        self._is_undo_or_redo = True
+        try:
+            # 根据操作类型执行
+            if action.type == 'favorite':
+                if reverse:
+                    # 撤销收藏 -> 取消收藏
+                    self._apply_favorite_state(action, False)
+                else:
+                    # 重做收藏 -> 添加收藏
+                    self._apply_favorite_state(action, True)
+            elif action.type == 'unfavorite':
+                if reverse:
+                    # 撤销取消收藏 -> 恢复收藏
+                    self._apply_favorite_state(action, True)
+                else:
+                    # 重做取消收藏 -> 取消收藏
+                    self._apply_favorite_state(action, False)
+            elif action.type == 'lock':
+                if reverse:
+                    self._apply_lock_state(action, False)
+                else:
+                    self._apply_lock_state(action, True)
+            elif action.type == 'unlock':
+                if reverse:
+                    self._apply_lock_state(action, True)
+                else:
+                    self._apply_lock_state(action, False)
+        finally:
+            self._is_undo_or_redo = False
+
+    def _apply_favorite_state(self, action: Action, set_favorite: bool):
+        """直接修改截图和数据库的收藏状态（不触发记录）"""
+        # 查找对应截图
+        items = self.screenshots.get(action.seg_label, [])
+        target_time = action.timestamp_ms / 1000.0
+        for item in items:
+            if abs(item['time'] - target_time) < 0.01:
+                item['favorite'] = set_favorite
+                break
+        # 更新数据库
+        if set_favorite:
+            # 添加收藏（如果不存在）
+            if not self.db.is_favorite(action.video_id, action.seg_label, action.timestamp_ms):
+                # 需要找到对应的截图路径
+                thumb_path = ""
+                for item in items:
+                    if abs(item['time'] - target_time) < 0.01:
+                        thumb_path = item.get('path', '')
+                        break
+                self.db.add_favorite(action.video_id, action.seg_label,
+                                     action.timestamp_ms, thumb_path,
+                                     is_exported=False)
+                # 同时加入favorites列表
+                self.favorites.append({
+                    'video_path': self.video_path,
+                    'segment': action.seg_label,
+                    'time': target_time,
+                    'path': thumb_path,
+                    'exported': False,
+                })
+        else:
+            # 删除收藏
+            self.db.remove_favorite(action.video_id, action.seg_label, action.timestamp_ms)
+            # 从favorites列表移除
+            self.favorites = [
+                f for f in self.favorites
+                if not (f.get('video_path') == self.video_path and
+                        f.get('segment') == action.seg_label and
+                        abs(f.get('time', 0) - target_time) < 0.01)
+            ]
+
+    def _apply_lock_state(self, action: Action, set_locked: bool):
+        items = self.screenshots.get(action.seg_label, [])
+        target_time = action.timestamp_ms / 1000.0
+        for item in items:
+            if abs(item['time'] - target_time) < 0.01:
+                item['locked'] = set_locked
+                break
 
     # ============================================================
     # 刷新/重抽
@@ -564,6 +783,8 @@ class SegmentController:
         seg_label = self.segments[seg_idx][0]
         logger.info(f"全部重抽: 分段 {seg_label}")
         self.screenshots[seg_label] = []
+        # 清空历史（因为重抽会改变所有截图）
+        self._clear_history()
         await self._load_segment(seg_idx, restore_locks=False, randomize=True)
         self._notify_data_changed()
 
@@ -585,6 +806,67 @@ class SegmentController:
 
     def get_video_state(self, video_path: str) -> dict:
         return self.db.get_video_by_path(video_path)
+
+    # ============================================================
+    # 删除视频（仅从库中移除，不删除文件）
+    # ============================================================
+
+    def remove_video(self, video_path: str) -> bool:
+        """从数据库和内存中移除视频，不删除文件本身。返回是否成功"""
+        video_data = self.db.get_video_by_path(video_path)
+        if not video_data:
+            logger.warning(f"视频不存在于数据库: {video_path}")
+            return False
+
+        video_id = video_data['id']
+
+        # 如果当前加载的视频就是该视频，清空控制器状态
+        if self.video_path == video_path:
+            # 取消正在进行的任务
+            if self._load_task and not self._load_task.done():
+                self._load_task.cancel()
+            # 清空数据
+            self.video_path = None
+            self.video_id = None
+            self.duration = 0.0
+            self.video_name = ""
+            self.segments = []
+            self.screenshots = {}
+            self.loaded_segments = set()
+            self.favorites = []
+            self.current_seg_index = 0
+            self._clear_history()
+            # 通知界面更新
+            self._notify_data_changed()
+
+        # 删除数据库记录（级联删除 segments 和 favorites）
+        try:
+            self.db.delete_video(video_id)
+            logger.info(f"已从数据库移除视频: {video_path}")
+            return True
+        except Exception as e:
+            logger.error(f"删除视频记录失败: {e}")
+            return False
+
+    # ============================================================
+    # 缓存清理
+    # ============================================================
+
+    def clear_cache(self) -> int:
+        """清理临时缓存目录，返回删除文件数"""
+        if not os.path.exists(self.temp_dir):
+            return 0
+        count = 0
+        for root, dirs, files in os.walk(self.temp_dir):
+            for f in files:
+                try:
+                    os.remove(os.path.join(root, f))
+                    count += 1
+                except Exception as e:
+                    logger.warning(f"删除缓存文件失败: {f} - {e}")
+        # 重新创建空目录（保留）
+        # 目录本身存在，不需要重新创建
+        return count
 
     # ============================================================
     # 工具方法

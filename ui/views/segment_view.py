@@ -12,16 +12,17 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
     QGridLayout, QScrollArea, QFrame, QMessageBox, QApplication,
     QSplitter, QListWidget, QListWidgetItem, QSizePolicy, QComboBox,
-    QLineEdit, QMenu, QFileDialog
+    QLineEdit, QMenu, QFileDialog, QAbstractItemView
 )
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, QPoint
 from PySide6.QtGui import QPixmap, QFont, QColor, QAction
 
 from src.video_scanner import scan_videos, scan_videos_in_directory, get_video_duration
 from src.controllers import SegmentController
 from ui.views.zoom_dialog import ZoomDialog
 from ui.views.zoom_preview import ZoomPreviewDialog
-from ui.views.preview_panel import PreviewPanel
+from ui.views.preview_dialog import PreviewDialog
+from ui.views.exclude_dialog import ExcludeDialog
 from ui.widgets import ClickableLabel
 from ui.dialogs import FavoritesDialog
 
@@ -60,14 +61,22 @@ class SegmentView(QWidget):
         self.seg_buttons_layout = QHBoxLayout()
         self.seg_buttons: List[QPushButton] = []
 
-        self.preview_panel_visible = False
+        # 预览对话框
+        self.preview_dialog = None
 
-        self.all_videos = scan_videos("Z:\\")
+        # 从数据库加载视频列表
+        db_videos = self.controller.db.get_all_videos()
+        self.all_videos = [v['file_path'] for v in db_videos]
         self.filtered_videos = self.all_videos.copy()
-        logger.info(f"扫描到 {len(self.all_videos)} 个视频")
+        logger.info(f"从数据库加载了 {len(self.all_videos)} 个视频")
 
         self.setup_ui()
         self.setFocusPolicy(Qt.StrongFocus)
+
+        # 设置视频列表右键菜单和多选
+        self.video_list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.video_list.customContextMenuRequested.connect(self._show_context_menu)
+        self.video_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
 
     # ============================================================
     # UI 构建
@@ -85,14 +94,35 @@ class SegmentView(QWidget):
         left_layout.setContentsMargins(8, 8, 8, 8)
         left_layout.setSpacing(4)
 
-        # 标题栏 + 预览切换按钮 + 导入按钮
+        # 标题栏
         title_layout = QHBoxLayout()
-
         title = QLabel("📹 视频库")
         title.setFont(QFont("Arial", 13, QFont.Bold))
         title_layout.addWidget(title)
-
         title_layout.addStretch()
+
+        # 批量删除按钮（图标，放在“+”旁边）
+        self.batch_delete_btn = QPushButton("🗑️")
+        self.batch_delete_btn.setFixedSize(30, 30)
+        self.batch_delete_btn.setToolTip("批量删除选中的视频（不删除文件）")
+        self.batch_delete_btn.setEnabled(False)
+        self.batch_delete_btn.setStyleSheet("""
+            QPushButton {
+                border: 1px solid #888;
+                border-radius: 4px;
+                background: transparent;
+                font-size: 16px;
+            }
+            QPushButton:hover {
+                background: #e74c3c;
+                color: white;
+            }
+            QPushButton:disabled {
+                color: #666;
+            }
+        """)
+        self.batch_delete_btn.clicked.connect(self.batch_remove_videos)
+        title_layout.addWidget(self.batch_delete_btn)
 
         # 导入按钮
         self.import_btn = QPushButton("+")
@@ -114,10 +144,10 @@ class SegmentView(QWidget):
         self.import_btn.clicked.connect(self._show_import_menu)
         title_layout.addWidget(self.import_btn)
 
-        # 预览面板切换按钮
+        # 预览对话框切换按钮
         self.preview_toggle_btn = QPushButton("🎬")
         self.preview_toggle_btn.setFixedSize(30, 30)
-        self.preview_toggle_btn.setToolTip("切换预览面板")
+        self.preview_toggle_btn.setToolTip("打开/关闭预览窗口")
         self.preview_toggle_btn.setCheckable(True)
         self.preview_toggle_btn.setChecked(False)
         self.preview_toggle_btn.setStyleSheet("""
@@ -139,7 +169,7 @@ class SegmentView(QWidget):
                 background: #1a7ac4;
             }
         """)
-        self.preview_toggle_btn.clicked.connect(self.toggle_preview_panel)
+        self.preview_toggle_btn.clicked.connect(self.toggle_preview_dialog)
         title_layout.addWidget(self.preview_toggle_btn)
 
         left_layout.addLayout(title_layout)
@@ -147,7 +177,6 @@ class SegmentView(QWidget):
         # 搜索框
         search_layout = QHBoxLayout()
         search_layout.setSpacing(2)
-
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("🔍 搜索视频...")
         self.search_input.setStyleSheet("""
@@ -184,7 +213,6 @@ class SegmentView(QWidget):
         """)
         self.clear_search_btn.clicked.connect(self._clear_search)
         search_layout.addWidget(self.clear_search_btn)
-
         left_layout.addLayout(search_layout)
 
         # 视频列表
@@ -204,6 +232,7 @@ class SegmentView(QWidget):
             }
         """)
         self.video_list.itemDoubleClicked.connect(self.on_video_selected)
+        self.video_list.itemSelectionChanged.connect(self._update_batch_delete_btn_state)
         self._refresh_video_list()
         left_layout.addWidget(self.video_list)
 
@@ -243,13 +272,9 @@ class SegmentView(QWidget):
         stat_layout.addWidget(self.stat_locked)
         stat_layout.addWidget(self.stat_fav)
         left_layout.addLayout(stat_layout)
-
         left_layout.addStretch()
 
-        # ===== 中间主工作区 + 右侧预览面板 =====
-        self.right_splitter = QSplitter(Qt.Horizontal)
-
-        # 主工作区
+        # ===== 中间主工作区 =====
         right_panel = QWidget()
         right_layout = QVBoxLayout(right_panel)
         right_layout.setContentsMargins(8, 8, 8, 8)
@@ -269,14 +294,14 @@ class SegmentView(QWidget):
         control_bar = QHBoxLayout()
         control_bar.setSpacing(6)
 
+        # 分段按钮组
         seg_group = QHBoxLayout()
         seg_group.setSpacing(2)
         seg_group.setContentsMargins(0, 0, 0, 0)
         self.seg_buttons_layout = seg_group
         control_bar.addLayout(seg_group, 1)
 
-        control_bar.addStretch()
-
+        # 分区数量下拉框（3~7）
         seg_count_label = QLabel("分区:")
         seg_count_label.setFont(QFont("Arial", 9))
         control_bar.addWidget(seg_count_label)
@@ -284,12 +309,16 @@ class SegmentView(QWidget):
         self.seg_count_combo = QComboBox()
         self.seg_count_combo.setFixedWidth(44)
         self.seg_count_combo.setFont(QFont("Arial", 9))
-        for i in range(3, 11):
+        for i in range(3, 8):
             self.seg_count_combo.addItem(str(i), i)
         self.seg_count_combo.setCurrentIndex(self.seg_count_combo.findData(5))
         self.seg_count_combo.currentIndexChanged.connect(self.on_seg_count_changed)
         control_bar.addWidget(self.seg_count_combo)
 
+        # 弹性间隔，使密度组靠右
+        control_bar.addStretch()
+
+        # 密度组
         dens_label = QLabel("密度:")
         dens_label.setFont(QFont("Arial", 9))
         control_bar.addWidget(dens_label)
@@ -305,6 +334,25 @@ class SegmentView(QWidget):
             btn.clicked.connect(lambda checked, val=d: self.on_density_changed(val))
             control_bar.addWidget(btn)
             self.density_buttons.append(btn)
+
+        # 排除区间按钮
+        self.exclude_btn = QPushButton("⛔ 排除区间")
+        self.exclude_btn.setToolTip("设置要排除的时间段（如片头片尾）")
+        self.exclude_btn.setStyleSheet("""
+            QPushButton {
+                background: #666;
+                color: white;
+                font-weight: bold;
+                padding: 2px 8px;
+                border-radius: 4px;
+                font-size: 11px;
+            }
+            QPushButton:hover {
+                background: #888;
+            }
+        """)
+        self.exclude_btn.clicked.connect(self.show_exclude_dialog)
+        control_bar.addWidget(self.exclude_btn)
 
         right_layout.addLayout(control_bar)
 
@@ -378,35 +426,166 @@ class SegmentView(QWidget):
         export_btn.clicked.connect(self.export_selected)
         bottom_bar.addWidget(export_btn)
 
+        # 撤销/重做
+        self.undo_btn = QPushButton("↩ 撤销")
+        self.undo_btn.setEnabled(False)
+        self.undo_btn.clicked.connect(self.undo_action)
+        bottom_bar.addWidget(self.undo_btn)
+
+        self.redo_btn = QPushButton("↪ 重做")
+        self.redo_btn.setEnabled(False)
+        self.redo_btn.clicked.connect(self.redo_action)
+        bottom_bar.addWidget(self.redo_btn)
+
+        clear_cache_btn = QPushButton("🗑️ 清理缓存")
+        clear_cache_btn.clicked.connect(self.clear_cache)
+        bottom_bar.addWidget(clear_cache_btn)
+
         right_layout.addLayout(bottom_bar)
 
-        # 右侧预览面板
-        self.preview_panel = PreviewPanel()
-        self.preview_panel.export_clip_requested.connect(self._on_clip_exported)
-
-        self.right_splitter.addWidget(right_panel)
-        self.right_splitter.addWidget(self.preview_panel)
-        self.right_splitter.setSizes([10000, 0])
-
         # 主布局
-        main_splitter = QSplitter(Qt.Horizontal)
-        main_splitter.addWidget(left_panel)
-        main_splitter.addWidget(self.right_splitter)
-        main_splitter.setSizes([220, 1100])
-
-        main_layout.addWidget(main_splitter)
+        main_layout.addWidget(left_panel)
+        main_layout.addWidget(right_panel)
 
         for btn in self.seg_buttons:
             btn.setEnabled(False)
+
+    # ============================================================
+    # 排除区间对话框
+    # ============================================================
+
+    def show_exclude_dialog(self):
+        """显示排除区间设置对话框"""
+        dlg = ExcludeDialog(self.controller.excluded_ranges, self.controller.duration, self)
+        if dlg.exec():
+            new_ranges = dlg.get_ranges()
+            self.controller.excluded_ranges = new_ranges
+            # 如果当前有视频，重新加载当前分区以应用排除区间
+            if self.controller.get_video_path():
+                asyncio.create_task(
+                    self.controller.load_segment(
+                        self.controller.current_seg_index,
+                        restore_locks=True,
+                        randomize=False
+                    )
+                )
+            QMessageBox.information(self, "提示", "排除区间已更新，当前分区将重新生成。")
+
+    # ============================================================
+    # 批量删除按钮状态更新
+    # ============================================================
+
+    def _update_batch_delete_btn_state(self):
+        selected = self.video_list.selectedItems()
+        self.batch_delete_btn.setEnabled(len(selected) > 0)
+
+    # ============================================================
+    # 批量删除实现
+    # ============================================================
+
+    def batch_remove_videos(self):
+        selected_items = self.video_list.selectedItems()
+        if not selected_items:
+            return
+
+        video_paths = [item.data(Qt.UserRole) for item in selected_items if item.data(Qt.UserRole)]
+        if not video_paths:
+            return
+
+        count = len(video_paths)
+        reply = QMessageBox.question(
+            self,
+            "确认批量删除",
+            f"确定要从视频库中移除选中的 {count} 个视频吗？\n\n"
+            "此操作仅删除数据库记录和列表条目，不会删除视频文件本身。",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        if reply != QMessageBox.Yes:
+            return
+
+        removed = 0
+        failed = []
+        current_path = self.controller.get_video_path()
+
+        for video_path in video_paths:
+            success = self.controller.remove_video(video_path)
+            if success:
+                removed += 1
+                if video_path in self.all_videos:
+                    self.all_videos.remove(video_path)
+                if video_path in self.filtered_videos:
+                    self.filtered_videos.remove(video_path)
+            else:
+                failed.append(os.path.basename(video_path))
+
+        if current_path and current_path not in self.all_videos:
+            self.video_name_label.setText("请选择视频")
+            self.info_name.setText("未选择")
+            self.info_duration.setText("时长: --")
+            self.info_size.setText("大小: --")
+            self.info_path.setText("路径: --")
+            self._refresh_grid()
+            for btn in self.seg_buttons:
+                btn.setEnabled(False)
+            if self.preview_dialog and self.preview_dialog.isVisible():
+                self.preview_dialog.close()
+
+        self._refresh_video_list()
+        self._update_batch_delete_btn_state()
+
+        if failed:
+            QMessageBox.warning(
+                self,
+                "批量删除完成",
+                f"成功删除 {removed} 个视频。\n"
+                f"删除失败 {len(failed)} 个:\n" + "\n".join(failed)
+            )
+        else:
+            QMessageBox.information(
+                self,
+                "批量删除完成",
+                f"成功删除 {removed} 个视频。"
+            )
+
+    # ============================================================
+    # 预览对话框控制
+    # ============================================================
+
+    def toggle_preview_dialog(self):
+        if self.preview_dialog is None:
+            self.preview_dialog = PreviewDialog(self)
+            self.preview_dialog.set_main_controller(self.controller)
+            self.preview_dialog.export_clip_requested.connect(self._on_clip_exported)
+            self.preview_dialog.finished.connect(lambda: self.preview_toggle_btn.setChecked(False))
+            if self.controller.get_video_path():
+                self.preview_dialog.set_video(
+                    self.controller.get_video_path(),
+                    self.controller.get_duration(),
+                    self.controller.get_temp_dir()
+                )
+
+        if self.preview_dialog.isVisible():
+            self.preview_dialog.hide()
+            self.preview_toggle_btn.setChecked(False)
+        else:
+            self.preview_dialog.show()
+            self.preview_toggle_btn.setChecked(True)
+            if self.controller.get_video_path():
+                self.preview_dialog.set_video(
+                    self.controller.get_video_path(),
+                    self.controller.get_duration(),
+                    self.controller.get_temp_dir()
+                )
+
+    def _on_clip_exported(self, output_path: str):
+        pass
 
     # ============================================================
     # 导入功能
     # ============================================================
 
     def _show_import_menu(self):
-        """显示导入菜单"""
         menu = QMenu(self)
-
         action_files = QAction("📄 导入视频文件", self)
         action_files.triggered.connect(self._import_video_files)
         menu.addAction(action_files)
@@ -418,7 +597,6 @@ class SegmentView(QWidget):
         menu.exec(self.import_btn.mapToGlobal(self.import_btn.rect().bottomLeft()))
 
     def _import_video_files(self):
-        """导入单个或多个视频文件"""
         file_dialog = QFileDialog(self)
         file_dialog.setWindowTitle("选择视频文件")
         file_dialog.setNameFilter(
@@ -432,7 +610,6 @@ class SegmentView(QWidget):
                 self._add_videos(files)
 
     def _import_folder(self):
-        """导入文件夹（递归扫描）"""
         folder = QFileDialog.getExistingDirectory(
             self,
             "选择包含视频的文件夹",
@@ -456,8 +633,6 @@ class SegmentView(QWidget):
                 )
 
     def _add_videos(self, video_paths: List[str]):
-        """添加视频到列表和数据库（基于文件名去重）"""
-        # 构建现有文件名集合（小写）
         existing_names = {os.path.basename(p).lower() for p in self.all_videos}
         added = 0
         skipped = 0
@@ -466,16 +641,13 @@ class SegmentView(QWidget):
             name = os.path.basename(path)
             name_lower = name.lower()
 
-            # 检查是否已存在同名文件
             if name_lower in existing_names:
                 skipped += 1
                 continue
 
-            # 添加到内存列表
             self.all_videos.append(path)
             existing_names.add(name_lower)
 
-            # 添加到数据库
             try:
                 duration = get_video_duration(path)
                 if duration is None:
@@ -488,17 +660,14 @@ class SegmentView(QWidget):
                 added += 1
             except Exception as e:
                 logger.error(f"添加视频到数据库失败 {path}: {e}")
-                # 如果数据库添加失败，从列表移除
                 if path in self.all_videos:
                     self.all_videos.remove(path)
                     existing_names.remove(name_lower)
                 continue
 
-        # 刷新视频列表
         self.filtered_videos = self.all_videos.copy()
         self._refresh_video_list()
 
-        # 如果搜索框有内容，重新应用过滤
         if self.search_input.text().strip():
             self._on_search_text_changed(self.search_input.text())
 
@@ -538,28 +707,6 @@ class SegmentView(QWidget):
         self._refresh_video_list()
 
     # ============================================================
-    # 预览面板控制
-    # ============================================================
-
-    def toggle_preview_panel(self):
-        self.preview_panel_visible = not self.preview_panel_visible
-        if self.preview_panel_visible:
-            self.preview_panel.show_panel()
-            self.right_splitter.setSizes([0, 10000])
-            if self.controller.get_video_path():
-                self.preview_panel.set_video(
-                    self.controller.get_video_path(),
-                    self.controller.get_duration(),
-                    self.controller.get_temp_dir()
-                )
-        else:
-            self.preview_panel.hide_panel()
-            self.right_splitter.setSizes([10000, 0])
-
-    def _on_clip_exported(self, output_path: str):
-        pass
-
-    # ============================================================
     # 视频列表
     # ============================================================
 
@@ -591,6 +738,67 @@ class SegmentView(QWidget):
                 name = os.path.basename(path)
                 icon = self.controller.get_video_state_icon(path)
                 item.setText(f"{icon} {name}" if icon else name)
+
+    # ============================================================
+    # 右键菜单
+    # ============================================================
+
+    def _show_context_menu(self, pos: QPoint):
+        item = self.video_list.itemAt(pos)
+        if not item:
+            return
+        video_path = item.data(Qt.UserRole)
+        if not video_path:
+            return
+
+        menu = QMenu(self)
+        remove_action = QAction("❌ 从库中移除（不删除文件）", self)
+        remove_action.triggered.connect(lambda: self._remove_video_from_library(video_path))
+        menu.addAction(remove_action)
+
+        if len(self.video_list.selectedItems()) > 1:
+            batch_remove_action = QAction("🗑️ 批量删除选中", self)
+            batch_remove_action.triggered.connect(self.batch_remove_videos)
+            menu.addAction(batch_remove_action)
+
+        menu.exec(self.video_list.mapToGlobal(pos))
+
+    def _remove_video_from_library(self, video_path: str):
+        reply = QMessageBox.question(
+            self,
+            "确认移除",
+            f"确定要从视频库中移除 \"{os.path.basename(video_path)}\" 吗？\n\n"
+            "此操作仅删除数据库记录和列表条目，不会删除视频文件本身。",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        if reply != QMessageBox.Yes:
+            return
+
+        success = self.controller.remove_video(video_path)
+        if not success:
+            QMessageBox.warning(self, "错误", "移除视频失败，可能该视频已不存在于数据库中。")
+            return
+
+        if video_path in self.all_videos:
+            self.all_videos.remove(video_path)
+        if video_path in self.filtered_videos:
+            self.filtered_videos.remove(video_path)
+
+        self._refresh_video_list()
+
+        if self.controller.get_video_path() is None:
+            self.video_name_label.setText("请选择视频")
+            self.info_name.setText("未选择")
+            self.info_duration.setText("时长: --")
+            self.info_size.setText("大小: --")
+            self.info_path.setText("路径: --")
+            self._refresh_grid()
+            for btn in self.seg_buttons:
+                btn.setEnabled(False)
+            if self.preview_dialog and self.preview_dialog.isVisible():
+                self.preview_dialog.close()
+
+        QMessageBox.information(self, "完成", f"已从库中移除 \"{os.path.basename(video_path)}\"")
 
     # ============================================================
     # 视频加载
@@ -626,11 +834,13 @@ class SegmentView(QWidget):
         self._refresh_all_video_icons()
         self.progress_label_left.setText("加载完成")
 
-        if self.preview_panel.is_visible():
-            self.preview_panel.set_video(video_path, duration, self.controller.get_temp_dir())
+        if self.preview_dialog and self.preview_dialog.isVisible():
+            self.preview_dialog.set_video(video_path, duration, self.controller.get_temp_dir())
 
         for btn in self.seg_buttons:
             btn.setEnabled(True)
+
+        self._update_undo_redo_buttons()
 
     # ============================================================
     # 分段按钮管理
@@ -728,6 +938,7 @@ class SegmentView(QWidget):
         self._refresh_grid()
         self._update_fav_count()
         self._refresh_all_video_icons()
+        self._update_undo_redo_buttons()
 
     # ============================================================
     # 网格刷新
@@ -983,6 +1194,30 @@ class SegmentView(QWidget):
         QMessageBox.information(self, "导出完成", f"成功导出 {exported} 张截图到:\n{export_dir}")
 
     # ============================================================
+    # 撤销/重做
+    # ============================================================
+
+    def _update_undo_redo_buttons(self):
+        self.undo_btn.setEnabled(self.controller.can_undo())
+        self.redo_btn.setEnabled(self.controller.can_redo())
+
+    def undo_action(self):
+        self.controller.undo()
+        self._update_undo_redo_buttons()
+
+    def redo_action(self):
+        self.controller.redo()
+        self._update_undo_redo_buttons()
+
+    # ============================================================
+    # 清理缓存
+    # ============================================================
+
+    def clear_cache(self):
+        count = self.controller.clear_cache()
+        QMessageBox.information(self, "清理完成", f"已清理 {count} 个缓存文件。")
+
+    # ============================================================
     # Zoom 精修
     # ============================================================
 
@@ -1044,5 +1279,7 @@ class SegmentView(QWidget):
     # ============================================================
 
     def closeEvent(self, event):
+        if self.preview_dialog and self.preview_dialog.isVisible():
+            self.preview_dialog.close()
         self.controller.cleanup()
         event.accept()
