@@ -50,13 +50,13 @@ class ClickableLabel(QLabel):
         painter.setFont(QFont("Arial", 10, QFont.Bold))
         painter.drawText(4, 18, f"{self.index}")
 
-        # 绘制时间戳（左下角，hh:mm:ss 格式）
+        # 绘制时间戳（左下角，改为亮橙色）
         hours = int(self.timestamp // 3600)
         minutes = int((self.timestamp % 3600) // 60)
         secs = int(self.timestamp % 60)
         time_str = f"{hours:02d}:{minutes:02d}:{secs:02d}"
-        painter.setPen(QPen(QColor(255, 255, 255, 200)))
-        painter.setFont(QFont("Arial", 9))
+        painter.setPen(QPen(QColor(255, 165, 0, 230)))  # 亮橙色
+        painter.setFont(QFont("Arial", 9, QFont.Bold))
         painter.drawText(4, result.height() - 6, time_str)
 
         # 绘制选中状态（左上角蓝色圆点）
@@ -160,13 +160,13 @@ class FavImageLabel(QLabel):
         painter = QPainter(result)
         painter.setRenderHint(QPainter.Antialiasing)
 
-        # 绘制时间戳（左下角，hh:mm:ss 格式）
+        # 绘制时间戳（左下角，亮橙色）
         hours = int(self.timestamp // 3600)
         minutes = int((self.timestamp % 3600) // 60)
         secs = int(self.timestamp % 60)
         time_str = f"{hours:02d}:{minutes:02d}:{secs:02d}"
-        painter.setPen(QPen(QColor(255, 255, 255, 200)))
-        painter.setFont(QFont("Arial", 9))
+        painter.setPen(QPen(QColor(255, 165, 0, 230)))
+        painter.setFont(QFont("Arial", 9, QFont.Bold))
         painter.drawText(4, result.height() - 6, time_str)
 
         # 绘制选中状态（左上角蓝色圆点）

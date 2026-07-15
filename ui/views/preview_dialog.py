@@ -301,7 +301,6 @@ class PreviewDialog(QDialog):
         self.clear_range()
         self.clear_split_points()
         self._update_split_buttons()
-        # 延迟更新刻度位置
         QTimer.singleShot(50, self._update_tick_positions)
 
     # ============================================================
@@ -316,14 +315,12 @@ class PreviewDialog(QDialog):
                 label.adjustSize()
             return
 
-        # 显示 0%, 25%, 50%, 75%, 100% 位置的时间
         positions = [0, 0.25, 0.5, 0.75, 1.0]
         for i, pos in enumerate(positions):
             time_sec = pos * self.duration
             if i < len(self.tick_labels):
                 self.tick_labels[i].setText(self._format_time(time_sec))
                 self.tick_labels[i].adjustSize()
-        # 更新位置
         self._update_tick_positions()
 
     def _update_tick_positions(self):
@@ -332,7 +329,6 @@ class PreviewDialog(QDialog):
         if container_width < 50:
             return
 
-        # 滑块左右边距（大约15px）
         margin = 15
         available_width = container_width - margin * 2
 
@@ -341,10 +337,8 @@ class PreviewDialog(QDialog):
             if i >= len(self.tick_labels):
                 break
             label = self.tick_labels[i]
-            # 计算标签位置
             x = margin + pos * available_width - label.width() // 2
             y = 0
-            # 限制边界，防止溢出
             if x < 0:
                 x = 0
             if x + label.width() > container_width:
@@ -630,8 +624,6 @@ class PreviewDialog(QDialog):
         super().resizeEvent(event)
         if self.layout() and self.width() > 50:
             self.layout().activate()
-            # 更新预览图
             if hasattr(self, '_pending_time') and self._pending_time >= 0:
                 self._update_preview(self._pending_time)
-            # 更新刻度标签位置
             self._update_tick_positions()
