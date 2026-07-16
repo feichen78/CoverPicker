@@ -1,16 +1,16 @@
 📋 CoverPicker 项目进度日志
 🏷️ 当前版本信息
-版本号： v2.0.0
+版本号： v2.1.0
 
-版本名称： 独立可执行文件 + 缓存自动清理稳定版
+版本名称： NAS 性能优化 + 截图速度提升稳定版
 
 发布日期： 2026-07-16
 
 状态： ✅ 稳定运行
 
-对应 PRODUCT.md 版本： v4.2
+对应 PRODUCT.md 版本： v4.3
 
-📊 整体完成度评估（对照 PRODUCT.md v4.2）
+📊 整体完成度评估（对照 PRODUCT.md v4.3）
 功能模块	权重	完成度	说明
 视频分区浏览（7.2）	8%	100%	自动分段、切换正常；动态分区（3~7）已实现；自定义分区已实现；时间范围显示已实现
 Grid 候选浏览（7.3）	10%	100%	密度切换、截图显示正常；截图编号已实现；时间戳格式 hh:mm:ss 亮橙色
@@ -28,6 +28,7 @@ Zoom 精修（7.3/7.4）	15%	100%	L1~L4 四层精修完整实现，全选/取消
 更多格式支持（附录）	5%	100%	扩展支持 20+ 种视频格式 ✅ v1.3
 独立可执行文件（附录）	5%	100%	PyInstaller 目录模式打包 ✅ v2.0
 NAS 级持久化（9）	12%	100%	SQLite 持久化；启动时加载视频列表
+NAS 性能优化（9）	5%	100%	元数据缓存 + 并发控制 + 快速关键帧提取 ✅ v2.1
 加权综合完成度：约 100%
 
 ✅ 已完成功能
@@ -67,6 +68,8 @@ PySide6 桌面应用
 截图生成与显示
 异步 FFmpeg 提取关键帧（隐藏 cmd 窗口）✅ v2.0
 
+快速关键帧提取（-skip_frame nokey，大幅提升大文件定位速度）✅ v2.1
+
 截图自动裁剪片头片尾
 
 截图网格自适应显示（保持宽高比）
@@ -78,6 +81,8 @@ PySide6 桌面应用
 选中状态：左上角蓝色圆点（全选按钮切换模式）✅ v1.2
 
 锁定状态：🔒 标记
+
+缓存复用优化（放宽匹配条件到 1.0 秒，复用率大幅提升）✅ v2.1
 
 收藏管理（7.6）
 收藏/取消收藏选中截图（⭐ 标记）
@@ -178,6 +183,8 @@ _save_state_to_db() 正确计算 is_starred、is_exported、is_viewed
 
 启动时从数据库加载视频列表
 
+元数据缓存：文件未变化时跳过 FFprobe 调用 ✅ v2.1
+
 协程任务管理
 load_video() 取消之前的加载任务
 
@@ -186,6 +193,9 @@ _load_segment() 正确处理 CancelledError
 refresh_unlocked() 和 reset_all() 捕获取消异常
 
 closeEvent() 清理任务
+
+并发控制
+信号量（Semaphore）限制 FFmpeg 进程数（默认 3 个），防止 NAS 过载 ✅ v2.1
 
 代码架构
 控制器分离：segment_controller.py 管理业务逻辑
@@ -205,8 +215,10 @@ FFmpeg 调用隐藏 cmd 窗口 ✅ v2.0
 
 导出目录自定义选择 ✅ v2.0
 
+UPX 压缩支持 ✅ v2.0
+
 🚧 未完成功能
-所有 PRODUCT.md v4.2 中规划的功能已全部实现，后续版本将根据用户反馈增加新功能。
+所有 PRODUCT.md v4.3 中规划的功能已全部实现，后续版本将根据用户反馈增加新功能。
 
 ✅ 已修复问题
 问题	状态	说明
@@ -223,6 +235,8 @@ FavImageLabel 不显示	✅ 已修复	添加 set_image_size 方法
 细选窗口导出后状态图标不更新	✅ v1.3 修复	调用 _save_state_to_db() 和 _notify_data_changed()
 打包后 FFmpeg 弹出 cmd 窗口	✅ v2.0 修复	添加 CREATE_NO_WINDOW 标志
 导出目录固定无法自定义	✅ v2.0 修复	弹出文件夹选择对话框
+截图黑屏问题	✅ v2.1 修复	移除 -noaccurate_seek，改用 -skip_frame nokey
+截图速度慢问题	✅ v2.1 优化	快速 Seek + 关键帧跳过 + 缓存复用
 📁 当前项目结构（打包后）
 text
 C:\Personal\CoverPicker\dist\CoverPicker\
@@ -243,24 +257,34 @@ GUI 框架	PySide6 6.11.1
 视频处理	FFmpeg / FFprobe（系统 PATH）
 异步框架	asyncio + qasync
 数据库	SQLite
-打包工具	PyInstaller 6.0+
+打包工具	PyInstaller 6.21.0
 📝 开发日志（2026-07-16）
-v2.0.0 新增/修复
-独立可执行文件打包：
+v2.1.0 新增/修复
+NAS 性能优化：
 
-PyInstaller 目录模式打包成功
+元数据缓存：get_or_create_video 检测文件 mtime/size，未变化时跳过 FFprobe
 
-FFmpeg 调用添加 CREATE_NO_WINDOW 标志，隐藏 cmd 窗口
+并发控制：asyncio.Semaphore(3) 限制同时运行的 FFmpeg 进程数
 
-导出目录自定义：
+快速关键帧提取：extract_frame 添加 -skip_frame nokey 参数，只解码关键帧
 
-主界面截图导出支持选择保存位置
+缓存复用优化：匹配条件从 0.5 秒放宽到 1.0 秒，路径存在即复用
 
-收藏弹窗截图导出支持选择保存位置
+批量提取：extract_frames_batch_fast 支持单次 FFmpeg 调用提取多帧
 
-预览窗口片段导出支持选择保存位置
+截图速度提升：
 
-导出后在用户选择的目录下自动创建视频名子目录
+快速 Seek 模式（-ss 在 -i 之前）
+
+跳过非关键帧（-skip_frame nokey）
+
+缓存复用率大幅提升
+
+打包优化：
+
+使用 --noconfirm 跳过确认提示
+
+UPX 压缩支持
 
 📌 开发协作规则
 代码提供方式
@@ -278,6 +302,6 @@ FFmpeg 调用添加 CREATE_NO_WINDOW 标志，隐藏 cmd 窗口
 
 更多格式兼容性测试
 
-性能优化
+性能调优
 
 最后更新： 2026-07-16

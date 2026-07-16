@@ -2,18 +2,18 @@
 
 import os
 import json
-import asyncio
 import subprocess
 import logging
+import time
 from typing import List, Optional, Tuple
+
+logger = logging.getLogger(__name__)
 
 # Windows 下隐藏控制台窗口
 if os.name == 'nt':
     CREATE_NO_WINDOW = 0x08000000
 else:
     CREATE_NO_WINDOW = 0
-
-logger = logging.getLogger(__name__)
 
 # 支持的视频格式（v1.3 扩展）
 SUPPORTED_VIDEO_EXTENSIONS = {
@@ -26,16 +26,6 @@ SUPPORTED_VIDEO_EXTENSIONS = {
 
 
 def scan_videos(directory: str, extensions: set = None) -> List[str]:
-    """
-    递归扫描目录中的所有视频文件
-    
-    Args:
-        directory: 要扫描的目录路径
-        extensions: 支持的文件扩展名集合，默认使用 SUPPORTED_VIDEO_EXTENSIONS
-    
-    Returns:
-        视频文件路径列表
-    """
     if extensions is None:
         extensions = SUPPORTED_VIDEO_EXTENSIONS
     
@@ -52,7 +42,6 @@ def scan_videos(directory: str, extensions: set = None) -> List[str]:
 
 
 def scan_videos_in_directory(directory: str, extensions: set = None) -> List[str]:
-    """扫描单个目录中的视频文件（非递归）"""
     if extensions is None:
         extensions = SUPPORTED_VIDEO_EXTENSIONS
     
@@ -67,8 +56,7 @@ def scan_videos_in_directory(directory: str, extensions: set = None) -> List[str
     return video_files
 
 
-def get_video_duration(video_path: str) -> Optional[float]:
-    """使用 FFprobe 获取视频时长（秒）"""
+def get_video_duration(video_path: str, retries: int = 1) -> Optional[float]:
     if not os.path.exists(video_path):
         logger.error(f"视频文件不存在: {video_path}")
         return None
@@ -81,32 +69,41 @@ def get_video_duration(video_path: str) -> Optional[float]:
         video_path
     ]
     
-    try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            encoding='utf-8',
-            errors='ignore',
-            timeout=30,
-            creationflags=CREATE_NO_WINDOW
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            duration = float(result.stdout.strip())
-            return duration
-        else:
-            logger.error(f"FFprobe 获取时长失败: {video_path}, stderr: {result.stderr}")
+    for attempt in range(retries + 1):
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding='utf-8',
+                errors='ignore',
+                timeout=30,
+                creationflags=CREATE_NO_WINDOW
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                duration = float(result.stdout.strip())
+                return duration
+            else:
+                if attempt < retries:
+                    logger.warning(f"FFprobe 获取时长失败 (重试 {attempt+1}/{retries}): {video_path}")
+                    time.sleep(0.5)
+                else:
+                    logger.error(f"FFprobe 获取时长失败: {video_path}, stderr: {result.stderr}")
+                    return None
+        except subprocess.TimeoutExpired:
+            if attempt < retries:
+                logger.warning(f"FFprobe 超时 (重试 {attempt+1}/{retries}): {video_path}")
+                time.sleep(0.5)
+            else:
+                logger.error(f"FFprobe 超时: {video_path}")
+                return None
+        except Exception as e:
+            logger.error(f"FFprobe 异常: {video_path}, {e}")
             return None
-    except subprocess.TimeoutExpired:
-        logger.error(f"FFprobe 超时: {video_path}")
-        return None
-    except Exception as e:
-        logger.error(f"FFprobe 异常: {video_path}, {e}")
-        return None
+    return None
 
 
 def get_video_info(video_path: str) -> Optional[dict]:
-    """获取视频详细信息"""
     if not os.path.exists(video_path):
         return None
     
@@ -138,17 +135,112 @@ def get_video_info(video_path: str) -> Optional[dict]:
         return None
 
 
-def extract_frame(video_path: str, timestamp: float, output_path: str) -> bool:
-    """提取视频帧"""
+def extract_frame(video_path: str, timestamp: float, output_path: str, retries: int = 1) -> bool:
+    """
+    提取视频帧（快速 Seek + 跳过非关键帧）
+    - -skip_frame nokey: 只解码关键帧，大幅加速大文件定位
+    - -ss 在 -i 之前: 快速定位到关键帧附近
+    """
+    for attempt in range(retries + 1):
+        cmd = [
+            "ffmpeg",
+            "-hide_banner",
+            "-skip_frame", "nokey",          # 只解码关键帧，加速
+            "-ss", str(timestamp),
+            "-i", video_path,
+            "-frames:v", "1",
+            "-q:v", "2",
+            "-y",
+            output_path
+        ]
+        
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding='utf-8',
+                errors='ignore',
+                timeout=60,
+                creationflags=CREATE_NO_WINDOW
+            )
+            if result.returncode == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+                return True
+            else:
+                if attempt < retries:
+                    logger.warning(f"提取帧失败 (重试 {attempt+1}/{retries}): {video_path} @ {timestamp}s")
+                    time.sleep(0.5)
+                else:
+                    logger.error(f"提取帧失败: {video_path} @ {timestamp}s, stderr: {result.stderr}")
+                    return False
+        except subprocess.TimeoutExpired:
+            if attempt < retries:
+                logger.warning(f"FFmpeg 提取帧超时 (重试 {attempt+1}/{retries}): {video_path} @ {timestamp}s")
+                time.sleep(0.5)
+            else:
+                logger.error(f"FFmpeg 提取帧超时: {video_path} @ {timestamp}s")
+                return False
+        except Exception as e:
+            logger.error(f"FFmpeg 提取帧异常: {video_path} @ {timestamp}s, {e}")
+            return False
+    return False
+
+
+def extract_frames_batch(video_path: str, timestamps: List[float], output_dir: str) -> List[str]:
+    """批量提取视频帧（逐个调用，兼容性好）"""
+    outputs = []
+    total = len(timestamps)
+    for i, ts in enumerate(timestamps):
+        output_path = os.path.join(output_dir, f"frame_{i:03d}.jpg")
+        if extract_frame(video_path, ts, output_path):
+            outputs.append(output_path)
+    return outputs
+
+
+def extract_frames_batch_fast(video_path: str, timestamps: List[float], output_dir: str) -> List[str]:
+    """
+    单次 FFmpeg 调用批量提取多帧（更快，适合密度 >= 12）
+    使用 fps filter 一次性提取所有帧
+    """
+    if not timestamps:
+        return []
+    
+    count = len(timestamps)
+    
+    # 密度 <= 9 时，逐个提取更精确
+    if count <= 9:
+        return extract_frames_batch(video_path, timestamps, output_dir)
+    
+    # 计算时间范围
+    sorted_times = sorted(timestamps)
+    start = sorted_times[0]
+    end = sorted_times[-1]
+    duration = end - start
+    
+    # 如果时间跨度太小（< 1秒），退回到逐个提取
+    if duration < 1.0:
+        logger.debug(f"时间跨度 {duration:.2f}s < 1s，使用逐个提取")
+        return extract_frames_batch(video_path, timestamps, output_dir)
+    
+    # 计算帧率：帧数 / 时间跨度，并稍微调整确保能提取到所有帧
+    fps = count / duration
+    
+    # 添加额外帧确保覆盖所有时间点
+    # 输出模板
+    output_template = os.path.join(output_dir, "frame_%d.jpg")
+    
     cmd = [
         "ffmpeg",
         "-hide_banner",
-        "-ss", str(timestamp),
+        "-skip_frame", "nokey",              # 只解码关键帧，加速
+        "-ss", str(start - 0.5),             # 稍微提前开始，确保覆盖
         "-i", video_path,
-        "-frames:v", "1",
+        "-t", str(duration + 1.0),           # 稍微延长，确保覆盖
+        "-vf", f"fps={fps},scale=-1:-1",     # 保持原始分辨率，fps 控制帧数
         "-q:v", "2",
+        "-frames:v", str(count + 2),         # 多提取几帧备用
         "-y",
-        output_path
+        output_template
     ]
     
     try:
@@ -158,42 +250,42 @@ def extract_frame(video_path: str, timestamp: float, output_path: str) -> bool:
             text=True,
             encoding='utf-8',
             errors='ignore',
-            timeout=30,
+            timeout=120,
             creationflags=CREATE_NO_WINDOW
         )
-        return result.returncode == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 0
-    except subprocess.TimeoutExpired:
-        logger.error(f"FFmpeg 提取帧超时: {video_path} @ {timestamp}s")
-        return False
+        if result.returncode != 0:
+            logger.warning(f"批量提取失败，回退到逐个提取: {video_path}")
+            return extract_frames_batch(video_path, timestamps, output_dir)
+        
+        # 收集输出文件
+        all_outputs = []
+        for i in range(count + 3):
+            out_path = os.path.join(output_dir, f"frame_{i}.jpg")
+            if os.path.exists(out_path) and os.path.getsize(out_path) > 0:
+                all_outputs.append(out_path)
+        
+        if len(all_outputs) < count:
+            logger.warning(f"批量提取数量不足 ({len(all_outputs)}/{count})，回退到逐个提取")
+            return extract_frames_batch(video_path, timestamps, output_dir)
+        
+        # 取前 count 个
+        outputs = all_outputs[:count]
+        
+        # 删除多余的帧
+        for out_path in all_outputs[count:]:
+            try:
+                os.remove(out_path)
+            except:
+                pass
+        
+        logger.debug(f"批量提取成功: {len(outputs)} 帧，耗时单次 FFmpeg 调用")
+        return outputs
     except Exception as e:
-        logger.error(f"FFmpeg 提取帧异常: {video_path} @ {timestamp}s, {e}")
-        return False
-
-
-def extract_frames_batch(video_path: str, timestamps: List[float], output_dir: str) -> List[str]:
-    """批量提取视频帧"""
-    outputs = []
-    for i, ts in enumerate(timestamps):
-        output_path = os.path.join(output_dir, f"frame_{i:03d}.jpg")
-        if extract_frame(video_path, ts, output_path):
-            outputs.append(output_path)
-    return outputs
+        logger.error(f"批量提取异常，回退到逐个提取: {e}")
+        return extract_frames_batch(video_path, timestamps, output_dir)
 
 
 def extract_video_clip(video_path: str, start_time: float, end_time: float, output_path: str, re_encode: bool = False) -> bool:
-    """
-    提取视频片段
-    
-    Args:
-        video_path: 源视频路径
-        start_time: 起始时间（秒）
-        end_time: 结束时间（秒）
-        output_path: 输出文件路径
-        re_encode: 是否重新编码（True=重新编码，False=尝试无损复制）
-    
-    Returns:
-        是否成功
-    """
     if not os.path.exists(video_path):
         logger.error(f"视频文件不存在: {video_path}")
         return False
@@ -203,11 +295,9 @@ def extract_video_clip(video_path: str, start_time: float, end_time: float, outp
         logger.error("起始时间必须小于结束时间")
         return False
     
-    # 确保输出目录存在
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
     
     if re_encode:
-        # 重新编码模式（兼容性更好）
         cmd = [
             "ffmpeg",
             "-hide_banner",
@@ -222,8 +312,7 @@ def extract_video_clip(video_path: str, start_time: float, end_time: float, outp
             output_path
         ]
     else:
-        # 尝试无损复制（更快）
-        # 先检测音频流是否存在
+        # 检测音频流
         probe_cmd = [
             "ffprobe",
             "-v", "error",
@@ -236,7 +325,7 @@ def extract_video_clip(video_path: str, start_time: float, end_time: float, outp
             result = subprocess.run(probe_cmd, capture_output=True, text=True, timeout=10, creationflags=CREATE_NO_WINDOW)
             has_audio = "audio" in result.stdout
         except Exception:
-            has_audio = True  # 保守起见
+            has_audio = True
         
         cmd = [
             "ffmpeg",
@@ -249,7 +338,7 @@ def extract_video_clip(video_path: str, start_time: float, end_time: float, outp
         if has_audio:
             cmd.extend(["-c:a", "copy"])
         else:
-            cmd.extend(["-an"])  # 无音频
+            cmd.extend(["-an"])
         cmd.extend(["-avoid_negative_ts", "make_zero", "-y", output_path])
     
     try:
@@ -259,12 +348,11 @@ def extract_video_clip(video_path: str, start_time: float, end_time: float, outp
             text=True,
             encoding='utf-8',
             errors='ignore',
-            timeout=300,  # 5分钟超时
+            timeout=300,
             creationflags=CREATE_NO_WINDOW
         )
         success = result.returncode == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 0
         
-        # 如果无损复制失败，自动尝试重新编码
         if not success and not re_encode:
             logger.warning(f"无损复制失败，尝试重新编码: {video_path}")
             return extract_video_clip(video_path, start_time, end_time, output_path, re_encode=True)
@@ -279,12 +367,10 @@ def extract_video_clip(video_path: str, start_time: float, end_time: float, outp
 
 
 def calculate_segments(duration: float, num_segments: int) -> List[Tuple[str, float, float]]:
-    """将视频时长均分为指定数量的分段"""
     if duration <= 0 or num_segments <= 0:
         return []
     
-    # 如果视频太短，合并为一个分段
-    if duration < 60:  # 小于1分钟
+    if duration < 60:
         return [("A", 0.0, duration)]
     
     segment_duration = duration / num_segments

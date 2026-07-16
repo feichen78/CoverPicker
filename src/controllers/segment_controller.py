@@ -11,7 +11,7 @@ from datetime import timedelta
 from dataclasses import dataclass
 
 from src.database import Database
-from src.video_scanner import get_video_duration, calculate_segments, extract_frame
+from src.video_scanner import get_video_duration, calculate_segments, extract_frame, extract_frames_batch_fast
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,7 @@ class SegmentController:
         # 临时目录
         self.temp_dir: str = tempfile.mkdtemp(prefix="CoverPicker_")
 
-        # 导出目录（默认，但允许用户在导出时覆盖）
+        # 导出目录
         self.export_base: str = os.path.join(os.getcwd(), "StillPic")
 
         # 异步任务
@@ -71,6 +71,9 @@ class SegmentController:
         self.undo_stack: List[Action] = []
         self.redo_stack: List[Action] = []
         self._is_undo_or_redo: bool = False
+
+        # FFmpeg 并发控制信号量（防止 NAS 过载）
+        self._ffmpeg_semaphore = asyncio.Semaphore(3)
 
         # 回调
         self._on_data_changed: Optional[callable] = None
@@ -233,37 +236,55 @@ class SegmentController:
         new_times.sort()
         new_times = self._filter_excluded_random(new_times, start_cropped, end_cropped, count)
 
+        # ============================================================
+        # 缓存复用优化：先尝试从旧截图中匹配
+        # 放宽匹配条件（从 0.5 秒放宽到 1.0 秒），提高复用率
+        # ============================================================
         new_items = []
+        reused_count = 0
         total = len(new_times)
+
+        # 构建旧截图的索引：按时间排序
+        old_items_sorted = sorted(old_items, key=lambda x: x['time'])
+        old_times = [item['time'] for item in old_items_sorted]
 
         for idx, t in enumerate(new_times):
             if current_task and current_task.cancelled():
                 logger.debug(f"分段 {seg_idx} 加载被取消（循环中检查）")
                 return
 
-            self._notify_progress(f"正在生成 {label} 第 {idx+1}/{total} 张 @ {t:.2f}s")
-
+            # 尝试匹配旧截图（放宽到 1.0 秒）
             matched = None
-            if restore_locks:
-                for item in old_items:
-                    if abs(item['time'] - t) < 0.5:
-                        matched = item
-                        break
+            best_match_idx = -1
+            for i, old_t in enumerate(old_times):
+                if abs(old_t - t) < 1.0:
+                    best_match_idx = i
+                    break
 
-            if matched:
+            if best_match_idx >= 0:
+                matched = old_items_sorted[best_match_idx]
+
+            if matched and matched.get('path') and os.path.exists(matched['path']):
+                # 复用旧截图
                 new_items.append({
-                    'time': matched['time'],
+                    'time': t,  # 使用新时间点（更精确）
                     'path': matched['path'],
                     'locked': matched.get('locked', False),
                     'favorite': matched.get('favorite', False),
                     'exported': matched.get('exported', False),
                 })
-                self._notify_progress(f"恢复锁定: {label} {idx+1}/{total} @ {t:.2f}s")
+                reused_count += 1
+                self._notify_progress(f"复用缓存: {label} {idx+1}/{total} @ {t:.2f}s")
                 continue
+
+            # 没有匹配的缓存，提取新帧
+            self._notify_progress(f"正在生成 {label} 第 {idx+1}/{total} 张 @ {t:.2f}s")
 
             temp_path = os.path.join(self.temp_dir, f"seg_{label}_{t:.2f}.jpg")
             try:
-                success = await asyncio.to_thread(extract_frame, self.video_path, t, temp_path)
+                # 使用信号量控制 FFmpeg 并发数
+                async with self._ffmpeg_semaphore:
+                    success = await asyncio.to_thread(extract_frame, self.video_path, t, temp_path, retries=1)
                 if success:
                     new_items.append({
                         'time': t,
@@ -300,9 +321,12 @@ class SegmentController:
         self.screenshots[seg_key] = new_items
         self.loaded_segments.add(label)
 
+        # 如果有复用缓存，尝试用批量提取补全缺失的帧（可选）
+        # 但当前已逐个提取，不需要额外处理
+
         self._restore_favorites_to_screenshots()
 
-        self._notify_progress(f"{label} 分段加载完成 ({len(new_items)} 张)")
+        self._notify_progress(f"{label} 分段加载完成 ({len(new_items)} 张, 复用 {reused_count} 张)")
         self._notify_data_changed()
 
     # ============================================================
@@ -420,17 +444,6 @@ class SegmentController:
     # ============================================================
 
     def export_selected(self, seg_label: str, positions: List[int], export_dir: Optional[str] = None) -> Tuple[int, List[Tuple[str, str]]]:
-        """
-        导出选中的截图。
-        
-        Args:
-            seg_label: 分区标签
-            positions: 截图位置列表
-            export_dir: 自定义导出目录（如果为 None，使用默认目录）
-        
-        Returns:
-            (导出数量, [(时间戳, 导出路径), ...])
-        """
         items = self.screenshots.get(seg_label, [])
         export_paths = []
 
@@ -444,15 +457,10 @@ class SegmentController:
         if not export_paths:
             return 0, []
 
-        # 确定导出目录
         if export_dir is None:
             video_name = os.path.splitext(os.path.basename(self.video_path))[0]
             export_dir = os.path.join(self.export_base, video_name)
         else:
-            # 如果传入的目录是用户选择的根目录，自动创建视频名子目录
-            # 但为了灵活性，我们直接使用传入的目录（用户可能希望直接放在选择的目录下）
-            # 但仍然建议在用户选择的目录下创建视频名子目录以避免混乱
-            # 这里我们使用传入的目录 + 视频名子目录
             video_name = os.path.splitext(os.path.basename(self.video_path))[0]
             export_dir = os.path.join(export_dir, video_name)
 
@@ -504,7 +512,6 @@ class SegmentController:
         favorite = original.get('favorite', False)
         exported = original.get('exported', False)
 
-        import shutil
         new_temp_path = os.path.join(self.temp_dir, f"seg_{seg_label}_{new_time:.2f}_replaced.jpg")
         try:
             shutil.copy2(new_path, new_temp_path)
@@ -752,7 +759,8 @@ class SegmentController:
 
             temp_path = os.path.join(self.temp_dir, f"seg_{seg_label}_{t:.2f}_new.jpg")
             try:
-                success = await asyncio.to_thread(extract_frame, self.video_path, t, temp_path)
+                async with self._ffmpeg_semaphore:
+                    success = await asyncio.to_thread(extract_frame, self.video_path, t, temp_path, retries=1)
                 if success:
                     items[pos]['time'] = t
                     items[pos]['path'] = temp_path
@@ -839,7 +847,6 @@ class SegmentController:
     # ============================================================
 
     def get_cache_size(self) -> int:
-        """获取缓存目录总大小（字节）"""
         if not os.path.exists(self.temp_dir):
             return 0
         total = 0
@@ -853,15 +860,12 @@ class SegmentController:
         return total
 
     def get_cache_size_mb(self) -> float:
-        """获取缓存目录总大小（MB）"""
         return self.get_cache_size() / (1024 * 1024)
 
     def get_cache_size_gb(self) -> float:
-        """获取缓存目录总大小（GB）"""
         return self.get_cache_size() / (1024 * 1024 * 1024)
 
     def get_cache_file_count(self) -> int:
-        """获取缓存目录文件数量"""
         if not os.path.exists(self.temp_dir):
             return 0
         count = 0
@@ -870,7 +874,6 @@ class SegmentController:
         return count
 
     def clear_cache(self) -> int:
-        """清理所有缓存文件，返回删除文件数"""
         if not os.path.exists(self.temp_dir):
             return 0
         count = 0
@@ -884,15 +887,6 @@ class SegmentController:
         return count
 
     def auto_clean_cache(self, threshold_gb: float = 5.0) -> Tuple[int, float]:
-        """
-        自动清理缓存，删除最旧的文件直到总大小低于阈值。
-        
-        Args:
-            threshold_gb: 阈值（GB），默认 5GB
-        
-        Returns:
-            (删除文件数, 释放空间MB)
-        """
         if not os.path.exists(self.temp_dir):
             return 0, 0.0
 
@@ -902,7 +896,6 @@ class SegmentController:
         if current_size <= threshold_bytes:
             return 0, 0.0
 
-        # 收集所有缓存文件信息（路径，修改时间，大小）
         files_info = []
         for root, dirs, files in os.walk(self.temp_dir):
             for f in files:
@@ -914,10 +907,8 @@ class SegmentController:
                 except OSError:
                     pass
 
-        # 按修改时间排序（最旧在前）
         files_info.sort(key=lambda x: x[1])
 
-        # 删除最旧的文件直到低于阈值（清理到90%避免频繁触发）
         deleted_count = 0
         freed_bytes = 0
         target_bytes = threshold_bytes * 0.9

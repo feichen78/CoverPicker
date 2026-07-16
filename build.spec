@@ -4,24 +4,27 @@ import sys
 import os
 from PyInstaller.utils.hooks import collect_all
 
-# 获取虚拟环境的 site-packages 路径（在虚拟环境中运行时）
-site_packages = os.path.join(sys.prefix, 'Lib', 'site-packages')
-
-# 如果不在虚拟环境中，使用系统的 site-packages
-if not os.path.exists(site_packages):
-    site_packages = os.path.join(sys.base_prefix, 'Lib', 'site-packages')
-
-# 收集 PySide6 的所有内容
+# 使用 collect_all 一次性收集 PySide6 和 shiboken6 的所有内容
 pyside6_datas, pyside6_binaries, pyside6_hiddenimports = collect_all('PySide6')
+shiboken6_datas, shiboken6_binaries, shiboken6_hiddenimports = collect_all('shiboken6')
+
+# 合并
+all_datas = pyside6_datas + shiboken6_datas
+all_binaries = pyside6_binaries + shiboken6_binaries
+all_hiddenimports = pyside6_hiddenimports + shiboken6_hiddenimports + [
+    'qasync',
+    'asyncio',
+    'sqlite3',
+]
 
 block_cipher = None
 
 a = Analysis(
     ['main.py'],
-    pathex=[site_packages],  # 关键：添加 site-packages 到搜索路径
-    binaries=pyside6_binaries,
-    datas=pyside6_datas,
-    hiddenimports=pyside6_hiddenimports + ['qasync', 'asyncio', 'sqlite3'],
+    pathex=[],
+    binaries=all_binaries,
+    datas=all_datas,
+    hiddenimports=all_hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

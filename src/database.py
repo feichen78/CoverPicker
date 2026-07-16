@@ -133,15 +133,28 @@ class Database:
     def get_or_create_video(self, file_path: str, file_name: str, duration: int,
                             resolution: str = "", file_size: int = 0,
                             modified_time: int = 0) -> int:
-        """获取或创建视频记录，返回视频 ID"""
+        """
+        获取或创建视频记录，返回视频 ID。
+        如果文件已存在但文件大小或修改时间变化，自动更新 duration。
+        """
         conn = self._get_conn()
         cursor = conn.cursor()
 
         # 检查是否已存在
-        cursor.execute("SELECT id FROM videos WHERE file_path = ?", (file_path,))
+        cursor.execute("SELECT id, duration, file_size, modified_time FROM videos WHERE file_path = ?", (file_path,))
         row = cursor.fetchone()
         if row:
-            return row['id']
+            vid = row['id']
+            # 如果文件大小或修改时间变化，更新 duration
+            if row['file_size'] != file_size or row['modified_time'] != modified_time:
+                cursor.execute("""
+                    UPDATE videos SET 
+                        file_size = ?, modified_time = ?, duration = ?, resolution = ?
+                    WHERE id = ?
+                """, (file_size, modified_time, duration, resolution, vid))
+                conn.commit()
+                logger.debug(f"更新视频元数据: {file_name} (ID: {vid})")
+            return vid
 
         # 不存在则插入
         cursor.execute("""
