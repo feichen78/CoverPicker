@@ -7,6 +7,12 @@ import subprocess
 import logging
 from typing import List, Optional, Tuple
 
+# Windows 下隐藏控制台窗口
+if os.name == 'nt':
+    CREATE_NO_WINDOW = 0x08000000
+else:
+    CREATE_NO_WINDOW = 0
+
 logger = logging.getLogger(__name__)
 
 # 支持的视频格式（v1.3 扩展）
@@ -82,7 +88,8 @@ def get_video_duration(video_path: str) -> Optional[float]:
             text=True,
             encoding='utf-8',
             errors='ignore',
-            timeout=30
+            timeout=30,
+            creationflags=CREATE_NO_WINDOW
         )
         if result.returncode == 0 and result.stdout.strip():
             duration = float(result.stdout.strip())
@@ -119,7 +126,8 @@ def get_video_info(video_path: str) -> Optional[dict]:
             text=True,
             encoding='utf-8',
             errors='ignore',
-            timeout=30
+            timeout=30,
+            creationflags=CREATE_NO_WINDOW
         )
         if result.returncode == 0 and result.stdout:
             data = json.loads(result.stdout)
@@ -150,7 +158,8 @@ def extract_frame(video_path: str, timestamp: float, output_path: str) -> bool:
             text=True,
             encoding='utf-8',
             errors='ignore',
-            timeout=30
+            timeout=30,
+            creationflags=CREATE_NO_WINDOW
         )
         return result.returncode == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 0
     except subprocess.TimeoutExpired:
@@ -224,7 +233,7 @@ def extract_video_clip(video_path: str, start_time: float, end_time: float, outp
             video_path
         ]
         try:
-            result = subprocess.run(probe_cmd, capture_output=True, text=True, timeout=10)
+            result = subprocess.run(probe_cmd, capture_output=True, text=True, timeout=10, creationflags=CREATE_NO_WINDOW)
             has_audio = "audio" in result.stdout
         except Exception:
             has_audio = True  # 保守起见
@@ -250,7 +259,8 @@ def extract_video_clip(video_path: str, start_time: float, end_time: float, outp
             text=True,
             encoding='utf-8',
             errors='ignore',
-            timeout=300  # 5分钟超时
+            timeout=300,  # 5分钟超时
+            creationflags=CREATE_NO_WINDOW
         )
         success = result.returncode == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 0
         

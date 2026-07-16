@@ -1,0 +1,83 @@
+2026-07-16 10:27:02,634 - __main__ - INFO - 应用浅色主题
+2026-07-16 10:27:02,635 - asyncio - DEBUG - Using proactor: _IocpProactor
+2026-07-16 10:27:02,637 - ui.views.segment_view - INFO - === SegmentView 初始化 ===
+2026-07-16 10:27:02,639 - src.database - INFO - 数据库初始化完成: C:\Users\CATIC\.coverpicker\coverpicker.db
+2026-07-16 10:27:02,642 - ui.views.segment_view - INFO - 从数据库加载了 26 个视频
+2026-07-16 10:27:03,427 - qasync._windows._EventPoller - DEBUG - Starting (proactor: <_IocpProactor overlapped#=0 result#=0>)...
+2026-07-16 10:27:03,429 - qasync._windows._EventWorker - DEBUG - Thread started
+2026-07-16 10:27:13,046 - src.controllers.segment_controller - INFO - 加载分段 A: 11.1s - 62.7s
+2026-07-16 10:27:13,056 - qasync.QThreadExecutor - DEBUG - Submitting callback functools.partial(<built-in method run of _contextvars.Context object at 0x00000157F9CB8840>, <function extract_frame at 0x00000157F9651C60>, 'C:/TestVideo\\平淡\\2016客服部平淡工作的一年.mp4', 36.88679287619497, 'C:\\Users\\CATIC\\AppData\\Local\\Temp\\CoverPicker_k88zhpk0\\seg_A_36.89.jpg') with args () and kwargs {} to thread worker queue
+2026-07-16 10:27:13,056 - qasync._QThreadWorker - DEBUG - #10 got callback functools.partial(<built-in method run of _contextvars.Context object at 0x00000157F9CB8840>, <function extract_frame at 0x00000157F9651C60>, 'C:/TestVideo\\平淡\\2016客服部平淡工作的一年.mp4', 36.88679287619497, 'C:\\Users\\CATIC\\AppData\\Local\\Temp\\CoverPicker_k88zhpk0\\seg_A_36.89.jpg') with args () and kwargs {} from queue
+2026-07-16 10:27:13,056 - qasync._QThreadWorker - DEBUG - Invoking callback
+2026-07-16 10:27:13,786 - qasync._QThreadWorker - DEBUG - Setting Future result: True
+2026-07-16 10:27:13,787 - src.controllers.segment_controller - INFO - 截图成功: A 0 @ 36.89s
+2026-07-16 10:27:13,787 - qasync.QThreadExecutor - DEBUG - Submitting callback functools.partial(<built-in method run of _contextvars.Context object at 0x00000157F9CB8840>, <function extract_frame at 0x00000157F9651C60>, 'C:/TestVideo\\平淡\\2016客服部平淡工作的一年.mp4', 38.0833312596488, 'C:\\Users\\CATIC\\AppData\\Local\\Temp\\CoverPicker_k88zhpk0\\seg_A_38.08.jpg') with args () and kwargs {} to thread worker queue
+2026-07-16 10:27:13,787 - qasync._QThreadWorker - DEBUG - #2 got callback functools.partial(<built-in method run of _contextvars.Context object at 0x00000157F9CB8840>, <function extract_frame at 0x00000157F9651C60>, 'C:/TestVideo\\平淡\\2016客服部平淡工作的一年.mp4', 38.0833312596488, 'C:\\Users\\CATIC\\AppData\\Local\\Temp\\CoverPicker_k88zhpk0\\seg_A_38.08.jpg') with args () and kwargs {} from queue
+2026-07-16 10:27:13,788 - qasync._QThreadWorker - DEBUG - Invoking callback
+2026-07-16 10:27:14,529 - qasync._QThreadWorker - DEBUG - Setting Future result: True
+2026-07-16 10:27:14,535 - src.controllers.segment_controller - INFO - 截图成功: A 1 @ 38.08s
+2026-07-16 10:27:14,535 - qasync.QThreadExecutor - DEBUG - Submitting callback functools.partial(<built-in method run of _contextvars.Context object at 0x00000157F9CB8840>, <function extract_frame at 0x00000157F9651C60>, 'C:/TestVideo\\平淡\\2016客服部平淡工作的一年.mp4', 41.93001171320685, 'C:\\Users\\CATIC\\AppData\\Local\\Temp\\CoverPicker_k88zhpk0\\seg_A_41.93.jpg') with args () and kwargs {} to thread worker queue
+2026-07-16 10:27:14,535 - qasync._QThreadWorker - DEBUG - #3 got callback functools.partial(<built-in method run of _contextvars.Context object at 0x00000157F9CB8840>, <function extract_frame at 0x00000157F9651C60>, 'C:/TestVideo\\平淡\\2016客服部平淡工作的一年.mp4', 41.93001171320685, 'C:\\Users\\CATIC\\AppData\\Local\\Temp\\CoverPicker_k88zhpk0\\seg_A_41.93.jpg') with args () and kwargs {} from queue
+2026-07-16 10:27:14,535 - qasync._QThreadWorker - DEBUG - Invoking callback
+2026-07-16 10:27:15,270 - qasync._QThreadWorker - DEBUG - Setting Future result: True
+2026-07-16 10:27:15,270 - src.controllers.segment_controller - INFO - 截图成功: A 2 @ 41.93s
+2026-07-16 10:27:15,270 - qasync.QThreadExecutor - DEBUG - Submitting callback functools.partial(<built-in method run of _contextvars.Context object at 0x00000157F9CB8840>, <function extract_frame at 0x00000157F9651C60>, 'C:/TestVideo\\平淡\\2016客服部平淡工作的一年.mp4', 43.05204575875892, 'C:\\Users\\CATIC\\AppData\\Local\\Temp\\CoverPicker_k88zhpk0\\seg_A_43.05.jpg') with args () and kwargs {} to thread worker queue
+2026-07-16 10:27:15,270 - qasync._QThreadWorker - DEBUG - #4 got callback functools.partial(<built-in method run of _contextvars.Context object at 0x00000157F9CB8840>, <function extract_frame at 0x00000157F9651C60>, 'C:/TestVideo\\平淡\\2016客服部平淡工作的一年.mp4', 43.05204575875892, 'C:\\Users\\CATIC\\AppData\\Local\\Temp\\CoverPicker_k88zhpk0\\seg_A_43.05.jpg') with args () and kwargs {} from queue
+2026-07-16 10:27:15,271 - qasync._QThreadWorker - DEBUG - Invoking callback
+2026-07-16 10:27:15,957 - qasync._QThreadWorker - DEBUG - Setting Future result: True
+2026-07-16 10:27:15,958 - src.controllers.segment_controller - INFO - 截图成功: A 3 @ 43.05s
+2026-07-16 10:27:15,959 - qasync.QThreadExecutor - DEBUG - Submitting callback functools.partial(<built-in method run of _contextvars.Context object at 0x00000157F9CB8840>, <function extract_frame at 0x00000157F9651C60>, 'C:/TestVideo\\平淡\\2016客服部平淡工作的一年.mp4', 44.70606003913259, 'C:\\Users\\CATIC\\AppData\\Local\\Temp\\CoverPicker_k88zhpk0\\seg_A_44.71.jpg') with args () and kwargs {} to thread worker queue
+2026-07-16 10:27:15,959 - qasync._QThreadWorker - DEBUG - #5 got callback functools.partial(<built-in method run of _contextvars.Context object at 0x00000157F9CB8840>, <function extract_frame at 0x00000157F9651C60>, 'C:/TestVideo\\平淡\\2016客服部平淡工作的一年.mp4', 44.70606003913259, 'C:\\Users\\CATIC\\AppData\\Local\\Temp\\CoverPicker_k88zhpk0\\seg_A_44.71.jpg') with args () and kwargs {} from queue
+2026-07-16 10:27:15,959 - qasync._QThreadWorker - DEBUG - Invoking callback
+2026-07-16 10:27:16,658 - qasync._QThreadWorker - DEBUG - Setting Future result: True
+2026-07-16 10:27:16,662 - src.controllers.segment_controller - INFO - 截图成功: A 4 @ 44.71s
+2026-07-16 10:27:16,662 - qasync.QThreadExecutor - DEBUG - Submitting callback functools.partial(<built-in method run of _contextvars.Context object at 0x00000157F9CB8840>, <function extract_frame at 0x00000157F9651C60>, 'C:/TestVideo\\平淡\\2016客服部平淡工作的一年.mp4', 49.77455838248657, 'C:\\Users\\CATIC\\AppData\\Local\\Temp\\CoverPicker_k88zhpk0\\seg_A_49.77.jpg') with args () and kwargs {} to thread worker queue
+2026-07-16 10:27:16,662 - qasync._QThreadWorker - DEBUG - #6 got callback functools.partial(<built-in method run of _contextvars.Context object at 0x00000157F9CB8840>, <function extract_frame at 0x00000157F9651C60>, 'C:/TestVideo\\平淡\\2016客服部平淡工作的一年.mp4', 49.77455838248657, 'C:\\Users\\CATIC\\AppData\\Local\\Temp\\CoverPicker_k88zhpk0\\seg_A_49.77.jpg') with args () and kwargs {} from queue
+2026-07-16 10:27:16,663 - qasync._QThreadWorker - DEBUG - Invoking callback
+2026-07-16 10:27:17,423 - qasync._QThreadWorker - DEBUG - Setting Future result: True
+2026-07-16 10:27:17,424 - src.controllers.segment_controller - INFO - 截图成功: A 5 @ 49.77s
+2026-07-16 10:27:17,424 - qasync.QThreadExecutor - DEBUG - Submitting callback functools.partial(<built-in method run of _contextvars.Context object at 0x00000157F9CB8840>, <function extract_frame at 0x00000157F9651C60>, 'C:/TestVideo\\平淡\\2016客服部平淡工作的一年.mp4', 53.63862556362652, 'C:\\Users\\CATIC\\AppData\\Local\\Temp\\CoverPicker_k88zhpk0\\seg_A_53.64.jpg') with args () and kwargs {} to thread worker queue
+2026-07-16 10:27:17,424 - qasync._QThreadWorker - DEBUG - #7 got callback functools.partial(<built-in method run of _contextvars.Context object at 0x00000157F9CB8840>, <function extract_frame at 0x00000157F9651C60>, 'C:/TestVideo\\平淡\\2016客服部平淡工作的一年.mp4', 53.63862556362652, 'C:\\Users\\CATIC\\AppData\\Local\\Temp\\CoverPicker_k88zhpk0\\seg_A_53.64.jpg') with args () and kwargs {} from queue
+2026-07-16 10:27:17,424 - qasync._QThreadWorker - DEBUG - Invoking callback
+2026-07-16 10:27:18,146 - qasync._QThreadWorker - DEBUG - Setting Future result: True
+2026-07-16 10:27:18,147 - src.controllers.segment_controller - INFO - 截图成功: A 6 @ 53.64s
+2026-07-16 10:27:18,147 - qasync.QThreadExecutor - DEBUG - Submitting callback functools.partial(<built-in method run of _contextvars.Context object at 0x00000157F9CB8840>, <function extract_frame at 0x00000157F9651C60>, 'C:/TestVideo\\平淡\\2016客服部平淡工作的一年.mp4', 58.32377909742308, 'C:\\Users\\CATIC\\AppData\\Local\\Temp\\CoverPicker_k88zhpk0\\seg_A_58.32.jpg') with args () and kwargs {} to thread worker queue
+2026-07-16 10:27:18,147 - qasync._QThreadWorker - DEBUG - #8 got callback functools.partial(<built-in method run of _contextvars.Context object at 0x00000157F9CB8840>, <function extract_frame at 0x00000157F9651C60>, 'C:/TestVideo\\平淡\\2016客服部平淡工作的一年.mp4', 58.32377909742308, 'C:\\Users\\CATIC\\AppData\\Local\\Temp\\CoverPicker_k88zhpk0\\seg_A_58.32.jpg') with args () and kwargs {} from queue
+2026-07-16 10:27:18,148 - qasync._QThreadWorker - DEBUG - Invoking callback
+2026-07-16 10:27:18,856 - qasync._QThreadWorker - DEBUG - Setting Future result: True
+2026-07-16 10:27:18,858 - src.controllers.segment_controller - INFO - 截图成功: A 7 @ 58.32s
+2026-07-16 10:27:18,858 - qasync.QThreadExecutor - DEBUG - Submitting callback functools.partial(<built-in method run of _contextvars.Context object at 0x00000157F9CB8840>, <function extract_frame at 0x00000157F9651C60>, 'C:/TestVideo\\平淡\\2016客服部平淡工作的一年.mp4', 60.29766752892638, 'C:\\Users\\CATIC\\AppData\\Local\\Temp\\CoverPicker_k88zhpk0\\seg_A_60.30.jpg') with args () and kwargs {} to thread worker queue
+2026-07-16 10:27:18,859 - qasync._QThreadWorker - DEBUG - #9 got callback functools.partial(<built-in method run of _contextvars.Context object at 0x00000157F9CB8840>, <function extract_frame at 0x00000157F9651C60>, 'C:/TestVideo\\平淡\\2016客服部平淡工作的一年.mp4', 60.29766752892638, 'C:\\Users\\CATIC\\AppData\\Local\\Temp\\CoverPicker_k88zhpk0\\seg_A_60.30.jpg') with args () and kwargs {} from queue
+2026-07-16 10:27:18,859 - qasync._QThreadWorker - DEBUG - Invoking callback
+2026-07-16 10:27:19,575 - qasync._QThreadWorker - DEBUG - Setting Future result: True
+2026-07-16 10:27:19,576 - src.controllers.segment_controller - INFO - 截图成功: A 8 @ 60.30s
+2026-07-16 10:28:28,856 - qasync.QThreadExecutor - DEBUG - Submitting callback functools.partial(<built-in method run of _contextvars.Context object at 0x00000157F9CB8800>, <function extract_video_clip at 0x00000157F9651DA0>, 'C:/TestVideo\\平淡\\2016客服部平淡工作的一年.mp4', 93.8087, 179.8768, 'C:/Users/CATIC/Desktop\\2016客服部平淡工作的一年_clip_93.8s_179.9s.mp4', False) with args () and kwargs {} to thread worker queue
+2026-07-16 10:28:28,856 - qasync._QThreadWorker - DEBUG - #1 got callback functools.partial(<built-in method run of _contextvars.Context object at 0x00000157F9CB8800>, <function extract_video_clip at 0x00000157F9651DA0>, 'C:/TestVideo\\平淡\\2016客服部平淡工作的一年.mp4', 93.8087, 179.8768, 'C:/Users/CATIC/Desktop\\2016客服部平淡工作的一年_clip_93.8s_179.9s.mp4', False) with args () and kwargs {} from queue
+2026-07-16 10:28:28,857 - qasync._QThreadWorker - DEBUG - Invoking callback
+2026-07-16 10:28:30,117 - qasync._QThreadWorker - DEBUG - Setting Future result: True
+2026-07-16 10:28:43,676 - src.controllers.segment_controller - INFO - [保存状态] 开始保存: C:/TestVideo\平淡\2016客服部平淡工作的一年.mp4
+2026-07-16 10:28:43,688 - src.controllers.segment_controller - INFO - [保存状态] 完成: is_starred=False, is_exported=True
+2026-07-16 10:29:38,665 - qasync._windows._EventPoller - DEBUG - Stopping worker thread...
+2026-07-16 10:29:38,677 - qasync._windows._EventWorker - DEBUG - Exiting thread
+2026-07-16 10:29:38,685 - qasync.QThreadExecutor - DEBUG - Shutting down
+2026-07-16 10:29:38,685 - qasync._QThreadWorker - DEBUG - Waiting for thread #1 to stop...
+2026-07-16 10:29:38,686 - qasync._QThreadWorker - DEBUG - Thread #3 stopped
+2026-07-16 10:29:38,686 - qasync._QThreadWorker - DEBUG - Thread #4 stopped
+2026-07-16 10:29:38,687 - qasync._QThreadWorker - DEBUG - Thread #2 stopped
+2026-07-16 10:29:38,687 - qasync._QThreadWorker - DEBUG - Thread #5 stopped
+2026-07-16 10:29:38,687 - qasync._QThreadWorker - DEBUG - Thread #8 stopped
+2026-07-16 10:29:38,687 - qasync._QThreadWorker - DEBUG - Thread #9 stopped
+2026-07-16 10:29:38,687 - qasync._QThreadWorker - DEBUG - Thread #1 stopped
+2026-07-16 10:29:38,688 - qasync._QThreadWorker - DEBUG - Thread #7 stopped
+2026-07-16 10:29:38,688 - qasync._QThreadWorker - DEBUG - Thread #6 stopped
+2026-07-16 10:29:38,688 - qasync._QThreadWorker - DEBUG - Thread #10 stopped
+2026-07-16 10:29:38,696 - qasync._QThreadWorker - DEBUG - Waiting for thread #2 to stop...
+2026-07-16 10:29:38,697 - qasync._QThreadWorker - DEBUG - Waiting for thread #3 to stop...
+2026-07-16 10:29:38,697 - qasync._QThreadWorker - DEBUG - Waiting for thread #4 to stop...
+2026-07-16 10:29:38,697 - qasync._QThreadWorker - DEBUG - Waiting for thread #5 to stop...
+2026-07-16 10:29:38,697 - qasync._QThreadWorker - DEBUG - Waiting for thread #6 to stop...
+2026-07-16 10:29:38,697 - qasync._QThreadWorker - DEBUG - Waiting for thread #7 to stop...
+2026-07-16 10:29:38,698 - qasync._QThreadWorker - DEBUG - Waiting for thread #8 to stop...
+2026-07-16 10:29:38,698 - qasync._QThreadWorker - DEBUG - Waiting for thread #9 to stop...
+2026-07-16 10:29:38,698 - qasync._QThreadWorker - DEBUG - Waiting for thread #10 to stop...
+2026-07-16 10:29:38,699 - qasync._windows._IocpProactor - DEBUG - Closing

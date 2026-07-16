@@ -7,7 +7,7 @@ from typing import Optional, List
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
-    QSlider, QSizePolicy, QMessageBox, QWidget
+    QSlider, QSizePolicy, QMessageBox, QWidget, QFileDialog
 )
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QPixmap, QFont, QResizeEvent
@@ -472,6 +472,7 @@ class PreviewDialog(QDialog):
             self.export_btn.setEnabled(False)
 
     def export_clip(self):
+        """导出视频片段，支持自定义保存位置"""
         if not self.video_path:
             QMessageBox.warning(self, "警告", "未加载视频")
             return
@@ -485,27 +486,33 @@ class PreviewDialog(QDialog):
             QMessageBox.warning(self, "警告", f"片段太短（{end - start:.1f}s），请选择至少 0.5 秒")
             return
 
+        # 弹出文件夹选择对话框
+        export_dir = QFileDialog.getExistingDirectory(
+            self,
+            "选择导出目录",
+            os.path.expanduser("~"),
+            QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
+        )
+
+        if not export_dir:
+            return
+
         reply = QMessageBox.question(
             self,
             "确认导出片段",
             f"将导出从 {self._format_time(start)} 到 {self._format_time(end)} 的片段\n"
             f"时长: {end - start:.1f} 秒\n\n"
-            f"文件将保存到 CoverPicker/Clips/ 文件夹。\n\n继续吗？",
+            f"文件将保存到:\n{export_dir}\n\n继续吗？",
             QMessageBox.Yes | QMessageBox.No
         )
         if reply != QMessageBox.Yes:
             return
 
-        current_file_dir = os.path.dirname(os.path.abspath(__file__))
-        project_root = os.path.dirname(os.path.dirname(current_file_dir))
-        clips_dir = os.path.join(project_root, "Clips")
-        os.makedirs(clips_dir, exist_ok=True)
-
         self.export_btn.setEnabled(False)
         self.export_btn.setText("⏳ 导出中...")
 
         async def do_export():
-            success, result = await self.controller.export_clip(clips_dir, re_encode=False)
+            success, result = await self.controller.export_clip(export_dir, re_encode=False)
             self.export_btn.setEnabled(True)
             self.export_btn.setText("📥 导出片段")
 

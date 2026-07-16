@@ -46,7 +46,6 @@ class ZoomDialog(QDialog):
         self.source = source
         self.original_fav_item = original_fav_item
 
-        # 当前层的截图数据
         self.candidate_frames: List[dict] = []
         self.selected_indices: set = set()
         self.image_labels: List[ClickableLabel] = []
@@ -71,7 +70,6 @@ class ZoomDialog(QDialog):
         title_layout.addWidget(title)
         title_layout.addStretch()
 
-        # 级别标签
         level_label = QLabel(f"层级: {self.level}/4")
         level_label.setStyleSheet("color: #888; font-size: 12px;")
         title_layout.addWidget(level_label)
@@ -105,22 +103,17 @@ class ZoomDialog(QDialog):
         bottom_bar = QHBoxLayout()
         bottom_bar.setSpacing(8)
 
-        # 状态标签
         self.selected_label = QLabel("已选: 0 张")
         bottom_bar.addWidget(self.selected_label)
 
-        # 全选/取消全选
+        # 全选按钮（切换模式）
         self.select_all_btn = QPushButton("☑ 全选")
-        self.select_all_btn.clicked.connect(self.select_all)
+        self.select_all_btn.setCheckable(True)
+        self.select_all_btn.clicked.connect(self.toggle_select_all)
         bottom_bar.addWidget(self.select_all_btn)
-
-        self.deselect_all_btn = QPushButton("☐ 取消全选")
-        self.deselect_all_btn.clicked.connect(self.deselect_all)
-        bottom_bar.addWidget(self.deselect_all_btn)
 
         bottom_bar.addStretch()
 
-        # 操作按钮
         self.fav_btn = QPushButton("⭐ 收藏")
         self.fav_btn.setStyleSheet("background: #FF9800; color: white; font-weight: bold;")
         self.fav_btn.clicked.connect(self.favorite_selected)
@@ -131,16 +124,11 @@ class ZoomDialog(QDialog):
         self.export_btn.clicked.connect(self.export_selected)
         bottom_bar.addWidget(self.export_btn)
 
-        self.preview_btn = QPushButton("👁️ 预览")
-        self.preview_btn.clicked.connect(self.preview_selected)
-        bottom_bar.addWidget(self.preview_btn)
-
         self.replace_btn = QPushButton("🔄 替换原图")
         self.replace_btn.setStyleSheet("background: #9C27B0; color: white; font-weight: bold;")
         self.replace_btn.clicked.connect(self.replace_selected)
         bottom_bar.addWidget(self.replace_btn)
 
-        # 如果 level < 4，显示"细选下一层"按钮
         if self.level < 4:
             self.next_level_btn = QPushButton("⬇ 细选下一层")
             self.next_level_btn.setStyleSheet("background: #4CAF50; color: white; font-weight: bold;")
@@ -149,12 +137,12 @@ class ZoomDialog(QDialog):
 
         main_layout.addLayout(bottom_bar)
 
-        # 进度标签
         self.progress_label = QLabel("")
         self.progress_label.setStyleSheet("color: #888; font-size: 11px; padding: 4px;")
         main_layout.addWidget(self.progress_label)
 
         self._update_buttons()
+        self._update_select_all_state()
 
     def _format_time(self, seconds: float) -> str:
         hours = int(seconds // 3600)
@@ -163,17 +151,14 @@ class ZoomDialog(QDialog):
         return f"{hours:02d}:{minutes:02d}:{secs:02d}"
 
     def load_candidates(self):
-        """加载当前层的候选帧"""
         if self._loading:
             return
         self._loading = True
         self.progress_label.setText("正在生成候选帧...")
         self.setEnabled(False)
-        # 使用 asyncio.create_task 启动异步加载
         asyncio.create_task(self._load_candidates_async())
 
     async def _load_candidates_async(self):
-        """异步加载候选帧"""
         try:
             ranges = {1: 4.0, 2: 2.0, 3: 1.0, 4: 0.5}
             half_range = ranges.get(self.level, 4.0)
@@ -191,7 +176,6 @@ class ZoomDialog(QDialog):
             for idx, t in enumerate(times):
                 self.progress_label.setText(f"提取帧 {idx+1}/{total} @ {t:.2f}s")
                 temp_path = os.path.join(self.controller.temp_dir, f"zoom_L{self.level}_{idx}_{t:.2f}.jpg")
-                # 使用 asyncio.to_thread 在后台线程执行，不阻塞事件循环
                 success = await asyncio.to_thread(extract_frame, video_path, t, temp_path)
                 if success:
                     self.candidate_frames.append({
@@ -217,8 +201,6 @@ class ZoomDialog(QDialog):
             self.setEnabled(True)
 
     def _refresh_grid(self):
-        """刷新网格显示"""
-        # 清空布局
         while self.grid_layout.count():
             child = self.grid_layout.takeAt(0)
             if child.widget():
@@ -227,9 +209,10 @@ class ZoomDialog(QDialog):
         self.image_labels.clear()
         count = len(self.candidate_frames)
         if count == 0:
+            self._update_select_all_state()
             return
 
-        cols = 3  # 固定3列
+        cols = 3
         for col in range(cols):
             self.grid_layout.setColumnStretch(col, 1)
 
@@ -254,23 +237,16 @@ class ZoomDialog(QDialog):
                 label.set_selected(True)
 
             label.clicked.connect(partial(self.on_label_click, pos))
-            label.double_clicked.connect(partial(self.preview_label, pos))
+            label.double_clicked.connect(partial(self._preview_single, pos))
             self.grid_layout.addWidget(label, row, col)
             self.image_labels.append(label)
 
         self._update_selected_count()
         self._update_buttons()
+        self._update_select_all_state()
 
-    def on_label_click(self, pos: int):
-        """单击选中/取消选中"""
-        if pos in self.selected_indices:
-            self.selected_indices.remove(pos)
-        else:
-            self.selected_indices.add(pos)
-        self._refresh_grid()
-
-    def preview_label(self, pos: int):
-        """双击放大预览"""
+    def _preview_single(self, pos: int):
+        """双击放大预览（替代原来的预览按钮）"""
         if pos >= len(self.candidate_frames):
             return
         item = self.candidate_frames[pos]
@@ -283,14 +259,11 @@ class ZoomDialog(QDialog):
         dlg = ZoomPreviewDialog(pixmap, item['time'], self)
         dlg.exec()
 
-    def select_all(self):
-        """全选"""
-        self.selected_indices = set(range(len(self.candidate_frames)))
-        self._refresh_grid()
-
-    def deselect_all(self):
-        """取消全选"""
-        self.selected_indices.clear()
+    def on_label_click(self, pos: int):
+        if pos in self.selected_indices:
+            self.selected_indices.remove(pos)
+        else:
+            self.selected_indices.add(pos)
         self._refresh_grid()
 
     def _update_selected_count(self):
@@ -299,14 +272,31 @@ class ZoomDialog(QDialog):
     def _update_buttons(self):
         has_selected = len(self.selected_indices) > 0
         self.select_all_btn.setEnabled(len(self.candidate_frames) > 0)
-        self.deselect_all_btn.setEnabled(len(self.selected_indices) > 0)
         self.fav_btn.setEnabled(has_selected)
         self.export_btn.setEnabled(has_selected)
-        self.preview_btn.setEnabled(has_selected)
         self.replace_btn.setEnabled(len(self.selected_indices) == 1)
 
+    def _update_select_all_state(self):
+        count = len(self.candidate_frames)
+        if count == 0:
+            self.select_all_btn.setEnabled(False)
+            self.select_all_btn.setChecked(False)
+            return
+        self.select_all_btn.setEnabled(True)
+        all_selected = len(self.selected_indices) == count
+        self.select_all_btn.setChecked(all_selected)
+
+    def toggle_select_all(self):
+        count = len(self.candidate_frames)
+        if count == 0:
+            return
+        if self.select_all_btn.isChecked():
+            self.selected_indices = set(range(count))
+        else:
+            self.selected_indices.clear()
+        self._refresh_grid()
+
     def favorite_selected(self):
-        """收藏选中的截图"""
         if not self.selected_indices:
             QMessageBox.information(self, "提示", "请先选中要收藏的截图。")
             return
@@ -347,7 +337,6 @@ class ZoomDialog(QDialog):
             QMessageBox.information(self, "提示", "选中的截图已经收藏过了。")
 
     def export_selected(self):
-        """导出选中的截图"""
         if not self.selected_indices:
             QMessageBox.information(self, "提示", "请先选中要导出的截图。")
             return
@@ -392,16 +381,7 @@ class ZoomDialog(QDialog):
         else:
             QMessageBox.warning(self, "警告", "导出失败，请检查文件是否存在。")
 
-    def preview_selected(self):
-        """预览选中的截图（仅预览第一张）"""
-        if not self.selected_indices:
-            QMessageBox.information(self, "提示", "请先选中一张截图。")
-            return
-        pos = next(iter(self.selected_indices))
-        self.preview_label(pos)
-
     def replace_selected(self):
-        """替换原图（仅当选中一张时）"""
         if len(self.selected_indices) != 1:
             QMessageBox.information(self, "提示", "请只选中一张截图进行替换。")
             return
@@ -434,7 +414,6 @@ class ZoomDialog(QDialog):
             QMessageBox.warning(self, "错误", "替换失败，请重试。")
 
     def go_to_next_level(self):
-        """进入下一层精修"""
         if len(self.selected_indices) != 1:
             QMessageBox.information(self, "提示", "请选中一张截图进入下一层细选。")
             return

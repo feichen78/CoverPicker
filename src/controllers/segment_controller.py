@@ -61,7 +61,7 @@ class SegmentController:
         # 临时目录
         self.temp_dir: str = tempfile.mkdtemp(prefix="CoverPicker_")
 
-        # 导出目录
+        # 导出目录（默认，但允许用户在导出时覆盖）
         self.export_base: str = os.path.join(os.getcwd(), "StillPic")
 
         # 异步任务
@@ -70,7 +70,7 @@ class SegmentController:
         # 撤销/重做
         self.undo_stack: List[Action] = []
         self.redo_stack: List[Action] = []
-        self._is_undo_or_redo: bool = False  # 防止操作重新入栈
+        self._is_undo_or_redo: bool = False
 
         # 回调
         self._on_data_changed: Optional[callable] = None
@@ -97,8 +97,8 @@ class SegmentController:
     def set_num_segments(self, num: int):
         if num < 3:
             num = 3
-        elif num > 10:
-            num = 10
+        elif num > 7:
+            num = 7
         if self.num_segments != num and self.video_path and self.duration > 0:
             self.num_segments = num
             self.segments = calculate_segments(self.duration, self.num_segments)
@@ -112,25 +112,20 @@ class SegmentController:
         return self.num_segments
 
     # ============================================================
-    # 自定义分区（时间轴自定义）
+    # 自定义分区
     # ============================================================
 
     def apply_custom_segments(self, segments: List[Tuple[str, float, float]]):
-        """
-        应用自定义分区列表
-        segments: [(label, start, end), ...]
-        """
         if not segments or len(segments) < 2:
             logger.warning("自定义分区至少需要2个区")
             return
 
-        # 验证分区是否有效
         for label, start, end in segments:
             if start >= end or start < 0 or end > self.duration:
                 logger.error(f"无效分区: {label} {start}-{end}")
                 return
 
-        self.num_segments = -1  # 标记为自定义
+        self.num_segments = -1
         self.segments = segments
         self.screenshots = {}
         self.loaded_segments = set()
@@ -138,7 +133,6 @@ class SegmentController:
         self._clear_history()
         self._notify_data_changed()
 
-        # 自动加载第一个分区
         if self.video_path:
             asyncio.create_task(self.load_segment(0, restore_locks=True, randomize=False))
 
@@ -160,7 +154,6 @@ class SegmentController:
             return False
 
         self.duration = duration
-        # 如果之前是自定义分区，重置为默认 5
         if self.num_segments == -1:
             self.num_segments = 5
         self.segments = calculate_segments(duration, self.num_segments)
@@ -183,7 +176,7 @@ class SegmentController:
 
         self.current_seg_index = 0
 
-        self._clear_history()  # 切换视频清空撤销历史
+        self._clear_history()
 
         self._load_task = asyncio.create_task(self._load_segment(0, restore_locks=True, randomize=False))
         await self._load_task
@@ -313,14 +306,12 @@ class SegmentController:
         self._notify_data_changed()
 
     # ============================================================
-    # 收藏管理（增强撤销记录）
+    # 收藏管理
     # ============================================================
 
     def favorite_selected(self, seg_label: str, positions: List[int]) -> Tuple[int, int]:
         if self._is_undo_or_redo:
-            # 撤销/重做过程中不记录新操作
             return self._favorite_selected_impl(seg_label, positions, record_history=False)
-
         return self._favorite_selected_impl(seg_label, positions, record_history=True)
 
     def _favorite_selected_impl(self, seg_label: str, positions: List[int], record_history: bool) -> Tuple[int, int]:
@@ -380,7 +371,6 @@ class SegmentController:
     def unfavorite_selected(self, seg_label: str, positions: List[int]) -> int:
         if self._is_undo_or_redo:
             return self._unfavorite_selected_impl(seg_label, positions, record_history=False)
-
         return self._unfavorite_selected_impl(seg_label, positions, record_history=True)
 
     def _unfavorite_selected_impl(self, seg_label: str, positions: List[int], record_history: bool) -> int:
@@ -426,10 +416,21 @@ class SegmentController:
         return [f for f in self.favorites if f.get('video_path') == self.video_path]
 
     # ============================================================
-    # 导出
+    # 导出（支持自定义目录）
     # ============================================================
 
-    def export_selected(self, seg_label: str, positions: List[int]) -> Tuple[int, List[Tuple[str, str]]]:
+    def export_selected(self, seg_label: str, positions: List[int], export_dir: Optional[str] = None) -> Tuple[int, List[Tuple[str, str]]]:
+        """
+        导出选中的截图。
+        
+        Args:
+            seg_label: 分区标签
+            positions: 截图位置列表
+            export_dir: 自定义导出目录（如果为 None，使用默认目录）
+        
+        Returns:
+            (导出数量, [(时间戳, 导出路径), ...])
+        """
         items = self.screenshots.get(seg_label, [])
         export_paths = []
 
@@ -443,8 +444,18 @@ class SegmentController:
         if not export_paths:
             return 0, []
 
-        video_name = os.path.splitext(os.path.basename(self.video_path))[0]
-        export_dir = os.path.join(self.export_base, video_name)
+        # 确定导出目录
+        if export_dir is None:
+            video_name = os.path.splitext(os.path.basename(self.video_path))[0]
+            export_dir = os.path.join(self.export_base, video_name)
+        else:
+            # 如果传入的目录是用户选择的根目录，自动创建视频名子目录
+            # 但为了灵活性，我们直接使用传入的目录（用户可能希望直接放在选择的目录下）
+            # 但仍然建议在用户选择的目录下创建视频名子目录以避免混乱
+            # 这里我们使用传入的目录 + 视频名子目录
+            video_name = os.path.splitext(os.path.basename(self.video_path))[0]
+            export_dir = os.path.join(export_dir, video_name)
+
         os.makedirs(export_dir, exist_ok=True)
 
         exported = 0
@@ -534,13 +545,12 @@ class SegmentController:
         return True
 
     # ============================================================
-    # 锁定/解锁（增强撤销记录）
+    # 锁定/解锁
     # ============================================================
 
     def lock_selected(self, seg_label: str, positions: List[int]) -> int:
         if self._is_undo_or_redo:
             return self._lock_selected_impl(seg_label, positions, record_history=False)
-
         return self._lock_selected_impl(seg_label, positions, record_history=True)
 
     def _lock_selected_impl(self, seg_label: str, positions: List[int], record_history: bool) -> int:
@@ -571,7 +581,6 @@ class SegmentController:
     def unlock_selected(self, seg_label: str, positions: List[int]) -> int:
         if self._is_undo_or_redo:
             return self._unlock_selected_impl(seg_label, positions, record_history=False)
-
         return self._unlock_selected_impl(seg_label, positions, record_history=True)
 
     def _unlock_selected_impl(self, seg_label: str, positions: List[int], record_history: bool) -> int:
@@ -600,14 +609,12 @@ class SegmentController:
         return count
 
     # ============================================================
-    # 撤销/重做实现
+    # 撤销/重做
     # ============================================================
 
     def _push_action(self, action: Action):
-        """压入撤销栈，清空重做栈"""
         self.undo_stack.append(action)
         self.redo_stack.clear()
-        # 限制栈大小（避免内存过大）
         if len(self.undo_stack) > 100:
             self.undo_stack = self.undo_stack[-100:]
 
@@ -640,23 +647,17 @@ class SegmentController:
         self._notify_data_changed()
 
     def _execute_action(self, action: Action, reverse: bool):
-        """执行或反转一个操作（直接修改内存和数据库）"""
         self._is_undo_or_redo = True
         try:
-            # 根据操作类型执行
             if action.type == 'favorite':
                 if reverse:
-                    # 撤销收藏 -> 取消收藏
                     self._apply_favorite_state(action, False)
                 else:
-                    # 重做收藏 -> 添加收藏
                     self._apply_favorite_state(action, True)
             elif action.type == 'unfavorite':
                 if reverse:
-                    # 撤销取消收藏 -> 恢复收藏
                     self._apply_favorite_state(action, True)
                 else:
-                    # 重做取消收藏 -> 取消收藏
                     self._apply_favorite_state(action, False)
             elif action.type == 'lock':
                 if reverse:
@@ -672,19 +673,14 @@ class SegmentController:
             self._is_undo_or_redo = False
 
     def _apply_favorite_state(self, action: Action, set_favorite: bool):
-        """直接修改截图和数据库的收藏状态（不触发记录）"""
-        # 查找对应截图
         items = self.screenshots.get(action.seg_label, [])
         target_time = action.timestamp_ms / 1000.0
         for item in items:
             if abs(item['time'] - target_time) < 0.01:
                 item['favorite'] = set_favorite
                 break
-        # 更新数据库
         if set_favorite:
-            # 添加收藏（如果不存在）
             if not self.db.is_favorite(action.video_id, action.seg_label, action.timestamp_ms):
-                # 需要找到对应的截图路径
                 thumb_path = ""
                 for item in items:
                     if abs(item['time'] - target_time) < 0.01:
@@ -693,7 +689,6 @@ class SegmentController:
                 self.db.add_favorite(action.video_id, action.seg_label,
                                      action.timestamp_ms, thumb_path,
                                      is_exported=False)
-                # 同时加入favorites列表
                 self.favorites.append({
                     'video_path': self.video_path,
                     'segment': action.seg_label,
@@ -702,9 +697,7 @@ class SegmentController:
                     'exported': False,
                 })
         else:
-            # 删除收藏
             self.db.remove_favorite(action.video_id, action.seg_label, action.timestamp_ms)
-            # 从favorites列表移除
             self.favorites = [
                 f for f in self.favorites
                 if not (f.get('video_path') == self.video_path and
@@ -783,7 +776,6 @@ class SegmentController:
         seg_label = self.segments[seg_idx][0]
         logger.info(f"全部重抽: 分段 {seg_label}")
         self.screenshots[seg_label] = []
-        # 清空历史（因为重抽会改变所有截图）
         self._clear_history()
         await self._load_segment(seg_idx, restore_locks=False, randomize=True)
         self._notify_data_changed()
@@ -808,11 +800,10 @@ class SegmentController:
         return self.db.get_video_by_path(video_path)
 
     # ============================================================
-    # 删除视频（仅从库中移除，不删除文件）
+    # 删除视频
     # ============================================================
 
     def remove_video(self, video_path: str) -> bool:
-        """从数据库和内存中移除视频，不删除文件本身。返回是否成功"""
         video_data = self.db.get_video_by_path(video_path)
         if not video_data:
             logger.warning(f"视频不存在于数据库: {video_path}")
@@ -820,12 +811,9 @@ class SegmentController:
 
         video_id = video_data['id']
 
-        # 如果当前加载的视频就是该视频，清空控制器状态
         if self.video_path == video_path:
-            # 取消正在进行的任务
             if self._load_task and not self._load_task.done():
                 self._load_task.cancel()
-            # 清空数据
             self.video_path = None
             self.video_id = None
             self.duration = 0.0
@@ -836,10 +824,8 @@ class SegmentController:
             self.favorites = []
             self.current_seg_index = 0
             self._clear_history()
-            # 通知界面更新
             self._notify_data_changed()
 
-        # 删除数据库记录（级联删除 segments 和 favorites）
         try:
             self.db.delete_video(video_id)
             logger.info(f"已从数据库移除视频: {video_path}")
@@ -849,11 +835,42 @@ class SegmentController:
             return False
 
     # ============================================================
-    # 缓存清理
+    # 缓存管理（v2.0）
     # ============================================================
 
+    def get_cache_size(self) -> int:
+        """获取缓存目录总大小（字节）"""
+        if not os.path.exists(self.temp_dir):
+            return 0
+        total = 0
+        for root, dirs, files in os.walk(self.temp_dir):
+            for f in files:
+                file_path = os.path.join(root, f)
+                try:
+                    total += os.path.getsize(file_path)
+                except OSError:
+                    pass
+        return total
+
+    def get_cache_size_mb(self) -> float:
+        """获取缓存目录总大小（MB）"""
+        return self.get_cache_size() / (1024 * 1024)
+
+    def get_cache_size_gb(self) -> float:
+        """获取缓存目录总大小（GB）"""
+        return self.get_cache_size() / (1024 * 1024 * 1024)
+
+    def get_cache_file_count(self) -> int:
+        """获取缓存目录文件数量"""
+        if not os.path.exists(self.temp_dir):
+            return 0
+        count = 0
+        for root, dirs, files in os.walk(self.temp_dir):
+            count += len(files)
+        return count
+
     def clear_cache(self) -> int:
-        """清理临时缓存目录，返回删除文件数"""
+        """清理所有缓存文件，返回删除文件数"""
         if not os.path.exists(self.temp_dir):
             return 0
         count = 0
@@ -864,9 +881,59 @@ class SegmentController:
                     count += 1
                 except Exception as e:
                     logger.warning(f"删除缓存文件失败: {f} - {e}")
-        # 重新创建空目录（保留）
-        # 目录本身存在，不需要重新创建
         return count
+
+    def auto_clean_cache(self, threshold_gb: float = 5.0) -> Tuple[int, float]:
+        """
+        自动清理缓存，删除最旧的文件直到总大小低于阈值。
+        
+        Args:
+            threshold_gb: 阈值（GB），默认 5GB
+        
+        Returns:
+            (删除文件数, 释放空间MB)
+        """
+        if not os.path.exists(self.temp_dir):
+            return 0, 0.0
+
+        current_size = self.get_cache_size()
+        threshold_bytes = threshold_gb * 1024 * 1024 * 1024
+
+        if current_size <= threshold_bytes:
+            return 0, 0.0
+
+        # 收集所有缓存文件信息（路径，修改时间，大小）
+        files_info = []
+        for root, dirs, files in os.walk(self.temp_dir):
+            for f in files:
+                file_path = os.path.join(root, f)
+                try:
+                    mtime = os.path.getmtime(file_path)
+                    size = os.path.getsize(file_path)
+                    files_info.append((file_path, mtime, size))
+                except OSError:
+                    pass
+
+        # 按修改时间排序（最旧在前）
+        files_info.sort(key=lambda x: x[1])
+
+        # 删除最旧的文件直到低于阈值（清理到90%避免频繁触发）
+        deleted_count = 0
+        freed_bytes = 0
+        target_bytes = threshold_bytes * 0.9
+
+        for file_path, mtime, size in files_info:
+            if current_size - freed_bytes <= target_bytes:
+                break
+            try:
+                os.remove(file_path)
+                deleted_count += 1
+                freed_bytes += size
+            except OSError:
+                pass
+
+        freed_mb = freed_bytes / (1024 * 1024)
+        return deleted_count, freed_mb
 
     # ============================================================
     # 工具方法

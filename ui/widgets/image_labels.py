@@ -1,6 +1,5 @@
 # ui/widgets/image_labels.py
 
-import os
 from PySide6.QtWidgets import QLabel, QSizePolicy
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QPixmap, QPainter, QPen, QFont, QColor
@@ -29,7 +28,6 @@ class ClickableLabel(QLabel):
         self.update_pixmap()
 
     def update_pixmap(self):
-        """根据当前尺寸缩放并绘制叠加信息"""
         if self.original_pixmap.isNull():
             self.clear()
             return
@@ -45,39 +43,33 @@ class ClickableLabel(QLabel):
         painter = QPainter(result)
         painter.setRenderHint(QPainter.Antialiasing)
 
-        # 绘制序号（左上角）
         painter.setPen(QPen(QColor(255, 255, 255, 200)))
         painter.setFont(QFont("Arial", 10, QFont.Bold))
         painter.drawText(4, 18, f"{self.index}")
 
-        # 绘制时间戳（左下角，改为亮橙色）
         hours = int(self.timestamp // 3600)
         minutes = int((self.timestamp % 3600) // 60)
         secs = int(self.timestamp % 60)
         time_str = f"{hours:02d}:{minutes:02d}:{secs:02d}"
-        painter.setPen(QPen(QColor(255, 165, 0, 230)))  # 亮橙色
+        painter.setPen(QPen(QColor(255, 165, 0, 230)))
         painter.setFont(QFont("Arial", 9, QFont.Bold))
         painter.drawText(4, result.height() - 6, time_str)
 
-        # 绘制选中状态（左上角蓝色圆点）
         if self._selected:
             painter.setPen(QPen(QColor(33, 150, 243), 2))
             painter.setBrush(QColor(33, 150, 243))
             painter.drawEllipse(4, 22, 8, 8)
 
-        # 绘制锁定标记（左上角锁）
         if self._locked:
             painter.setPen(QPen(QColor(255, 215, 0), 2))
             painter.setBrush(QColor(255, 215, 0))
             painter.drawText(4, 36, "🔒")
 
-        # 绘制收藏标记（右上角星）
         if self._favorite:
             painter.setPen(QPen(QColor(255, 215, 0), 2))
             painter.setBrush(QColor(255, 215, 0))
             painter.drawText(result.width() - 20, 18, "⭐")
 
-        # 绘制导出标记（右下角绿点）
         if self._exported:
             painter.setPen(QPen(QColor(76, 175, 80), 2))
             painter.setBrush(QColor(76, 175, 80))
@@ -139,12 +131,10 @@ class FavImageLabel(QLabel):
         self.update_pixmap()
 
     def set_image_size(self, width: int, height: int):
-        """设置图片显示区域大小（兼容旧接口）"""
         self.setFixedSize(width, height)
         self.update_pixmap()
 
     def update_pixmap(self):
-        """根据当前尺寸缩放并绘制叠加信息"""
         if self.original_pixmap.isNull():
             self.clear()
             return
@@ -160,7 +150,6 @@ class FavImageLabel(QLabel):
         painter = QPainter(result)
         painter.setRenderHint(QPainter.Antialiasing)
 
-        # 绘制时间戳（左下角，亮橙色）
         hours = int(self.timestamp // 3600)
         minutes = int((self.timestamp % 3600) // 60)
         secs = int(self.timestamp % 60)
@@ -169,19 +158,16 @@ class FavImageLabel(QLabel):
         painter.setFont(QFont("Arial", 9, QFont.Bold))
         painter.drawText(4, result.height() - 6, time_str)
 
-        # 绘制选中状态（左上角蓝色圆点）
         if self._selected:
             painter.setPen(QPen(QColor(33, 150, 243), 2))
             painter.setBrush(QColor(33, 150, 243))
             painter.drawEllipse(4, 22, 8, 8)
 
-        # 绘制收藏标记（右上角星）
         if self._favorite:
             painter.setPen(QPen(QColor(255, 215, 0), 2))
             painter.setBrush(QColor(255, 215, 0))
             painter.drawText(result.width() - 20, 18, "⭐")
 
-        # 绘制导出标记（右下角绿点）
         if self._exported:
             painter.setPen(QPen(QColor(76, 175, 80), 2))
             painter.setBrush(QColor(76, 175, 80))

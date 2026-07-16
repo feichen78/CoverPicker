@@ -61,10 +61,8 @@ class SegmentView(QWidget):
         self.seg_buttons_layout = QHBoxLayout()
         self.seg_buttons: List[QPushButton] = []
 
-        # 预览对话框
         self.preview_dialog = None
 
-        # 从数据库加载视频列表
         db_videos = self.controller.db.get_all_videos()
         self.all_videos = [v['file_path'] for v in db_videos]
         self.filtered_videos = self.all_videos.copy()
@@ -73,10 +71,11 @@ class SegmentView(QWidget):
         self.setup_ui()
         self.setFocusPolicy(Qt.StrongFocus)
 
-        # 设置视频列表右键菜单和多选
         self.video_list.setContextMenuPolicy(Qt.CustomContextMenu)
         self.video_list.customContextMenuRequested.connect(self._show_context_menu)
         self.video_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
+
+        self._update_cache_info()
 
     # ============================================================
     # UI 构建
@@ -101,7 +100,6 @@ class SegmentView(QWidget):
         title_layout.addWidget(title)
         title_layout.addStretch()
 
-        # 批量删除按钮（图标，放在“+”旁边）
         self.batch_delete_btn = QPushButton("🗑️")
         self.batch_delete_btn.setFixedSize(30, 30)
         self.batch_delete_btn.setToolTip("批量删除选中的视频（不删除文件）")
@@ -124,7 +122,6 @@ class SegmentView(QWidget):
         self.batch_delete_btn.clicked.connect(self.batch_remove_videos)
         title_layout.addWidget(self.batch_delete_btn)
 
-        # 导入按钮
         self.import_btn = QPushButton("+")
         self.import_btn.setFixedSize(30, 30)
         self.import_btn.setToolTip("导入视频")
@@ -144,7 +141,6 @@ class SegmentView(QWidget):
         self.import_btn.clicked.connect(self._show_import_menu)
         title_layout.addWidget(self.import_btn)
 
-        # 预览对话框切换按钮
         self.preview_toggle_btn = QPushButton("🎬")
         self.preview_toggle_btn.setFixedSize(30, 30)
         self.preview_toggle_btn.setToolTip("打开/关闭预览窗口")
@@ -245,6 +241,7 @@ class SegmentView(QWidget):
 
         self.info_name = QLabel("未选择")
         self.info_name.setFont(QFont("Arial", 10, QFont.Bold))
+        self.info_name.setObjectName("info_name")
         info_layout.addWidget(self.info_name)
 
         self.info_duration = QLabel("时长: --")
@@ -258,6 +255,12 @@ class SegmentView(QWidget):
         info_layout.addWidget(self.info_path)
         info_layout.addStretch()
         left_layout.addWidget(info_group)
+
+        # 缓存大小标签
+        self.cache_label = QLabel("缓存: --")
+        self.cache_label.setStyleSheet("font-size: 9px; color: #888;")
+        self.cache_label.setObjectName("cache_label")
+        left_layout.addWidget(self.cache_label)
 
         # 进度标签
         self.progress_label_left = QLabel("")
@@ -294,14 +297,12 @@ class SegmentView(QWidget):
         control_bar = QHBoxLayout()
         control_bar.setSpacing(6)
 
-        # 分段按钮组
         seg_group = QHBoxLayout()
         seg_group.setSpacing(2)
         seg_group.setContentsMargins(0, 0, 0, 0)
         self.seg_buttons_layout = seg_group
         control_bar.addLayout(seg_group, 1)
 
-        # 分区数量下拉框（3~7）
         seg_count_label = QLabel("分区:")
         seg_count_label.setFont(QFont("Arial", 9))
         control_bar.addWidget(seg_count_label)
@@ -315,10 +316,8 @@ class SegmentView(QWidget):
         self.seg_count_combo.currentIndexChanged.connect(self.on_seg_count_changed)
         control_bar.addWidget(self.seg_count_combo)
 
-        # 弹性间隔，使密度组靠右
         control_bar.addStretch()
 
-        # 密度组
         dens_label = QLabel("密度:")
         dens_label.setFont(QFont("Arial", 9))
         control_bar.addWidget(dens_label)
@@ -335,7 +334,6 @@ class SegmentView(QWidget):
             control_bar.addWidget(btn)
             self.density_buttons.append(btn)
 
-        # 排除区间按钮
         self.exclude_btn = QPushButton("⛔ 排除区间")
         self.exclude_btn.setToolTip("设置要排除的时间段（如片头片尾）")
         self.exclude_btn.setStyleSheet("""
@@ -377,15 +375,12 @@ class SegmentView(QWidget):
         self.selected_label = QLabel("已选: 0 张")
         bottom_bar.addWidget(self.selected_label)
 
+        # 全选按钮（切换模式）
         self.select_all_btn = QPushButton("☑ 全选")
-        self.select_all_btn.clicked.connect(self.select_all)
+        self.select_all_btn.setCheckable(True)
         self.select_all_btn.setEnabled(False)
+        self.select_all_btn.clicked.connect(self.toggle_select_all)
         bottom_bar.addWidget(self.select_all_btn)
-
-        self.deselect_all_btn = QPushButton("☐ 取消全选")
-        self.deselect_all_btn.clicked.connect(self.deselect_all)
-        self.deselect_all_btn.setEnabled(False)
-        bottom_bar.addWidget(self.deselect_all_btn)
 
         bottom_bar.addStretch()
 
@@ -426,7 +421,6 @@ class SegmentView(QWidget):
         export_btn.clicked.connect(self.export_selected)
         bottom_bar.addWidget(export_btn)
 
-        # 撤销/重做
         self.undo_btn = QPushButton("↩ 撤销")
         self.undo_btn.setEnabled(False)
         self.undo_btn.clicked.connect(self.undo_action)
@@ -443,7 +437,6 @@ class SegmentView(QWidget):
 
         right_layout.addLayout(bottom_bar)
 
-        # 主布局
         main_layout.addWidget(left_panel)
         main_layout.addWidget(right_panel)
 
@@ -451,16 +444,27 @@ class SegmentView(QWidget):
             btn.setEnabled(False)
 
     # ============================================================
+    # 缓存信息更新
+    # ============================================================
+
+    def _update_cache_info(self):
+        if hasattr(self, 'cache_label'):
+            size_mb = self.controller.get_cache_size_mb()
+            file_count = self.controller.get_cache_file_count()
+            if size_mb > 1024:
+                self.cache_label.setText(f"缓存: {size_mb/1024:.2f} GB ({file_count} 个文件)")
+            else:
+                self.cache_label.setText(f"缓存: {size_mb:.1f} MB ({file_count} 个文件)")
+
+    # ============================================================
     # 排除区间对话框
     # ============================================================
 
     def show_exclude_dialog(self):
-        """显示排除区间设置对话框"""
         dlg = ExcludeDialog(self.controller.excluded_ranges, self.controller.duration, self)
         if dlg.exec():
             new_ranges = dlg.get_ranges()
             self.controller.excluded_ranges = new_ranges
-            # 如果当前有视频，重新加载当前分区以应用排除区间
             if self.controller.get_video_path():
                 asyncio.create_task(
                     self.controller.load_segment(
@@ -472,16 +476,12 @@ class SegmentView(QWidget):
             QMessageBox.information(self, "提示", "排除区间已更新，当前分区将重新生成。")
 
     # ============================================================
-    # 批量删除按钮状态更新
+    # 批量删除
     # ============================================================
 
     def _update_batch_delete_btn_state(self):
         selected = self.video_list.selectedItems()
         self.batch_delete_btn.setEnabled(len(selected) > 0)
-
-    # ============================================================
-    # 批量删除实现
-    # ============================================================
 
     def batch_remove_videos(self):
         selected_items = self.video_list.selectedItems()
@@ -600,7 +600,7 @@ class SegmentView(QWidget):
         file_dialog = QFileDialog(self)
         file_dialog.setWindowTitle("选择视频文件")
         file_dialog.setNameFilter(
-            "视频文件 (*.mp4 *.mkv *.avi *.mov *.wmv *.flv *.webm *.m4v *.mpg *.mpeg *.ts *.m2ts *.3gp)"
+            "视频文件 (*.mp4 *.mkv *.avi *.mov *.wmv *.flv *.webm *.m4v *.mpg *.mpeg *.ts *.m2ts *.3gp *.asf *.vob *.ogv *.ogg *.divx *.xvid *.mts *.m2v *.m4p *.m4b *.m4r *.mpv *.mpe *.mxf *.rm *.rmvb *.swf *.f4v)"
         )
         file_dialog.setFileMode(QFileDialog.ExistingFiles)
 
@@ -722,6 +722,7 @@ class SegmentView(QWidget):
             self.video_list.addItem(item)
 
     def _update_video_list_icon(self, video_path: str):
+        """更新单个视频项的图标（用于收藏弹窗导出后刷新）"""
         for i in range(self.video_list.count()):
             item = self.video_list.item(i)
             if item.data(Qt.UserRole) == video_path:
@@ -841,6 +842,7 @@ class SegmentView(QWidget):
             btn.setEnabled(True)
 
         self._update_undo_redo_buttons()
+        self._update_select_all_state()
 
     # ============================================================
     # 分段按钮管理
@@ -918,6 +920,7 @@ class SegmentView(QWidget):
         self.controller.set_num_segments(new_count)
         self._rebuild_seg_buttons()
         self.selected_indices.clear()
+        self._update_select_all_state()
 
         if self.controller.get_video_path():
             asyncio.create_task(self.controller.load_segment(0, restore_locks=True, randomize=False))
@@ -939,6 +942,46 @@ class SegmentView(QWidget):
         self._update_fav_count()
         self._refresh_all_video_icons()
         self._update_undo_redo_buttons()
+        self._update_cache_info()
+        self._update_select_all_state()
+
+    # ============================================================
+    # 全选切换
+    # ============================================================
+
+    def _update_select_all_state(self):
+        """更新全选按钮的选中状态"""
+        seg_label, _, _ = self.controller.get_current_segment()
+        if seg_label is None:
+            self.select_all_btn.setEnabled(False)
+            self.select_all_btn.setChecked(False)
+            return
+        items = self.controller.get_segment_items(seg_label)
+        count = len(items)
+        if count == 0:
+            self.select_all_btn.setEnabled(False)
+            self.select_all_btn.setChecked(False)
+            return
+        self.select_all_btn.setEnabled(True)
+        all_selected = len(self.selected_indices) == count
+        self.select_all_btn.setChecked(all_selected)
+
+    def toggle_select_all(self):
+        """切换全选状态"""
+        seg_label, _, _ = self.controller.get_current_segment()
+        items = self.controller.get_segment_items(seg_label)
+        count = len(items)
+        if count == 0:
+            return
+
+        if self.select_all_btn.isChecked():
+            for pos in range(count):
+                self.selected_indices.add((self.controller.current_seg_index, pos))
+        else:
+            self.selected_indices.clear()
+
+        self._refresh_grid()
+        self._update_select_all_state()
 
     # ============================================================
     # 网格刷新
@@ -948,6 +991,7 @@ class SegmentView(QWidget):
         try:
             segments = self.controller.get_segments()
             if not segments or self.controller.current_seg_index >= len(segments):
+                self._update_select_all_state()
                 return
 
             seg_label, _, _ = segments[self.controller.current_seg_index]
@@ -960,6 +1004,7 @@ class SegmentView(QWidget):
                     child.widget().deleteLater()
 
             if count == 0:
+                self._update_select_all_state()
                 return
 
             density = self.controller.density
@@ -979,9 +1024,6 @@ class SegmentView(QWidget):
 
             locked_count = sum(1 for it in items if it.get('locked', False))
             self.stat_locked.setText(f"锁定: {locked_count}")
-
-            self.select_all_btn.setEnabled(count > 0 and len(self.selected_indices) < count)
-            self.deselect_all_btn.setEnabled(len(self.selected_indices) > 0)
 
             for pos, item in enumerate(items):
                 row = pos // cols
@@ -1009,6 +1051,7 @@ class SegmentView(QWidget):
                 self.grid_layout.addWidget(label, row, col)
 
             self._update_selected_count()
+            self._update_select_all_state()
             self.grid_widget.updateGeometry()
             self.grid_widget.update()
             self.scroll.update()
@@ -1104,6 +1147,7 @@ class SegmentView(QWidget):
         added, skipped = self.controller.favorite_selected(seg_label, positions)
         if added > 0:
             self.selected_indices.clear()
+            self._update_select_all_state()
             QMessageBox.information(self, "完成", f"成功收藏 {added} 张截图。")
         else:
             QMessageBox.information(self, "提示", "选中的截图已经收藏过了。")
@@ -1120,6 +1164,7 @@ class SegmentView(QWidget):
         removed = self.controller.unfavorite_selected(seg_label, positions)
         if removed > 0:
             self.selected_indices.clear()
+            self._update_select_all_state()
             QMessageBox.information(self, "完成", f"成功取消收藏 {removed} 张截图。")
 
     # ============================================================
@@ -1137,6 +1182,7 @@ class SegmentView(QWidget):
 
         self.controller.lock_selected(seg_label, positions)
         self.selected_indices.clear()
+        self._update_select_all_state()
 
     def unlock_selected(self):
         if not self.selected_indices:
@@ -1149,6 +1195,7 @@ class SegmentView(QWidget):
 
         self.controller.unlock_selected(seg_label, positions)
         self.selected_indices.clear()
+        self._update_select_all_state()
 
     # ============================================================
     # 刷新 / 重抽
@@ -1161,14 +1208,16 @@ class SegmentView(QWidget):
             QMessageBox.information(self, "提示", "当前分段没有未锁定的截图。")
         else:
             self.selected_indices.clear()
+            self._update_select_all_state()
 
     async def reset_all(self):
         seg_idx = self.controller.current_seg_index
         await self.controller.reset_segment(seg_idx)
         self.selected_indices.clear()
+        self._update_select_all_state()
 
     # ============================================================
-    # 导出操作
+    # 导出操作（支持自定义目录）
     # ============================================================
 
     def export_selected(self):
@@ -1176,21 +1225,29 @@ class SegmentView(QWidget):
             QMessageBox.information(self, "提示", "请先选中要导出的截图。")
             return
 
+        # 弹出文件夹选择对话框
+        export_dir = QFileDialog.getExistingDirectory(
+            self,
+            "选择导出目录",
+            os.path.expanduser("~"),  # 默认用户目录
+            QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
+        )
+
+        if not export_dir:  # 用户取消选择
+            return
+
         seg_label, _, _ = self.controller.get_current_segment()
         positions = [pos for (seg_idx, pos) in self.selected_indices
                      if seg_idx == self.controller.current_seg_index]
 
-        exported, exported_list = self.controller.export_selected(seg_label, positions)
+        exported, exported_list = self.controller.export_selected(seg_label, positions, export_dir)
 
         if exported == 0:
             QMessageBox.warning(self, "警告", "导出失败或选中的文件不存在。")
             return
 
-        export_dir = os.path.join(
-            self.controller.get_export_base(),
-            self.controller.get_video_name()
-        )
         self.selected_indices.clear()
+        self._update_select_all_state()
         QMessageBox.information(self, "导出完成", f"成功导出 {exported} 张截图到:\n{export_dir}")
 
     # ============================================================
@@ -1210,11 +1267,12 @@ class SegmentView(QWidget):
         self._update_undo_redo_buttons()
 
     # ============================================================
-    # 清理缓存
+    # 清理缓存（手动）
     # ============================================================
 
     def clear_cache(self):
         count = self.controller.clear_cache()
+        self._update_cache_info()
         QMessageBox.information(self, "清理完成", f"已清理 {count} 个缓存文件。")
 
     # ============================================================
