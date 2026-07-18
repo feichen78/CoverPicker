@@ -3,6 +3,8 @@
 import os
 import sqlite3
 import logging
+import shutil
+import time
 from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime
 from pathlib import Path
@@ -79,7 +81,7 @@ class Database:
             )
         """)
 
-        # 创建 favorites 表 - 包含 is_exported 字段
+        # 创建 favorites 表
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS favorites (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -93,12 +95,11 @@ class Database:
             )
         """)
 
-        # 迁移：为已存在的 favorites 表添加 is_exported 列（如果不存在）
+        # 迁移：为 favorites 表添加 is_exported 列（如果不存在）
         try:
             cursor.execute("ALTER TABLE favorites ADD COLUMN is_exported INTEGER DEFAULT 0")
             logger.info("数据库迁移: favorites 表添加 is_exported 列")
         except sqlite3.OperationalError:
-            # 列已存在，忽略
             pass
 
         # 创建索引
@@ -106,6 +107,7 @@ class Database:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_videos_starred ON videos(is_starred)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_videos_exported ON videos(is_exported)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_favorites_video ON favorites(video_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_videos_file_path ON videos(file_path)")
 
         # 创建版本表
         cursor.execute("""
@@ -128,24 +130,21 @@ class Database:
             self._conn.close()
             self._conn = None
 
-    # ========== 视频操作 ==========
+    # ============================================================
+    # 视频操作
+    # ============================================================
 
     def get_or_create_video(self, file_path: str, file_name: str, duration: int,
                             resolution: str = "", file_size: int = 0,
                             modified_time: int = 0) -> int:
-        """
-        获取或创建视频记录，返回视频 ID。
-        如果文件已存在但文件大小或修改时间变化，自动更新 duration。
-        """
+        """获取或创建视频记录，返回视频 ID。如果文件已变化，自动更新 duration。"""
         conn = self._get_conn()
         cursor = conn.cursor()
 
-        # 检查是否已存在
         cursor.execute("SELECT id, duration, file_size, modified_time FROM videos WHERE file_path = ?", (file_path,))
         row = cursor.fetchone()
         if row:
             vid = row['id']
-            # 如果文件大小或修改时间变化，更新 duration
             if row['file_size'] != file_size or row['modified_time'] != modified_time:
                 cursor.execute("""
                     UPDATE videos SET 
@@ -156,7 +155,6 @@ class Database:
                 logger.debug(f"更新视频元数据: {file_name} (ID: {vid})")
             return vid
 
-        # 不存在则插入
         cursor.execute("""
             INSERT INTO videos (
                 file_path, file_name, duration, resolution, file_size, modified_time
@@ -166,7 +164,6 @@ class Database:
         return cursor.lastrowid
 
     def get_video_by_path(self, file_path: str) -> Optional[Dict]:
-        """根据路径查询视频记录"""
         conn = self._get_conn()
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM videos WHERE file_path = ?", (file_path,))
@@ -176,7 +173,6 @@ class Database:
     def update_video_state(self, video_id: int, is_viewed: Optional[bool] = None,
                            is_starred: Optional[bool] = None,
                            is_exported: Optional[bool] = None) -> None:
-        """更新视频状态"""
         conn = self._get_conn()
         cursor = conn.cursor()
 
@@ -205,7 +201,6 @@ class Database:
         conn.commit()
 
     def get_all_videos(self) -> List[Dict]:
-        """获取所有视频记录"""
         conn = self._get_conn()
         cursor = conn.cursor()
         cursor.execute("""
@@ -216,11 +211,12 @@ class Database:
         """)
         return [dict(row) for row in cursor.fetchall()]
 
-    # ========== 分区操作 ==========
+    # ============================================================
+    # 分区操作
+    # ============================================================
 
     def get_or_create_segment(self, video_id: int, segment_label: str,
                               time_start: int, time_end: int) -> int:
-        """获取或创建分区记录，返回分区 ID"""
         conn = self._get_conn()
         cursor = conn.cursor()
 
@@ -242,7 +238,6 @@ class Database:
                              is_viewed: Optional[bool] = None,
                              has_starred: Optional[bool] = None,
                              has_exported: Optional[bool] = None) -> None:
-        """更新分区状态"""
         conn = self._get_conn()
         cursor = conn.cursor()
 
@@ -269,7 +264,6 @@ class Database:
         conn.commit()
 
     def get_segment_state(self, video_id: int, segment_label: str) -> Optional[Dict]:
-        """获取分区状态"""
         conn = self._get_conn()
         cursor = conn.cursor()
         cursor.execute("""
@@ -281,7 +275,6 @@ class Database:
         return dict(row) if row else None
 
     def get_all_segments(self, video_id: int) -> List[Dict]:
-        """获取视频的所有分区"""
         conn = self._get_conn()
         cursor = conn.cursor()
         cursor.execute("""
@@ -292,12 +285,13 @@ class Database:
         """, (video_id,))
         return [dict(row) for row in cursor.fetchall()]
 
-    # ========== 收藏操作 ==========
+    # ============================================================
+    # 收藏操作
+    # ============================================================
 
     def add_favorite(self, video_id: int, segment_label: str,
                      timestamp_ms: int, thumbnail_path: str = "",
                      is_exported: bool = False) -> int:
-        """添加收藏"""
         conn = self._get_conn()
         cursor = conn.cursor()
         cursor.execute("""
@@ -308,7 +302,6 @@ class Database:
         return cursor.lastrowid
 
     def remove_favorite(self, video_id: int, segment_label: str, timestamp_ms: int) -> None:
-        """删除收藏"""
         conn = self._get_conn()
         cursor = conn.cursor()
         cursor.execute("""
@@ -318,7 +311,6 @@ class Database:
         conn.commit()
 
     def update_favorite_exported(self, video_id: int, segment_label: str, timestamp_ms: int) -> None:
-        """标记收藏为已导出"""
         conn = self._get_conn()
         cursor = conn.cursor()
         cursor.execute("""
@@ -328,14 +320,12 @@ class Database:
         conn.commit()
 
     def clear_favorites(self, video_id: int) -> None:
-        """清空视频的所有收藏"""
         conn = self._get_conn()
         cursor = conn.cursor()
         cursor.execute("DELETE FROM favorites WHERE video_id = ?", (video_id,))
         conn.commit()
 
     def get_favorites(self, video_id: int) -> List[Dict]:
-        """获取视频的所有收藏"""
         conn = self._get_conn()
         cursor = conn.cursor()
         cursor.execute("""
@@ -347,7 +337,6 @@ class Database:
         return [dict(row) for row in cursor.fetchall()]
 
     def is_favorite(self, video_id: int, segment_label: str, timestamp_ms: int) -> bool:
-        """检查是否为收藏"""
         conn = self._get_conn()
         cursor = conn.cursor()
         cursor.execute("""
@@ -356,78 +345,104 @@ class Database:
         """, (video_id, segment_label, timestamp_ms))
         return cursor.fetchone() is not None
 
-    # ========== 批量操作 ==========
+    # ============================================================
+    # 备份与恢复（云同步支持）
+    # ============================================================
 
-    def save_video_state(self, video_id: int, segments: Dict[str, Dict],
-                         favorites: List[Tuple[str, int, str]]) -> None:
-        """批量保存视频状态（用于加载时恢复）"""
-        conn = self._get_conn()
-        cursor = conn.cursor()
+    def backup(self, backup_dir: str) -> Tuple[bool, str]:
+        """
+        备份数据库到指定目录，文件名包含时间戳。
+        Returns: (是否成功, 备份文件路径或错误信息)
+        """
+        try:
+            if not os.path.exists(backup_dir):
+                os.makedirs(backup_dir)
 
-        # 更新分区状态
-        for seg_label, state in segments.items():
-            cursor.execute("""
-                UPDATE segments SET
-                    is_viewed = ?,
-                    has_starred = ?,
-                    has_exported = ?
-                WHERE video_id = ? AND segment_label = ?
-            """, (
-                1 if state.get('is_viewed', False) else 0,
-                1 if state.get('has_starred', False) else 0,
-                1 if state.get('has_exported', False) else 0,
-                video_id, seg_label
-            ))
+            # 关闭连接以释放锁
+            if self._conn:
+                self._conn.close()
+                self._conn = None
 
-        # 清空旧收藏并重新插入
-        cursor.execute("DELETE FROM favorites WHERE video_id = ?", (video_id,))
-        for seg_label, timestamp_ms, thumbnail_path in favorites:
-            cursor.execute("""
-                INSERT INTO favorites (video_id, segment_label, timestamp_ms, thumbnail_path)
-                VALUES (?, ?, ?, ?)
-            """, (video_id, seg_label, timestamp_ms, thumbnail_path))
+            # 生成备份文件名
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            backup_name = f"coverpicker_backup_{timestamp}.db"
+            backup_path = os.path.join(backup_dir, backup_name)
 
-        conn.commit()
+            shutil.copy2(self.db_path, backup_path)
 
-    def get_video_full_state(self, video_id: int) -> Dict:
-        """获取视频完整状态"""
-        conn = self._get_conn()
-        cursor = conn.cursor()
+            # 重新连接
+            self._init_db()
 
-        # 视频信息
-        cursor.execute("SELECT * FROM videos WHERE id = ?", (video_id,))
-        video = cursor.fetchone()
+            return True, backup_path
+        except Exception as e:
+            logger.error(f"备份数据库失败: {e}")
+            return False, str(e)
 
-        # 分区状态
-        cursor.execute("""
-            SELECT segment_label, is_viewed, has_starred, has_exported
-            FROM segments WHERE video_id = ?
-        """, (video_id,))
-        segments = [dict(row) for row in cursor.fetchall()]
+    def restore(self, backup_path: str) -> Tuple[bool, str]:
+        """
+        从备份文件恢复数据库。
+        Returns: (是否成功, 信息)
+        """
+        try:
+            if not os.path.exists(backup_path):
+                return False, f"备份文件不存在: {backup_path}"
 
-        # 收藏
-        cursor.execute("""
-            SELECT segment_label, timestamp_ms, thumbnail_path
-            FROM favorites WHERE video_id = ?
-        """, (video_id,))
-        favorites = [dict(row) for row in cursor.fetchall()]
+            # 关闭连接
+            if self._conn:
+                self._conn.close()
+                self._conn = None
 
-        return {
-            'video': dict(video) if video else None,
-            'segments': segments,
-            'favorites': favorites
-        }
+            # 备份当前数据库（防止意外覆盖）
+            old_path = self.db_path + ".old"
+            if os.path.exists(self.db_path):
+                shutil.copy2(self.db_path, old_path)
 
-    # ========== 清理 ==========
+            # 恢复
+            shutil.copy2(backup_path, self.db_path)
+
+            # 重新连接
+            self._init_db()
+
+            return True, f"成功从 {backup_path} 恢复数据库"
+        except Exception as e:
+            logger.error(f"恢复数据库失败: {e}")
+            return False, str(e)
+
+    def get_backup_history(self, backup_dir: str, limit: int = 20) -> List[Dict]:
+        """
+        获取备份目录中的备份文件列表
+        Returns: [{'path': str, 'name': str, 'size': int, 'time': str}, ...]
+        """
+        if not os.path.exists(backup_dir):
+            return []
+
+        backups = []
+        for f in os.listdir(backup_dir):
+            if f.startswith("coverpicker_backup_") and f.endswith(".db"):
+                file_path = os.path.join(backup_dir, f)
+                stat = os.stat(file_path)
+                backups.append({
+                    'path': file_path,
+                    'name': f,
+                    'size': stat.st_size,
+                    'time': datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M:%S"),
+                    'mtime': stat.st_mtime
+                })
+
+        # 按修改时间降序排序
+        backups.sort(key=lambda x: x['mtime'], reverse=True)
+        return backups[:limit]
+
+    # ============================================================
+    # 其他方法
+    # ============================================================
 
     def vacuum(self) -> None:
-        """压缩数据库"""
         conn = self._get_conn()
         conn.execute("VACUUM")
         conn.commit()
 
     def delete_video(self, video_id: int) -> None:
-        """删除视频及其所有关联数据"""
         conn = self._get_conn()
         cursor = conn.cursor()
         cursor.execute("DELETE FROM videos WHERE id = ?", (video_id,))
