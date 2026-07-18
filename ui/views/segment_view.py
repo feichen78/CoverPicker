@@ -1,5 +1,5 @@
 # ui/views/segment_view.py
-# 完整替换 —— 移除质量/尺寸控件，保留其他所有优化
+# 完整替换文件 —— 修复分区切换问题（直接调用 _load_segment）
 
 import os
 import asyncio
@@ -20,14 +20,14 @@ from PySide6.QtCore import Qt, QTimer, QPoint, QRect, QSize, QFileSystemWatcher
 from PySide6.QtGui import QPixmap, QFont, QColor, QAction, QKeyEvent, QPainter, QPen
 
 from src.video_scanner import scan_videos_in_directory, get_video_duration
-from src.controllers import SegmentController
+from src.controllers.segment_controller import SegmentController
 from src.config_manager import ConfigManager
 from ui.views.zoom_dialog import ZoomDialog
 from ui.views.zoom_preview import ZoomPreviewDialog
 from ui.views.preview_dialog import PreviewDialog
 from ui.views.exclude_dialog import ExcludeDialog
 from ui.widgets import ClickableLabel
-from ui.dialogs import FavoritesDialog
+from ui.dialogs.favorites_dialog import FavoritesDialog
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -105,6 +105,7 @@ class QFlowLayout(QLayout):
 class SegmentView(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
+        print("[DEBUG] SegmentView __init__ 开始")
         self.controller = SegmentController()
         self.controller.set_data_changed_callback(self._on_data_changed)
         self.controller.set_progress_callback(self._on_progress_update)
@@ -135,9 +136,12 @@ class SegmentView(QWidget):
         self.watcher.directoryChanged.connect(self._on_directory_changed)
         self._setup_watch_dirs()
 
+        print("[DEBUG] SegmentView __init__ 完成")
+
     # ============================================================
     # UI 构建
     # ============================================================
+
     def setup_ui(self):
         main_layout = QHBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -288,7 +292,7 @@ class SegmentView(QWidget):
         self._refresh_video_list()
         left_layout.addWidget(self.video_list)
 
-        # 信息组（字体已增大）
+        # 信息组
         info_group = QFrame()
         info_group.setFrameShape(QFrame.StyledPanel)
         info_group.setStyleSheet("background: #f8f8f8; border-radius: 4px;")
@@ -358,7 +362,7 @@ class SegmentView(QWidget):
         top_bar.addWidget(self.time_display)
         right_layout.addLayout(top_bar)
 
-        # 控制栏（含分区按钮、密度、排除区间，移除质量/尺寸）
+        # 控制栏
         control_bar = QHBoxLayout()
         control_bar.setSpacing(6)
 
@@ -399,7 +403,6 @@ class SegmentView(QWidget):
             control_bar.addWidget(btn)
             self.density_buttons.append(btn)
 
-        # 排除区间
         self.exclude_btn = QPushButton("⛔ 排除区间")
         self.exclude_btn.setToolTip("设置要排除的时间段（如片头片尾）")
         self.exclude_btn.setStyleSheet("""
@@ -428,13 +431,13 @@ class SegmentView(QWidget):
         self.grid_widget = QWidget()
         self.grid_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.grid_layout = QGridLayout(self.grid_widget)
-        self.grid_layout.setSpacing(2)          # 缩小网格间隙
+        self.grid_layout.setSpacing(2)
         self.grid_layout.setContentsMargins(2, 2, 2, 2)
 
         self.scroll.setWidget(self.grid_widget)
         right_layout.addWidget(self.scroll, 1)
 
-        # 底部操作栏（QFlowLayout）
+        # 底部操作栏
         bottom_bar = QFlowLayout()
         bottom_bar.setContentsMargins(10, 6, 10, 6)
 
@@ -513,7 +516,6 @@ class SegmentView(QWidget):
         self.set_backup_dir_btn.clicked.connect(self._set_backup_dir)
         bottom_bar.addWidget(self.set_backup_dir_btn)
 
-        # 监控目录按钮
         self.watch_btn = QPushButton("📂 监控")
         self.watch_btn.setToolTip("添加/删除监控目录（自动导入新视频）")
         self.watch_btn.clicked.connect(self._manage_watch_dirs)
@@ -530,6 +532,7 @@ class SegmentView(QWidget):
     # ============================================================
     # 文件监控
     # ============================================================
+
     def _setup_watch_dirs(self):
         dirs = self.config.get_watch_dirs()
         for d in dirs:
@@ -591,8 +594,9 @@ class SegmentView(QWidget):
             self._add_videos(new_files)
 
     # ============================================================
-    # 以下方法保持原有功能（部分省略，但均保留）
+    # 以下方法保持原有功能
     # ============================================================
+
     def _update_backup_status_label(self):
         backup_dir = self.config.get_backup_dir()
         if backup_dir and os.path.exists(backup_dir):
@@ -813,7 +817,8 @@ class SegmentView(QWidget):
     def _import_folder(self):
         folder = QFileDialog.getExistingDirectory(self, "选择文件夹", "", QFileDialog.ShowDirsOnly)
         if folder:
-            video_files = scan_videos_in_directory(folder)
+            from src.video_scanner import scan_videos
+            video_files = scan_videos(folder)
             if video_files:
                 self._add_videos(video_files)
                 QMessageBox.information(self, "导入完成", f"导入 {len(video_files)} 个视频")
@@ -935,20 +940,37 @@ class SegmentView(QWidget):
         self._update_undo_redo_buttons(); self._update_select_all_state()
 
     def _rebuild_seg_buttons(self):
+        """重建分区按钮"""
+        from functools import partial
+        
+        # 清除旧按钮
         for btn in self.seg_buttons:
-            self.seg_buttons_layout.removeWidget(btn); btn.deleteLater()
+            self.seg_buttons_layout.removeWidget(btn)
+            btn.deleteLater()
         self.seg_buttons.clear()
+        
         segments = self.controller.get_segments()
-        if not segments: return
+        if not segments:
+            return
+        
         current_idx = self.controller.current_seg_index
-        for i,(label,start,end) in enumerate(segments):
+        
+        for i, (label, start, end) in enumerate(segments):
             time_range = f"{self._format_time(start)} - {self._format_time(end)}"
             btn = QPushButton(f"{label} {time_range}")
-            btn.setCheckable(True); btn.setMinimumWidth(90); btn.setMaximumWidth(180)
-            btn.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Fixed); btn.setFixedHeight(34)
-            btn.setFont(QFont("Arial", 9, QFont.Bold)); btn.setChecked(i == current_idx)
-            btn.clicked.connect(lambda checked, idx=i: self.on_seg_clicked(idx))
-            self.seg_buttons_layout.addWidget(btn); self.seg_buttons.append(btn)
+            btn.setCheckable(True)
+            btn.setMinimumWidth(90)
+            btn.setMaximumWidth(180)
+            btn.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Fixed)
+            btn.setFixedHeight(34)
+            btn.setFont(QFont("Arial", 9, QFont.Bold))
+            btn.setChecked(i == current_idx)
+            
+            # 使用 partial 传递索引
+            btn.clicked.connect(partial(self.on_seg_clicked, i))
+            
+            self.seg_buttons_layout.addWidget(btn)
+            self.seg_buttons.append(btn)
 
     def _update_seg_buttons_state(self):
         current_idx = self.controller.current_seg_index
@@ -959,11 +981,33 @@ class SegmentView(QWidget):
         h = int(seconds//3600); m = int((seconds%3600)//60); s = int(seconds%60)
         return f"{h:02d}:{m:02d}:{s:02d}"
 
-    def on_seg_clicked(self, idx):
-        if 0 <= idx < self.controller.get_segment_count():
-            self.controller.current_seg_index = idx
-            self._update_seg_buttons_state()
-            asyncio.create_task(self.controller.load_segment(idx, restore_locks=True, randomize=False))
+    def on_seg_clicked(self, idx: int):
+        """点击分区按钮切换分区"""
+        print(f"[DEBUG] on_seg_clicked 被调用: idx={idx}, 当前索引={self.controller.current_seg_index}")
+        
+        if idx < 0 or idx >= len(self.controller.segments):
+            print(f"[DEBUG] on_seg_clicked 无效索引: idx={idx}, segments数量={len(self.controller.segments)}")
+            return
+        
+        if idx == self.controller.current_seg_index:
+            print(f"[DEBUG] 点击的是当前分区 {idx}，不执行加载")
+            return
+        
+        # 取消正在进行的加载任务
+        if self.controller._load_task and not self.controller._load_task.done():
+            print(f"[DEBUG] 取消之前的加载任务")
+            self.controller._load_task.cancel()
+            self.controller._load_task = None
+        
+        self.controller.current_seg_index = idx
+        self._update_seg_buttons_state()
+        print(f"[DEBUG] 索引已更新为 {idx}，准备加载")
+        
+        # 直接调用 _load_segment，绕过 load_segment 的检查
+        self.controller._load_task = asyncio.create_task(
+            self.controller._load_segment(idx, restore_locks=True, randomize=False)
+        )
+        print(f"[DEBUG] 加载任务已创建")
 
     def on_seg_count_changed(self, index):
         if index < 0: return
@@ -1007,9 +1051,6 @@ class SegmentView(QWidget):
         else: self.selected_indices.clear()
         self._refresh_grid(); self._update_select_all_state()
 
-    # ============================================================
-    # 核心：刷新网格（含加载占位、间隙控制）
-    # ============================================================
     def _refresh_grid(self):
         try:
             segments = self.controller.get_segments()
@@ -1038,21 +1079,18 @@ class SegmentView(QWidget):
                 row = pos // cols; col = pos % cols
                 img_path = item.get('path')
                 pixmap = QPixmap(200, 150)
-                pixmap.fill(QColor(60, 60, 60))  # 默认深灰
+                pixmap.fill(QColor(60, 60, 60))
 
-                # 判断是否加载中或路径无效
                 if img_path and os.path.exists(img_path):
                     loaded = QPixmap(img_path)
                     if not loaded.isNull():
                         pixmap = loaded
                     else:
-                        # 加载失败，显示红色叉
                         painter = QPainter(pixmap)
                         painter.setPen(QPen(QColor(255,0,0), 3))
                         painter.drawText(pixmap.rect(), Qt.AlignCenter, "✕")
                         painter.end()
                 else:
-                    # 无图或路径为空，显示“⏳ 加载中...”占位（浅色文字）
                     painter = QPainter(pixmap)
                     painter.setPen(QPen(QColor(200,200,200), 2))
                     painter.setFont(QFont("Arial", 12, QFont.Bold))
@@ -1074,7 +1112,6 @@ class SegmentView(QWidget):
                 label.double_clicked.connect(partial(self.preview_image, pos))
                 self.grid_layout.addWidget(label, row, col)
 
-            # 设置行拉伸（可选）
             row_count = self.grid_layout.rowCount()
             for r in range(row_count):
                 self.grid_layout.setRowStretch(r, 1)
@@ -1086,9 +1123,6 @@ class SegmentView(QWidget):
         except Exception as e:
             logger.error(f"刷新网格出错: {e}\n{traceback.format_exc()}")
 
-    # ============================================================
-    # 后续方法（第二段不变，请继续使用之前提供的第二段）
-    # ============================================================
     def _update_fav_count(self):
         count = self.controller.get_favorites_count()
         self.stat_fav.setText(f"收藏: {count}")

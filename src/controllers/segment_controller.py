@@ -1,5 +1,5 @@
 # src/controllers/segment_controller.py
-# 移除质量/尺寸参数，恢复稳定截图提取
+# 完整版 —— 修复分区切换问题（含完整调试输出）
 
 import os
 import asyncio
@@ -7,13 +7,13 @@ import random
 import tempfile
 import shutil
 import logging
+import json
 from typing import Dict, List, Set, Tuple, Optional, Any
 from datetime import timedelta
 from dataclasses import dataclass
 
 from src.database import Database
 from src.video_scanner import get_video_duration, calculate_segments, extract_frame, extract_frames_batch_fast
-from src.config_manager import ConfigManager
 
 logger = logging.getLogger(__name__)
 
@@ -30,8 +30,8 @@ class Action:
 
 class SegmentController:
     def __init__(self):
+        print("[DEBUG] SegmentController __init__ 开始")
         self.db = Database()
-        self.config = ConfigManager()
 
         self.video_path: Optional[str] = None
         self.video_id: Optional[int] = None
@@ -59,11 +59,11 @@ class SegmentController:
         self.redo_stack: List[Action] = []
         self._is_undo_or_redo: bool = False
 
-        # FFmpeg 并发控制
         self._ffmpeg_semaphore = asyncio.Semaphore(3)
 
         self._on_data_changed: Optional[callable] = None
         self._on_progress_update: Optional[callable] = None
+        print("[DEBUG] SegmentController __init__ 完成")
 
     def set_data_changed_callback(self, callback):
         self._on_data_changed = callback
@@ -79,7 +79,10 @@ class SegmentController:
         if self._on_progress_update:
             self._on_progress_update(message)
 
-    # ---------- 分区管理 ----------
+    # ============================================================
+    # 分区管理
+    # ============================================================
+
     def set_num_segments(self, num: int):
         if num < 3:
             num = 3
@@ -113,8 +116,42 @@ class SegmentController:
         if self.video_path:
             asyncio.create_task(self.load_segment(0, restore_locks=True, randomize=False))
 
-    # ---------- 视频加载 ----------
+    # ============================================================
+    # 排除区间管理
+    # ============================================================
+
+    def get_excluded_ranges(self) -> List[Tuple[float, float]]:
+        return self.excluded_ranges.copy()
+
+    def set_excluded_ranges(self, ranges: List[Tuple[float, float]], save: bool = True):
+        self.excluded_ranges = ranges.copy()
+        self._notify_data_changed()
+        if save and self.video_id and self.video_path and self.segments:
+            seg_label = self.segments[self.current_seg_index][0]
+            self.db.update_segment_state(
+                self.video_id,
+                seg_label,
+                excluded_ranges=ranges
+            )
+            logger.info(f"排除区间已保存到数据库: {ranges}")
+
+    def load_excluded_ranges_from_db(self):
+        if not self.video_id or not self.segments:
+            return
+        seg_label = self.segments[self.current_seg_index][0]
+        seg_state = self.db.get_segment_state(self.video_id, seg_label)
+        if seg_state and seg_state.get('excluded_ranges'):
+            self.excluded_ranges = seg_state['excluded_ranges']
+            logger.info(f"从数据库加载排除区间: {self.excluded_ranges}")
+        else:
+            self.excluded_ranges = []
+
+    # ============================================================
+    # 视频加载
+    # ============================================================
+
     async def load_video(self, video_path: str) -> bool:
+        print(f"[DEBUG] load_video 被调用: {video_path}")
         if self._load_task and not self._load_task.done():
             self._load_task.cancel()
 
@@ -123,19 +160,27 @@ class SegmentController:
 
         duration = get_video_duration(video_path)
         if duration is None:
-            logger.error(f"无法获取视频时长: {video_path}")
+            print("[DEBUG] load_video 失败: 无法获取时长")
             return False
 
         self.duration = duration
         if self.num_segments == -1:
             self.num_segments = 5
         self.segments = calculate_segments(duration, self.num_segments)
+        print(f"[DEBUG] load_video: 分区数={len(self.segments)}")
 
         file_name = os.path.basename(video_path)
         self.video_id = self.db.get_or_create_video(
             video_path, file_name, int(duration), "",
             int(os.path.getsize(video_path)), int(os.path.getmtime(video_path))
         )
+
+        for label, start, end in self.segments:
+            self.db.get_or_create_segment(
+                self.video_id, label, int(start), int(end)
+            )
+
+        self.load_excluded_ranges_from_db()
 
         self.favorites = []
         self._restore_favorites_from_db()
@@ -156,28 +201,85 @@ class SegmentController:
             self.db.update_video_state(self.video_id, is_viewed=True)
 
         self._notify_data_changed()
+        print("[DEBUG] load_video 完成")
         return True
 
     async def load_segment(self, seg_idx: int, restore_locks: bool = True, randomize: bool = False):
+        """加载指定分区的截图"""
+        print(f"[DEBUG] ========== load_segment 被调用: seg_idx={seg_idx} ==========")
+        print(f"[DEBUG] self.video_path={self.video_path}")
+        print(f"[DEBUG] self.segments={self.segments}")
+        print(f"[DEBUG] self.current_seg_index={self.current_seg_index}")
+        print(f"[DEBUG] self._load_task={self._load_task}")
+        
         if not self.video_path or not self.segments:
+            print(f"[DEBUG] load_segment 返回: video_path={self.video_path}, segments={self.segments}")
             return
+        
+        if seg_idx < 0 or seg_idx >= len(self.segments):
+            print(f"[DEBUG] load_segment 无效索引: seg_idx={seg_idx}, len={len(self.segments)}")
+            return
+        
+        # 检查是否正在加载同一个分区
         if self._load_task and not self._load_task.done():
-            self._load_task.cancel()
+            # 如果请求的是同一个分区，跳过
+            if seg_idx == self.current_seg_index:
+                print(f"[DEBUG] 分区 {seg_idx} 正在加载中，跳过")
+                return
+            else:
+                # 请求的是不同分区，取消当前任务
+                print(f"[DEBUG] 取消当前任务（加载分区 {self.current_seg_index}），切换到分区 {seg_idx}")
+                self._load_task.cancel()
+                try:
+                    await self._load_task
+                except asyncio.CancelledError:
+                    print("[DEBUG] 当前任务已取消")
+                self._load_task = None
+        
+        # 更新当前分区索引
         self.current_seg_index = seg_idx
+        print(f"[DEBUG] 当前分区索引已更新为: {seg_idx}")
+        
+        # 加载排除区间
+        self.load_excluded_ranges_from_db()
+        
+        # 创建新的加载任务
         self._load_task = asyncio.create_task(self._load_segment(seg_idx, restore_locks, randomize))
+        print(f"[DEBUG] 新加载任务已创建，等待完成...")
+        
         await self._load_task
+        print(f"[DEBUG] 加载任务完成")
         self._load_task = None
         self._notify_data_changed()
 
     async def _load_segment(self, seg_idx: int, restore_locks: bool = True, randomize: bool = False):
-        if not self.video_path or not self.segments:
+        """实际执行加载的方法"""
+        print(f"[DEBUG] ========== _load_segment 开始: seg_idx={seg_idx} ==========")
+        
+        if not self.video_path:
+            print("[DEBUG] _load_segment 返回: video_path 为空")
+            return
+        
+        if not self.segments:
+            print("[DEBUG] _load_segment 返回: segments 为空")
+            return
+        
+        if seg_idx < 0 or seg_idx >= len(self.segments):
+            print(f"[DEBUG] _load_segment 返回: seg_idx={seg_idx} 超出范围")
             return
 
         current_task = asyncio.current_task()
         if current_task and current_task.cancelled():
+            print(f"[DEBUG] 分段 {seg_idx} 加载被取消")
             return
 
         label, start, end = self.segments[seg_idx]
+        print(f"[DEBUG] 加载分区 {label}: {start:.1f}s - {end:.1f}s")
+        seg_key = label
+        
+        if seg_key in self.loaded_segments and not randomize:
+            print(f"[DEBUG] 分区 {label} 已加载，但继续执行加载（刷新数据）")
+
         offset = (end - start) * self.skip_ratio
         start_cropped = start + offset
         end_cropped = end - offset
@@ -186,7 +288,6 @@ class SegmentController:
             end_cropped = end
 
         count = self.density
-        seg_key = label
         old_items = self.screenshots.get(seg_key, [])
 
         new_times = [random.uniform(start_cropped, end_cropped) for _ in range(count)]
@@ -202,9 +303,9 @@ class SegmentController:
 
         for idx, t in enumerate(new_times):
             if current_task and current_task.cancelled():
+                print(f"[DEBUG] 分段加载被取消: idx={idx}")
                 return
 
-            # 尝试复用缓存
             matched = None
             best_match_idx = -1
             for i, old_t in enumerate(old_times):
@@ -225,7 +326,6 @@ class SegmentController:
                 reused_count += 1
                 continue
 
-            # 提取新帧
             self._notify_progress(f"正在生成 {label} 第 {idx+1}/{total} 张 @ {t:.2f}s")
             temp_path = os.path.join(self.temp_dir, f"seg_{label}_{t:.2f}.jpg")
             try:
@@ -256,6 +356,7 @@ class SegmentController:
                 raise
 
         if current_task and current_task.cancelled():
+            print(f"[DEBUG] 分段加载完成后被取消")
             return
 
         self.screenshots[seg_key] = new_items
@@ -264,8 +365,12 @@ class SegmentController:
         self._restore_favorites_to_screenshots()
         self._notify_progress(f"{label} 分段加载完成 ({len(new_items)} 张, 复用 {reused_count} 张)")
         self._notify_data_changed()
+        print(f"[DEBUG] ========== _load_segment 完成: {label} ==========")
 
-    # ---------- 收藏管理 ----------
+    # ============================================================
+    # 收藏管理
+    # ============================================================
+
     def favorite_selected(self, seg_label: str, positions: List[int]) -> Tuple[int, int]:
         if self._is_undo_or_redo:
             return self._favorite_selected_impl(seg_label, positions, record_history=False)
@@ -363,7 +468,10 @@ class SegmentController:
     def get_current_favorites(self) -> List[dict]:
         return [f for f in self.favorites if f.get('video_path') == self.video_path]
 
-    # ---------- 导出 ----------
+    # ============================================================
+    # 导出
+    # ============================================================
+
     def export_selected(self, seg_label: str, positions: List[int], export_dir: Optional[str] = None) -> Tuple[int, List[Tuple[str, str]]]:
         items = self.screenshots.get(seg_label, [])
         export_paths = []
@@ -410,7 +518,10 @@ class SegmentController:
 
         return exported, exported_list
 
-    # ---------- Zoom 精修替换 ----------
+    # ============================================================
+    # Zoom 精修
+    # ============================================================
+
     def replace_screenshot(self, seg_label: str, pos: int, new_time: float, new_path: str, old_time: float) -> bool:
         items = self.screenshots.get(seg_label, [])
         if pos >= len(items):
@@ -454,7 +565,10 @@ class SegmentController:
         self._notify_data_changed()
         return True
 
-    # ---------- 锁定/解锁 ----------
+    # ============================================================
+    # 锁定/解锁
+    # ============================================================
+
     def lock_selected(self, seg_label: str, positions: List[int]) -> int:
         if self._is_undo_or_redo:
             return self._lock_selected_impl(seg_label, positions, record_history=False)
@@ -507,7 +621,10 @@ class SegmentController:
             self._notify_data_changed()
         return count
 
-    # ---------- 撤销/重做 ----------
+    # ============================================================
+    # 撤销/重做
+    # ============================================================
+
     def _push_action(self, action: Action):
         self.undo_stack.append(action)
         self.redo_stack.clear()
@@ -609,7 +726,10 @@ class SegmentController:
                 item['locked'] = set_locked
                 break
 
-    # ---------- 刷新/重抽 ----------
+    # ============================================================
+    # 刷新/重抽
+    # ============================================================
+
     async def refresh_unlocked(self, seg_idx: int) -> int:
         if not self.video_path or not self.segments:
             return 0
@@ -652,9 +772,6 @@ class SegmentController:
                     items[pos]['path'] = temp_path
                     items[pos]['locked'] = False
                     refreshed += 1
-                    self._notify_progress(f"刷新成功: {seg_label} {idx+1}/{total} @ {t:.2f}s")
-                else:
-                    self._notify_progress(f"刷新失败: {seg_label} {idx+1}/{total} @ {t:.2f}s")
             except asyncio.CancelledError:
                 raise
 
@@ -671,7 +788,10 @@ class SegmentController:
         await self._load_segment(seg_idx, restore_locks=False, randomize=True)
         self._notify_data_changed()
 
-    # ---------- 状态图标 ----------
+    # ============================================================
+    # 状态查询方法
+    # ============================================================
+
     def get_video_state_icon(self, video_path: str) -> str:
         video_data = self.db.get_video_by_path(video_path)
         if not video_data:
@@ -687,7 +807,79 @@ class SegmentController:
     def get_video_state(self, video_path: str) -> dict:
         return self.db.get_video_by_path(video_path)
 
-    # ---------- 删除视频 ----------
+    def get_video_name(self) -> str:
+        return self.video_name
+
+    def get_video_path(self) -> Optional[str]:
+        return self.video_path
+
+    def get_video_id(self) -> Optional[int]:
+        return self.video_id
+
+    def get_duration(self) -> float:
+        return self.duration
+
+    def get_segments(self) -> List[Tuple[str, float, float]]:
+        return self.segments
+
+    def get_segment_count(self) -> int:
+        return len(self.segments)
+
+    def get_segment_items(self, seg_label: str) -> List[dict]:
+        return self.screenshots.get(seg_label, [])
+
+    def get_current_segment(self) -> Optional[Tuple[str, float, float]]:
+        if 0 <= self.current_seg_index < len(self.segments):
+            return self.segments[self.current_seg_index]
+        return None
+
+    def get_favorites_count(self) -> int:
+        if not self.video_path:
+            return 0
+        return sum(1 for f in self.favorites if f.get('video_path') == self.video_path)
+
+    def get_export_base(self) -> str:
+        return self.export_base
+
+    def get_temp_dir(self) -> str:
+        return self.temp_dir
+
+    def get_loaded_segments(self) -> Set[str]:
+        return self.loaded_segments
+
+    def is_segment_loaded(self, seg_label: str) -> bool:
+        return seg_label in self.loaded_segments
+
+    def get_cache_size(self) -> int:
+        if not os.path.exists(self.temp_dir):
+            return 0
+        total = 0
+        for root, dirs, files in os.walk(self.temp_dir):
+            for f in files:
+                try:
+                    total += os.path.getsize(os.path.join(root, f))
+                except OSError:
+                    pass
+        return total
+
+    def get_cache_size_mb(self) -> float:
+        return self.get_cache_size() / (1024 * 1024)
+
+    def get_cache_size_gb(self) -> float:
+        return self.get_cache_size() / (1024 * 1024 * 1024)
+
+    def get_cache_file_count(self) -> int:
+        if not os.path.exists(self.temp_dir):
+            return 0
+        count = 0
+        for root, dirs, files in os.walk(self.temp_dir):
+            count += len(files)
+        return count
+
+    # ============================================================
+    # 删除视频
+    # ============================================================
+
     def remove_video(self, video_path: str) -> bool:
         video_data = self.db.get_video_by_path(video_path)
         if not video_data:
@@ -717,32 +909,9 @@ class SegmentController:
             logger.error(f"删除视频记录失败: {e}")
             return False
 
-    # ---------- 缓存管理 ----------
-    def get_cache_size(self) -> int:
-        if not os.path.exists(self.temp_dir):
-            return 0
-        total = 0
-        for root, dirs, files in os.walk(self.temp_dir):
-            for f in files:
-                try:
-                    total += os.path.getsize(os.path.join(root, f))
-                except OSError:
-                    pass
-        return total
-
-    def get_cache_size_mb(self) -> float:
-        return self.get_cache_size() / (1024 * 1024)
-
-    def get_cache_size_gb(self) -> float:
-        return self.get_cache_size() / (1024 * 1024 * 1024)
-
-    def get_cache_file_count(self) -> int:
-        if not os.path.exists(self.temp_dir):
-            return 0
-        count = 0
-        for root, dirs, files in os.walk(self.temp_dir):
-            count += len(files)
-        return count
+    # ============================================================
+    # 缓存管理
+    # ============================================================
 
     def clear_cache(self) -> int:
         if not os.path.exists(self.temp_dir):
@@ -794,49 +963,10 @@ class SegmentController:
 
         return deleted_count, freed_bytes / (1024 * 1024)
 
-    # ---------- 工具方法 ----------
-    def get_current_segment(self) -> Optional[Tuple[str, float, float]]:
-        if 0 <= self.current_seg_index < len(self.segments):
-            return self.segments[self.current_seg_index]
-        return None
+    # ============================================================
+    # 私有方法
+    # ============================================================
 
-    def get_segment_items(self, seg_label: str) -> List[dict]:
-        return self.screenshots.get(seg_label, [])
-
-    def get_segments(self) -> List[Tuple[str, float, float]]:
-        return self.segments
-
-    def get_segment_count(self) -> int:
-        return len(self.segments)
-
-    def get_duration(self) -> float:
-        return self.duration
-
-    def get_video_name(self) -> str:
-        return self.video_name
-
-    def get_video_path(self) -> Optional[str]:
-        return self.video_path
-
-    def get_video_id(self) -> Optional[int]:
-        return self.video_id
-
-    def get_export_base(self) -> str:
-        return self.export_base
-
-    def get_temp_dir(self) -> str:
-        return self.temp_dir
-
-    def get_loaded_segments(self) -> Set[str]:
-        return self.loaded_segments
-
-    def get_favorites_count(self) -> int:
-        return len(self.get_current_favorites())
-
-    def is_segment_loaded(self, seg_label: str) -> bool:
-        return seg_label in self.loaded_segments
-
-    # ---------- 私有方法 ----------
     def _filter_excluded_random(self, times: List[float], start: float, end: float, target_count: int) -> List[float]:
         if not self.excluded_ranges:
             return times
@@ -874,11 +1004,19 @@ class SegmentController:
             has_starred = any(item.get('favorite', False) for item in items)
             has_exported = any(item.get('exported', False) for item in items)
             is_viewed = seg_label in self.loaded_segments
+
+            if seg_label == self.segments[self.current_seg_index][0]:
+                excluded = self.excluded_ranges
+            else:
+                seg_state = self.db.get_segment_state(self.video_id, seg_label)
+                excluded = seg_state.get('excluded_ranges', []) if seg_state else []
+
             self.db.update_segment_state(
                 self.video_id, seg_label,
                 is_viewed=is_viewed,
                 has_starred=has_starred,
-                has_exported=has_exported
+                has_exported=has_exported,
+                excluded_ranges=excluded
             )
 
         is_starred = any(
@@ -973,7 +1111,10 @@ class SegmentController:
                     item['favorite'] = True
                     item['exported'] = matched.get('exported', False)
 
-    # ---------- 清理 ----------
+    # ============================================================
+    # 清理
+    # ============================================================
+
     def cleanup(self):
         if self._load_task and not self._load_task.done():
             self._load_task.cancel()

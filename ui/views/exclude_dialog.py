@@ -1,4 +1,5 @@
 # ui/views/exclude_dialog.py
+# 增加保存排除区间到数据库的调用
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
@@ -20,25 +21,29 @@ class ExcludeDialog(QDialog):
 
         self.ranges = ranges.copy()
         self.duration = duration
+        self.parent_view = parent
 
         self.setup_ui()
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
 
-        # 说明
         info_label = QLabel("设置要排除的时间段（如片头片尾、版权声明），生成截图时自动跳过这些区间。")
         info_label.setWordWrap(True)
         info_label.setStyleSheet("color: #666; font-size: 11px;")
         layout.addWidget(info_label)
 
-        # 区间列表
+        # 添加持久化提示
+        persist_label = QLabel("💡 排除区间将自动保存到数据库，并通过云同步在不同设备间共享。")
+        persist_label.setWordWrap(True)
+        persist_label.setStyleSheet("color: #2196F3; font-size: 10px;")
+        layout.addWidget(persist_label)
+
         self.list_widget = QListWidget()
         self.list_widget.setStyleSheet("QListWidget::item { padding: 4px; }")
         self._refresh_list()
         layout.addWidget(self.list_widget)
 
-        # 添加区间控件
         add_group = QGroupBox("添加新区间")
         add_layout = QFormLayout(add_group)
 
@@ -62,7 +67,6 @@ class ExcludeDialog(QDialog):
 
         layout.addWidget(add_group)
 
-        # 操作按钮
         btn_layout = QHBoxLayout()
         remove_btn = QPushButton("删除选中")
         remove_btn.clicked.connect(self._remove_selected)
@@ -97,7 +101,6 @@ class ExcludeDialog(QDialog):
         if start >= end:
             QMessageBox.warning(self, "错误", "起始时间必须小于结束时间。")
             return
-        # 检查是否与其他区间重叠
         for s, e in self.ranges:
             if not (end <= s or start >= e):
                 QMessageBox.warning(self, "错误", f"区间与 {s:.1f}-{e:.1f} 重叠，请调整。")
@@ -122,3 +125,12 @@ class ExcludeDialog(QDialog):
 
     def get_ranges(self) -> List[Tuple[float, float]]:
         return self.ranges
+
+    def accept(self):
+        """确定时保存排除区间到数据库"""
+        super().accept()
+        # 保存到控制器（自动持久化）
+        if self.parent_view and hasattr(self.parent_view, 'controller'):
+            controller = self.parent_view.controller
+            controller.set_excluded_ranges(self.ranges, save=True)
+            logger.info(f"排除区间已保存: {self.ranges}")

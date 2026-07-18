@@ -1,10 +1,12 @@
 # src/database.py
+# 增加排除区间持久化支持
 
 import os
 import sqlite3
 import logging
 import shutil
 import time
+import json
 from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime
 from pathlib import Path
@@ -15,15 +17,9 @@ logger = logging.getLogger(__name__)
 class Database:
     """CoverPicker SQLite 数据库管理类 - 状态持久化"""
 
-    # 数据库版本
     DB_VERSION = 1
 
     def __init__(self, db_path: Optional[str] = None):
-        """初始化数据库连接
-
-        Args:
-            db_path: 数据库文件路径，默认为 ~/.coverpicker/coverpicker.db
-        """
         if db_path is None:
             home = Path.home()
             data_dir = home / ".coverpicker"
@@ -34,16 +30,13 @@ class Database:
         self._init_db()
 
     def _get_conn(self) -> sqlite3.Connection:
-        """获取数据库连接（使用 row_factory 返回字典）"""
         if self._conn is None:
             self._conn = sqlite3.connect(self.db_path)
             self._conn.row_factory = sqlite3.Row
-            # 启用外键约束
             self._conn.execute("PRAGMA foreign_keys = ON")
         return self._conn
 
     def _init_db(self) -> None:
-        """初始化数据库表结构"""
         conn = self._get_conn()
         cursor = conn.cursor()
 
@@ -65,7 +58,7 @@ class Database:
             )
         """)
 
-        # 创建 segments 表
+        # 创建 segments 表（增加 excluded_ranges 字段）
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS segments (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -76,10 +69,18 @@ class Database:
                 is_viewed INTEGER DEFAULT 0,
                 has_starred INTEGER DEFAULT 0,
                 has_exported INTEGER DEFAULT 0,
+                excluded_ranges TEXT DEFAULT '[]',
                 FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE,
                 UNIQUE(video_id, segment_label)
             )
         """)
+
+        # 迁移：为 segments 表添加 excluded_ranges 列（如果不存在）
+        try:
+            cursor.execute("ALTER TABLE segments ADD COLUMN excluded_ranges TEXT DEFAULT '[]'")
+            logger.info("数据库迁移: segments 表添加 excluded_ranges 列")
+        except sqlite3.OperationalError:
+            pass
 
         # 创建 favorites 表
         cursor.execute("""
@@ -125,7 +126,6 @@ class Database:
         logger.info(f"数据库初始化完成: {self.db_path}")
 
     def close(self) -> None:
-        """关闭数据库连接"""
         if self._conn:
             self._conn.close()
             self._conn = None
@@ -137,7 +137,6 @@ class Database:
     def get_or_create_video(self, file_path: str, file_name: str, duration: int,
                             resolution: str = "", file_size: int = 0,
                             modified_time: int = 0) -> int:
-        """获取或创建视频记录，返回视频 ID。如果文件已变化，自动更新 duration。"""
         conn = self._get_conn()
         cursor = conn.cursor()
 
@@ -212,7 +211,7 @@ class Database:
         return [dict(row) for row in cursor.fetchall()]
 
     # ============================================================
-    # 分区操作
+    # 分区操作（含排除区间）
     # ============================================================
 
     def get_or_create_segment(self, video_id: int, segment_label: str,
@@ -221,23 +220,24 @@ class Database:
         cursor = conn.cursor()
 
         cursor.execute("""
-            SELECT id FROM segments WHERE video_id = ? AND segment_label = ?
+            SELECT id, excluded_ranges FROM segments WHERE video_id = ? AND segment_label = ?
         """, (video_id, segment_label))
         row = cursor.fetchone()
         if row:
             return row['id']
 
         cursor.execute("""
-            INSERT INTO segments (video_id, segment_label, time_start, time_end)
-            VALUES (?, ?, ?, ?)
-        """, (video_id, segment_label, time_start, time_end))
+            INSERT INTO segments (video_id, segment_label, time_start, time_end, excluded_ranges)
+            VALUES (?, ?, ?, ?, ?)
+        """, (video_id, segment_label, time_start, time_end, '[]'))
         conn.commit()
         return cursor.lastrowid
 
     def update_segment_state(self, video_id: int, segment_label: str,
                              is_viewed: Optional[bool] = None,
                              has_starred: Optional[bool] = None,
-                             has_exported: Optional[bool] = None) -> None:
+                             has_exported: Optional[bool] = None,
+                             excluded_ranges: Optional[List[Tuple[float, float]]] = None) -> None:
         conn = self._get_conn()
         cursor = conn.cursor()
 
@@ -252,6 +252,9 @@ class Database:
         if has_exported is not None:
             updates.append("has_exported = ?")
             params.append(1 if has_exported else 0)
+        if excluded_ranges is not None:
+            updates.append("excluded_ranges = ?")
+            params.append(json.dumps(excluded_ranges))
 
         if not updates:
             return
@@ -267,23 +270,44 @@ class Database:
         conn = self._get_conn()
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT is_viewed, has_starred, has_exported
+            SELECT is_viewed, has_starred, has_exported, excluded_ranges
             FROM segments
             WHERE video_id = ? AND segment_label = ?
         """, (video_id, segment_label))
         row = cursor.fetchone()
-        return dict(row) if row else None
+        if row:
+            result = dict(row)
+            if result.get('excluded_ranges'):
+                try:
+                    result['excluded_ranges'] = json.loads(result['excluded_ranges'])
+                except:
+                    result['excluded_ranges'] = []
+            else:
+                result['excluded_ranges'] = []
+            return result
+        return None
 
     def get_all_segments(self, video_id: int) -> List[Dict]:
         conn = self._get_conn()
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT segment_label, is_viewed, has_starred, has_exported
+            SELECT segment_label, is_viewed, has_starred, has_exported, excluded_ranges
             FROM segments
             WHERE video_id = ?
             ORDER BY segment_label
         """, (video_id,))
-        return [dict(row) for row in cursor.fetchall()]
+        results = []
+        for row in cursor.fetchall():
+            item = dict(row)
+            if item.get('excluded_ranges'):
+                try:
+                    item['excluded_ranges'] = json.loads(item['excluded_ranges'])
+                except:
+                    item['excluded_ranges'] = []
+            else:
+                item['excluded_ranges'] = []
+            results.append(item)
+        return results
 
     # ============================================================
     # 收藏操作
@@ -350,27 +374,20 @@ class Database:
     # ============================================================
 
     def backup(self, backup_dir: str) -> Tuple[bool, str]:
-        """
-        备份数据库到指定目录，文件名包含时间戳。
-        Returns: (是否成功, 备份文件路径或错误信息)
-        """
         try:
             if not os.path.exists(backup_dir):
                 os.makedirs(backup_dir)
 
-            # 关闭连接以释放锁
             if self._conn:
                 self._conn.close()
                 self._conn = None
 
-            # 生成备份文件名
             timestamp = time.strftime("%Y%m%d_%H%M%S")
             backup_name = f"coverpicker_backup_{timestamp}.db"
             backup_path = os.path.join(backup_dir, backup_name)
 
             shutil.copy2(self.db_path, backup_path)
 
-            # 重新连接
             self._init_db()
 
             return True, backup_path
@@ -379,28 +396,20 @@ class Database:
             return False, str(e)
 
     def restore(self, backup_path: str) -> Tuple[bool, str]:
-        """
-        从备份文件恢复数据库。
-        Returns: (是否成功, 信息)
-        """
         try:
             if not os.path.exists(backup_path):
                 return False, f"备份文件不存在: {backup_path}"
 
-            # 关闭连接
             if self._conn:
                 self._conn.close()
                 self._conn = None
 
-            # 备份当前数据库（防止意外覆盖）
             old_path = self.db_path + ".old"
             if os.path.exists(self.db_path):
                 shutil.copy2(self.db_path, old_path)
 
-            # 恢复
             shutil.copy2(backup_path, self.db_path)
 
-            # 重新连接
             self._init_db()
 
             return True, f"成功从 {backup_path} 恢复数据库"
@@ -409,10 +418,6 @@ class Database:
             return False, str(e)
 
     def get_backup_history(self, backup_dir: str, limit: int = 20) -> List[Dict]:
-        """
-        获取备份目录中的备份文件列表
-        Returns: [{'path': str, 'name': str, 'size': int, 'time': str}, ...]
-        """
         if not os.path.exists(backup_dir):
             return []
 
@@ -429,7 +434,6 @@ class Database:
                     'mtime': stat.st_mtime
                 })
 
-        # 按修改时间降序排序
         backups.sort(key=lambda x: x['mtime'], reverse=True)
         return backups[:limit]
 
