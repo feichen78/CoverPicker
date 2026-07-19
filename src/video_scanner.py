@@ -110,11 +110,11 @@ def extract_frame(video_path: str, timestamp: float, output_path: str, retries: 
     for attempt in range(retries + 1):
         cmd = [
             "ffmpeg", "-hide_banner",
-            "-skip_frame", "nokey",          # 只解码关键帧，加速
+            "-skip_frame", "nokey",
             "-ss", str(timestamp),
             "-i", video_path,
             "-frames:v", "1",
-            "-q:v", "2",                     # 固定高质量
+            "-q:v", "2",
             "-y", output_path
         ]
         try:
@@ -242,7 +242,6 @@ def extract_video_clip(video_path: str, start_time: float, end_time: float, outp
             "-y", output_path
         ]
     else:
-        # 检测音频流
         probe_cmd = [
             "ffprobe", "-v", "error",
             "-select_streams", "a",

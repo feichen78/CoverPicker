@@ -1,0 +1,111 @@
+2026-07-19 20:17:54 - root - INFO - 日志系统初始化完成，日志文件: C:\CoverPicker\log\CoverPicker.log
+2026-07-19 20:17:54 - root - INFO - ============================================================
+2026-07-19 20:17:54 - root - INFO - CoverPicker 启动
+2026-07-19 20:17:54 - root - INFO - ============================================================
+2026-07-19 20:17:54 - src.crash_handler - INFO - 崩溃报告处理器已安装，报告目录: C:\CoverPicker\log\crashes
+2026-07-19 20:17:54 - src.config_manager - INFO - 配置文件已加载: C:\Users\heavy\.coverpicker\config.json
+2026-07-19 20:17:54 - ui.views.segment_view - INFO - 监控目录已添加: Z:/
+2026-07-19 20:17:54 - ui.views.segment_view - DEBUG - 监控子目录已添加: Z:/国货
+2026-07-19 20:17:54 - ui.views.segment_view - DEBUG - 监控子目录已添加: Z:/无码
+2026-07-19 20:17:54 - ui.views.segment_view - DEBUG - 监控子目录已添加: Z:/有码
+2026-07-19 20:17:54 - ui.views.segment_view - DEBUG - 监控子目录已添加: Z:/洋妞
+2026-07-19 20:17:54 - ui.views.segment_view - DEBUG - 监控子目录已添加: Z:/国货\.DAV
+2026-07-19 20:17:54 - ui.views.segment_view - DEBUG - 监控子目录已添加: Z:/国货\41分钟短_covers
+2026-07-19 20:17:54 - ui.views.segment_view - DEBUG - 监控子目录已添加: Z:/国货\6分钟短_covers
+2026-07-19 20:17:54 - ui.views.segment_view - DEBUG - 监控子目录已添加: Z:/国货\[满江红].Full.River.Red.2023.WEB-DL.4K.HEVC.AAC-CMCTV_covers
+2026-07-19 20:17:54 - ui.views.segment_view - DEBUG - 监控子目录已添加: Z:/无码\120分钟MP4_covers
+2026-07-19 20:17:54 - ui.views.segment_view - DEBUG - 监控子目录已添加: Z:/无码\27分钟WMV_covers
+2026-07-19 20:17:54 - ui.views.segment_view - DEBUG - 监控子目录已添加: Z:/有码\3.5小时9GB_covers
+2026-07-19 20:17:54 - ui.views.segment_view - DEBUG - 监控子目录已添加: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers
+2026-07-19 20:17:54 - ui.views.segment_view - DEBUG - 监控子目录已添加: Z:/有码\[波西米亚狂想曲].CHC.Bohemian.Rhapsody.2018.HDTV.1080i.H264.MPEG-CMCTV_covers
+2026-07-19 20:17:54 - ui.views.segment_view - DEBUG - 监控子目录已添加: Z:/有码\さとう遥希
+2026-07-19 20:17:54 - ui.views.segment_view - DEBUG - 监控子目录已添加: Z:/有码\百田光希
+2026-07-19 20:17:54 - ui.views.segment_view - DEBUG - 监控子目录已添加: Z:/有码\さとう遥希\MIAD-580
+2026-07-19 20:17:54 - ui.views.segment_view - DEBUG - 监控子目录已添加: Z:/有码\さとう遥希\mild-866
+2026-07-19 20:17:54 - ui.views.segment_view - DEBUG - 监控子目录已添加: Z:/有码\さとう遥希\SDMT-415
+2026-07-19 20:17:54 - ui.views.segment_view - DEBUG - 监控子目录已添加: Z:/有码\さとう遥希\[2013] 2时间51分完全ノンストップ ハメ潮LIVE さとう遥希 [MIAD-598]
+2026-07-19 20:17:54 - ui.views.segment_view - DEBUG - 监控子目录已添加: Z:/有码\さとう遥希\MIAD-580\extrafanart
+2026-07-19 20:17:54 - ui.views.segment_view - DEBUG - 监控子目录已添加: Z:/有码\さとう遥希\mild-866\extrafanart
+2026-07-19 20:17:54 - ui.views.segment_view - DEBUG - 监控子目录已添加: Z:/有码\さとう遥希\SDMT-415\extrafanart
+2026-07-19 20:17:54 - ui.views.segment_view - DEBUG - 监控子目录已添加: Z:/有码\さとう遥希\SDMT-415\SDMT-415_covers
+2026-07-19 20:17:54 - ui.views.segment_view - DEBUG - 监控子目录已添加: Z:/有码\さとう遥希\[2013] 2时间51分完全ノンストップ ハメ潮LIVE さとう遥希 [MIAD-598]\extrafanart
+2026-07-19 20:17:54 - ui.views.segment_view - DEBUG - 监控子目录已添加: Z:/有码\さとう遥希\[2013] 2时间51分完全ノンストップ ハメ潮LIVE さとう遥希 [MIAD-598]\MIAD-598-CD2_covers
+2026-07-19 20:17:54 - ui.views.segment_view - DEBUG - 监控子目录已添加: Z:/有码\百田光希\MIDV-569 百田光希
+2026-07-19 20:17:54 - ui.views.segment_view - DEBUG - 监控子目录已添加: Z:/有码\百田光希\MIDV-574 百田光希
+2026-07-19 20:17:54 - ui.views.segment_view - DEBUG - 监控子目录已添加: Z:/洋妞\40分钟7.8GB_covers
+2026-07-19 20:17:55 - root - INFO - 主窗口已显示
+2026-07-19 20:18:01 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-19 20:18:01 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-19 20:18:01 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-19 20:18:02 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-19 20:18:02 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-19 20:18:02 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-19 20:18:03 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-19 20:18:03 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-19 20:18:04 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-19 20:18:04 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-19 20:18:04 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-19 20:18:04 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-19 20:18:05 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-19 20:18:09 - ui.views.segment_view - DEBUG - 点击图片: pos=0, key=(0, 0), 当前选中=set()
+2026-07-19 20:18:09 - ui.views.segment_view - DEBUG - 添加选中: (0, 0)
+2026-07-19 20:18:09 - ui.views.segment_view - DEBUG - 选中后: {(0, 0)}
+2026-07-19 20:18:09 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 0)}
+2026-07-19 20:18:11 - src.controllers.segment_controller - INFO - 收藏截图已保存到NAS: Z:/无码\42分钟AVI_covers\fav_A_94.65.jpg
+2026-07-19 20:18:11 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 0)}
+2026-07-19 20:18:11 - ui.views.segment_view - INFO - 监控目录发生变化: Z:/无码
+2026-07-19 20:18:11 - ui.views.segment_view - INFO - 监控目录发生变化: Z:/无码
+2026-07-19 20:18:11 - ui.views.segment_view - INFO - 监控目录发生变化: Z:/无码
+2026-07-19 20:18:15 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-19 20:18:15 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-19 20:18:15 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-19 20:18:16 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-19 20:18:16 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-19 20:18:17 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-19 20:18:17 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-19 20:18:17 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-19 20:18:18 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-19 20:18:18 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-19 20:18:18 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-19 20:18:19 - ui.views.segment_view - DEBUG - 点击图片: pos=4, key=(3, 4), 当前选中=set()
+2026-07-19 20:18:19 - ui.views.segment_view - DEBUG - 添加选中: (3, 4)
+2026-07-19 20:18:19 - ui.views.segment_view - DEBUG - 选中后: {(3, 4)}
+2026-07-19 20:18:19 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(3, 4)}
+2026-07-19 20:18:20 - ui.views.segment_view - DEBUG - 点击图片: pos=1, key=(3, 1), 当前选中={(3, 4)}
+2026-07-19 20:18:20 - ui.views.segment_view - DEBUG - 添加选中: (3, 1)
+2026-07-19 20:18:20 - ui.views.segment_view - DEBUG - 选中后: {(3, 1), (3, 4)}
+2026-07-19 20:18:20 - ui.views.segment_view - DEBUG - 选中计数更新: 2 张, selected_indices={(3, 1), (3, 4)}
+2026-07-19 20:18:21 - ui.views.segment_view - DEBUG - 点击图片: pos=1, key=(3, 1), 当前选中={(3, 1), (3, 4)}
+2026-07-19 20:18:21 - ui.views.segment_view - DEBUG - 移除选中: (3, 1)
+2026-07-19 20:18:21 - ui.views.segment_view - DEBUG - 选中后: {(3, 4)}
+2026-07-19 20:18:21 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(3, 4)}
+2026-07-19 20:18:22 - ui.views.segment_view - DEBUG - 点击图片: pos=5, key=(3, 5), 当前选中={(3, 4)}
+2026-07-19 20:18:22 - ui.views.segment_view - DEBUG - 添加选中: (3, 5)
+2026-07-19 20:18:22 - ui.views.segment_view - DEBUG - 选中后: {(3, 4), (3, 5)}
+2026-07-19 20:18:22 - ui.views.segment_view - DEBUG - 选中计数更新: 2 张, selected_indices={(3, 4), (3, 5)}
+2026-07-19 20:18:22 - ui.views.segment_view - DEBUG - 点击图片: pos=5, key=(3, 5), 当前选中={(3, 4), (3, 5)}
+2026-07-19 20:18:22 - ui.views.segment_view - DEBUG - 移除选中: (3, 5)
+2026-07-19 20:18:22 - ui.views.segment_view - DEBUG - 选中后: {(3, 4)}
+2026-07-19 20:18:23 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(3, 4)}
+2026-07-19 20:18:27 - src.controllers.segment_controller - INFO - 收藏截图已保存到NAS: Z:/无码\42分钟AVI_covers\fav_D_1741.33.jpg
+2026-07-19 20:18:28 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(3, 4)}
+2026-07-19 20:18:30 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-19 20:18:30 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-19 20:18:31 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-19 20:18:31 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-19 20:18:31 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-19 20:18:32 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-19 20:18:32 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-19 20:18:32 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-19 20:18:33 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-19 20:18:33 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-19 20:18:33 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-19 20:18:36 - ui.views.segment_view - DEBUG - 点击图片: pos=8, key=(4, 8), 当前选中=set()
+2026-07-19 20:18:36 - ui.views.segment_view - DEBUG - 添加选中: (4, 8)
+2026-07-19 20:18:36 - ui.views.segment_view - DEBUG - 选中后: {(4, 8)}
+2026-07-19 20:18:36 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(4, 8)}
+2026-07-19 20:18:38 - src.controllers.segment_controller - INFO - 收藏截图已保存到NAS: Z:/无码\42分钟AVI_covers\fav_E_2450.30.jpg
+2026-07-19 20:18:38 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(4, 8)}
+2026-07-19 20:18:53 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-19 20:20:06 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-19 20:21:21 - root - INFO - 应用退出

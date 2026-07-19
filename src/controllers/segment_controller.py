@@ -1,5 +1,6 @@
 # src/controllers/segment_controller.py
 # 修改：收藏截图保存到视频所在目录的 [视频名]_covers 子目录
+# 修改：渐进式加载（占位图），每生成一张截图后刷新界面
 
 import os, asyncio, random, tempfile, shutil, logging, json
 from typing import Dict, List, Set, Tuple, Optional, Any
@@ -154,15 +155,17 @@ class SegmentController:
             print(f"[DEBUG] load_segment 无效索引: seg_idx={seg_idx}, len={len(self.segments)}")
             return
         if self._load_task and not self._load_task.done():
-            if seg_idx == self.current_seg_index:
-                print(f"[DEBUG] 分区 {seg_idx} 正在加载中，跳过")
-                return
-            else:
-                print(f"[DEBUG] 取消当前任务（加载分区 {self.current_seg_index}），切换到分区 {seg_idx}")
-                self._load_task.cancel()
-                try: await self._load_task
-                except asyncio.CancelledError: print("[DEBUG] 当前任务已取消")
-                self._load_task = None
+            print(f"[DEBUG] 取消当前加载任务")
+            self._load_task.cancel()
+            try:
+                await self._load_task
+            except asyncio.CancelledError:
+                print("[DEBUG] 当前任务已取消")
+            self._load_task = None
+            # 清空截图数据，让界面显示占位图或空状态
+            self.screenshots = {}
+            self.loaded_segments = set()
+            self._notify_data_changed()
         self.current_seg_index = seg_idx
         print(f"[DEBUG] 当前分区索引已更新为: {seg_idx}")
         self.load_excluded_ranges_from_db()
@@ -172,6 +175,7 @@ class SegmentController:
         print(f"[DEBUG] 加载任务完成")
         self._load_task = None
         self._notify_data_changed()
+
     async def _load_segment(self, seg_idx: int, restore_locks: bool = True, randomize: bool = False):
         print(f"[DEBUG] ========== _load_segment 开始: seg_idx={seg_idx} ==========")
         if not self.video_path:
@@ -199,6 +203,14 @@ class SegmentController:
         new_items = []; reused_count = 0; total = len(new_times)
         old_items_sorted = sorted(old_items, key=lambda x: x['time'])
         old_times = [item['time'] for item in old_items_sorted]
+
+        # 先创建占位项（path=None），立即刷新显示占位图
+        placeholder_items = []
+        for t in new_times:
+            placeholder_items.append({'time': t, 'path': None, 'locked': False, 'favorite': False, 'exported': False})
+        self.screenshots[seg_key] = placeholder_items
+        self._notify_data_changed()
+
         for idx, t in enumerate(new_times):
             if current_task and current_task.cancelled():
                 print(f"[DEBUG] 分段加载被取消: idx={idx}"); return
@@ -208,14 +220,31 @@ class SegmentController:
             if best_match_idx >= 0: matched = old_items_sorted[best_match_idx]
             if matched and matched.get('path') and os.path.exists(matched['path']):
                 new_items.append({'time': t, 'path': matched['path'], 'locked': matched.get('locked', False), 'favorite': matched.get('favorite', False), 'exported': matched.get('exported', False)})
-                reused_count += 1; continue
+                reused_count += 1
+                if seg_key not in self.screenshots:
+                    placeholder_items = []
+                    for tmp_t in new_times:
+                        placeholder_items.append({'time': tmp_t, 'path': None, 'locked': False, 'favorite': False, 'exported': False})
+                    self.screenshots[seg_key] = placeholder_items
+                self.screenshots[seg_key][idx] = new_items[-1]
+                self._notify_data_changed()
+                continue
             self._notify_progress(f"正在生成 {label} 第 {idx+1}/{total} 张 @ {t:.2f}s")
             temp_path = os.path.join(self.temp_dir, f"seg_{label}_{t:.2f}.jpg")
             try:
                 async with self._ffmpeg_semaphore:
                     success = await asyncio.to_thread(extract_frame, self.video_path, t, temp_path, retries=1)
-                if success: new_items.append({'time': t, 'path': temp_path, 'locked': False, 'favorite': False, 'exported': False})
-                else: new_items.append({'time': t, 'path': None, 'locked': False, 'favorite': False, 'exported': False})
+                if success:
+                    new_items.append({'time': t, 'path': temp_path, 'locked': False, 'favorite': False, 'exported': False})
+                else:
+                    new_items.append({'time': t, 'path': None, 'locked': False, 'favorite': False, 'exported': False})
+                if seg_key not in self.screenshots:
+                    placeholder_items = []
+                    for tmp_t in new_times:
+                        placeholder_items.append({'time': tmp_t, 'path': None, 'locked': False, 'favorite': False, 'exported': False})
+                    self.screenshots[seg_key] = placeholder_items
+                self.screenshots[seg_key][idx] = new_items[-1]
+                self._notify_data_changed()
             except asyncio.CancelledError:
                 if os.path.exists(temp_path):
                     try: os.remove(temp_path)
@@ -239,7 +268,6 @@ class SegmentController:
             return dest_path
         except Exception as e:
             logger.error(f"保存收藏截图到NAS失败: {e}")
-            # 如果保存失败，回退到临时目录
             fallback_path = os.path.join(self.temp_dir, os.path.basename(source_path))
             shutil.copy2(source_path, fallback_path)
             return fallback_path
@@ -259,7 +287,6 @@ class SegmentController:
                 if self.video_id:
                     timestamp_ms = int(item['time'] * 1000)
                     if not self.db.is_favorite(self.video_id, seg_label, timestamp_ms):
-                        # 将截图保存到NAS
                         nas_path = self._save_favorite_to_nas(seg_label, item['time'], item['path'])
                         self.db.add_favorite(self.video_id, seg_label, timestamp_ms, nas_path, os.path.basename(nas_path), item.get('exported', False))
                 self.favorites.append({'video_path': self.video_path, 'segment': seg_label, 'time': item['time'], 'path': nas_path if self.video_id else item['path'], 'exported': item.get('exported', False)})
@@ -328,7 +355,6 @@ class SegmentController:
         if favorite and self.video_id:
             old_timestamp_ms = int(old_time * 1000); new_timestamp_ms = int(new_time * 1000)
             self.db.remove_favorite(self.video_id, seg_label, old_timestamp_ms)
-            # 保存到NAS
             nas_path = self._save_favorite_to_nas(seg_label, new_time, new_temp_path)
             self.db.add_favorite(self.video_id, seg_label, new_timestamp_ms, nas_path, os.path.basename(nas_path), is_exported=exported)
             for fav in self.favorites:
@@ -345,7 +371,6 @@ class SegmentController:
         if fav_item is None:
             print(f"[DEBUG] replace_favorite_screenshot: 未找到收藏项")
             return False
-        # 保存到NAS
         nas_path = self._save_favorite_to_nas(seg_label, new_time, new_path)
         old_timestamp_ms = int(old_time * 1000); new_timestamp_ms = int(new_time * 1000)
         exported = fav_item.get('exported', False)
@@ -432,7 +457,6 @@ class SegmentController:
                 for item in items:
                     if abs(item['time'] - target_time) < 0.01:
                         thumb_path = item.get('path', ''); break
-                # 保存到NAS
                 nas_path = self._save_favorite_to_nas(action.seg_label, target_time, thumb_path)
                 self.db.add_favorite(action.video_id, action.seg_label, action.timestamp_ms, nas_path, os.path.basename(nas_path), is_exported=False)
                 self.favorites.append({'video_path': self.video_path, 'segment': action.seg_label, 'time': target_time, 'path': nas_path, 'exported': False})
@@ -588,21 +612,17 @@ class SegmentController:
             thumb_path = fav.get('thumbnail_path', '')
             thumb_name = fav.get('thumbnail_name', '')
             path = ""
-            # 1. 优先在NAS收藏目录查找（按文件名）
             if thumb_name:
                 nas_path = os.path.join(favorites_dir, thumb_name)
                 if os.path.exists(nas_path):
                     path = nas_path
                     logger.debug(f"在NAS收藏目录找到: {nas_path}")
-            # 2. 尝试原路径
             if not path and thumb_path and os.path.exists(thumb_path):
                 path = thumb_path
-            # 3. 尝试视频目录
             if not path and thumb_name:
                 video_dir_path = os.path.join(video_dir, thumb_name)
                 if os.path.exists(video_dir_path):
                     path = video_dir_path
-            # 4. 如果仍然找不到，使用原路径（可能不存在，但保留记录）
             if not path:
                 path = thumb_path
                 logger.warning(f"收藏截图未找到: {thumb_name}")
@@ -650,7 +670,6 @@ class SegmentController:
                     timestamp_ms = int(item['time'] * 1000)
                     current_key = (seg_label, timestamp_ms)
                     if current_key not in existing_set:
-                        # 保存到NAS
                         nas_path = self._save_favorite_to_nas(seg_label, item['time'], item['path'])
                         self.db.add_favorite(self.video_id, seg_label, timestamp_ms, nas_path, os.path.basename(nas_path), is_exported=item.get('exported', False))
                     else:
