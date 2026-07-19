@@ -1,8 +1,8 @@
 # 📘 CoverPicker 开发参考文档（Reference）
 
-**版本**：v2.0
-**最后更新**：2026-07-11
-**适用版本**：CoverPicker v1.0 ~ v2.0
+**版本**：v2.3
+**最后更新**：2026-07-19
+**适用版本**：CoverPicker v2.3.0
 
 ---
 
@@ -20,7 +20,7 @@
 
 1. FFmpeg / FFprobe 调用规范
 2. 异步任务架构
-3. SQLite 数据库设计（v1.1 规划）
+3. SQLite 数据库设计
 4. 网格布局与渲染规范
 5. 缓存管理策略
 6. Zoom 精修界面设计参考
@@ -74,6 +74,7 @@ async def run_ffprobe_json(video_path: str, args: list = None) -> dict:
     return json.loads(stdout.decode())
 1.3 FFmpeg 三套参数模板
 模板1：批量分区均匀抽帧（网格截图）
+
 bash
 ffmpeg -hide_banner -ss {start_sec} -i "{video_path}" -t {segment_duration} \
 -vf "fps={calc_fps},scale=-1:{preview_height}" -q:v 7 -y "{output_dir}/frame_%03d.jpg"
@@ -83,6 +84,7 @@ scale=-1:{height}	高度固定，宽度自适应，不拉伸
 -q:v 7	JPG 中等压缩，平衡体积与清晰度
 fps={calc_fps}	均匀抽帧，保证时间分布
 模板2：单时间点高清帧导出（收藏截图 / 导出剧照）
+
 bash
 ffmpeg -hide_banner -i "{video_path}" -ss {exact_time} -frames:v 1 -q:v 2 -y "{output_path}.png"
 参数	说明
@@ -90,6 +92,7 @@ ffmpeg -hide_banner -i "{video_path}" -ss {exact_time} -frames:v 1 -q:v 2 -y "{o
 -frames:v 1	仅输出单帧，提前终止解码
 -q:v 2	最高画质，无压缩损耗
 模板3：无损视频片段导出
+
 bash
 ffmpeg -hide_banner -ss {start_keyframe} -i "{video_path}" -t {clip_duration} \
 -c:v copy -c:a copy -avoid_negative_ts make_zero -map 0:v -map 0:a? -y "{output_path}.mp4"
@@ -130,7 +133,6 @@ class FFmpegWorker(QObject):
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
-        # 实时读取 stderr 解析进度
         while True:
             line = await proc.stderr.readline()
             if not line:
@@ -150,7 +152,7 @@ class FFmpegWorker(QObject):
 
 取消后释放 FFmpeg 子进程资源，避免内存泄漏
 
-3. SQLite 数据库设计（v1.1 规划）
+3. SQLite 数据库设计
 3.1 三表结构
 sql
 -- 视频主表
@@ -179,6 +181,7 @@ CREATE TABLE segments (
     is_viewed BOOLEAN DEFAULT 0,
     has_starred BOOLEAN DEFAULT 0,
     has_exported BOOLEAN DEFAULT 0,
+    excluded_ranges TEXT DEFAULT '[]',
     FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE,
     UNIQUE(video_id, segment_label)
 );
@@ -187,12 +190,13 @@ CREATE TABLE segments (
 CREATE TABLE favorites (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     video_id INTEGER NOT NULL,
-    segment_id INTEGER NOT NULL,
+    segment_label TEXT NOT NULL,
     timestamp_ms INTEGER NOT NULL,
     thumbnail_path TEXT,
+    thumbnail_name TEXT,
+    is_exported INTEGER DEFAULT 0,
     created_at INTEGER DEFAULT (strftime('%s','now')),
-    FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE,
-    FOREIGN KEY (segment_id) REFERENCES segments(id) ON DELETE CASCADE
+    FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE
 );
 3.2 索引策略
 sql
@@ -200,6 +204,8 @@ CREATE INDEX idx_videos_viewed ON videos(is_viewed);
 CREATE INDEX idx_videos_starred ON videos(is_starred);
 CREATE INDEX idx_videos_exported ON videos(is_exported);
 CREATE INDEX idx_favorites_video ON favorites(video_id);
+CREATE INDEX idx_videos_file_path ON videos(file_path);
+CREATE INDEX idx_videos_file_id ON videos(file_id);
 3.3 状态优先级
 查询时排序规则：ORDER BY is_exported DESC, is_starred DESC, is_viewed DESC
 
@@ -217,7 +223,6 @@ with db_connection:
 4.1 弹性列数计算
 python
 def calculate_grid_cols(viewport_width: int, min_img_w: int = 160, spacing: int = 4) -> int:
-    """根据视口宽度计算最佳列数"""
     spacing = 4
     padding = 6
     max_cols = (viewport_width - padding * 2 + spacing) // (min_img_w + spacing)
@@ -225,7 +230,6 @@ def calculate_grid_cols(viewport_width: int, min_img_w: int = 160, spacing: int 
 4.2 图片尺寸计算
 python
 def calculate_img_size(viewport_width: int, cols: int, spacing: int = 4) -> Tuple[int, int]:
-    """计算图片宽高（保持4:3比例）"""
     padding = 6
     img_w = (viewport_width - padding * 2 - spacing * (cols - 1)) // cols
     img_h = int(img_w * 0.75)
@@ -233,23 +237,22 @@ def calculate_img_size(viewport_width: int, cols: int, spacing: int = 4) -> Tupl
 4.3 延迟加载机制
 python
 def _on_scroll(self, value):
-    """滚动时加载可见区域图片，释放不可见区域内存"""
     viewport_rect = self.scroll.viewport().rect()
     for label in self.image_labels:
         if viewport_rect.intersects(label.geometry()):
-            label.load_image()      # 可见时加载
+            label.load_image()
         else:
-            label.release_image()   # 不可见时释放内存
+            label.release_image()
 4.4 布局重建 vs 属性更新
 场景	操作	说明
-首次加载 / 数据变化	load_favorites() 完全重建	重新创建所有 GridLayout
-窗口大小变化（列数不变）	_update_image_sizes() 只更新尺寸	仅调整图片大小和列拉伸
-窗口大小变化（列数变化）	load_favorites() 完全重建	列数变化必须重建 GridLayout
+首次加载 / 数据变化	完全重建	重新创建所有 GridLayout
+窗口大小变化（列数不变）	只更新尺寸	仅调整图片大小和列拉伸
+窗口大小变化（列数变化）	完全重建	列数变化必须重建 GridLayout
 5. 缓存管理策略
 5.1 三级缓存分层
 层级	存储位置	内容	生命周期
 内存缓存	RAM	当前区段缩略图（≤25张）	切换区段/视频时清空
-磁盘缓存	本地文件夹	所有缩略图（按视频ID/区段分层）	长期保存，手动清理
+磁盘缓存	本地文件夹	所有缩略图（按视频ID/区段分层）	长期保存，手动/自动清理
 SQLite索引	数据库	帧元数据（路径、状态）	长期保存
 5.2 缓存目录结构
 text
@@ -263,14 +266,14 @@ text
 └── {video_hash_2}/
     └── A/
         └── frame_01.jpg
-5.3 自动清理阈值（v2.0 规划）
-缓存总大小超过 10GB 时触发清理
+5.3 自动清理阈值
+缓存总大小超过 5GB 时触发清理提示 ✅ v2.0 已实现
 
 优先删除最早未操作的视频缩略图
 
 锁定 / 收藏的截图保留
 
-6. Zoom 精修界面设计参考（v1.1 规划）
+6. Zoom 精修界面设计参考
 6.1 界面布局
 text
 ┌─────────────────────────────────────────────────────────────┐
@@ -300,11 +303,13 @@ ffmpeg -i "{video_path}" -ss {t-4} -t 8 -vf "fps=10" -q:v 2 "{output_dir}/zoom_%
 7. 开发规范与决策记录
 7.1 布局开发规范（2026-07-11 确立）
 原则1：区分"初始化"和"更新"
+
 操作类型	应该执行的操作
 首次加载 / 数据变化	完全重建
 窗口大小变化（列数不变）	只更新属性
 窗口大小变化（列数变化）	完全重建
 原则2：布局问题排查顺序
+
 布局是否在创建时固定了？（如 GridLayout 的列数）
 
 更新方法是否修改了布局结构？（只改属性 vs 重建结构）
@@ -312,21 +317,19 @@ ffmpeg -i "{video_path}" -ss {t-4} -t 8 -vf "fps=10" -q:v 2 "{output_dir}/zoom_%
 数据来源是否正确？（如 viewport().width() 是否返回正确值？）
 
 原则3：视口尺寸获取
+
 python
 def _get_viewport_size(self) -> Tuple[int, int]:
-    """获取视口尺寸，若视口宽度小于窗口宽度的95%则使用窗口宽度作为备用"""
     vw = self.scroll.viewport().width() - 10
     vh = self.scroll.viewport().height() - 10
-    
     if vw < 100 or vw < self.width() * 0.95:
         vw = self.width() - 20
-    
     if vh < 100:
         vh = 700
-    
     return vw, vh
 7.2 AI 开发助手行为规范（2026-07-11 确立）
 规则1：写代码前先回答三个问题
+
 在写任何代码之前，必须先输出分析：
 
 text
@@ -335,6 +338,7 @@ text
 2. 操作粒度：这次修改需要完全重建界面，还是只需要更新已有控件的属性？
 3. 如果重建会怎样？如果只更新会怎样？
 规则2：代码提供方式
+
 每次修改任何 .py 文件时，提供该文件的完整代码
 
 明确标注文件路径（如 ui/views/segment_view.py）
@@ -342,6 +346,7 @@ text
 新增或修改依赖文件时，也需提供完整文件
 
 规则3：FFmpeg 调用规范
+
 使用 asyncio.create_subprocess_exec 而非 subprocess.run
 
 必须消费 stdout/stderr 管道，防止死锁
@@ -350,7 +355,6 @@ text
 
 7.3 错误处理规范
 python
-# 捕获 FFmpeg 异常，不崩溃软件
 try:
     result = await run_ffmpeg(cmd)
 except asyncio.CancelledError:
@@ -367,7 +371,16 @@ DEBUG	开发调试	FFmpeg 命令参数
 INFO	正常操作	加载视频、截图成功
 WARNING	可恢复异常	截图失败，重试中
 ERROR	需关注错误	FFprobe 解析失败
-8.2 用户错误提示
+8.2 日志输出
+同时输出到控制台和文件
+
+日志文件：CoverPicker/log/CoverPicker.log
+
+日志轮转：单文件最大 10MB，保留 5 个备份
+
+崩溃报告：CoverPicker/log/crashes/crash_report_*.txt
+
+8.3 用户错误提示
 使用 QMessageBox 显示可操作的错误信息
 
 状态栏显示轻量提示（非阻塞）
@@ -376,7 +389,7 @@ python
 if duration is None:
     QMessageBox.critical(self, "错误", f"无法获取视频时长: {video_path}\n请检查文件是否损坏。")
     return
-8.3 NAS 路径兼容
+8.4 NAS 路径兼容
 路径含空格自动加双引号
 
 捕获网络 IO 超时，断线任务自动终止并更新界面状态
@@ -388,5 +401,9 @@ FFmpeg 异步调用	✅ 已实现	使用 asyncio + QEventLoop
 缓存分级管理	⬜ 待实现	内存/磁盘/SQLite 三级缓存
 批量任务串行排队	⬜ 待实现	避免并发 NAS IO 卡顿
 任务取消机制	✅ 已实现	切换区段时取消未完成任务
-缓存自动清理	⬜ v2.0 规划	超过10GB自动清理
-最后更新：2026-07-11
+缓存自动清理	✅ 已实现	超过 5GB 触发清理提示
+元数据缓存	✅ 已实现	导入时缓存 duration/size/mtime
+并发控制	✅ 已实现	信号量限制 FFmpeg 进程数（默认3）
+快速关键帧提取	✅ 已实现	使用 -skip_frame nokey
+崩溃报告	✅ 已实现	全局异常捕获 + 报告生成
+最后更新：2026-07-19

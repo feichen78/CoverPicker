@@ -16,6 +16,8 @@ StillPic/
 Clips/
 dist/
 build/
+log/
+tools/
 
 # 编辑器与系统文件
 .vscode/
