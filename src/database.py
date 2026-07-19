@@ -1,5 +1,5 @@
 # src/database.py
-# 增加排除区间持久化支持
+# 修复 file_id 列迁移问题（使用更可靠的列检查方法）
 
 import os
 import sqlite3
@@ -7,6 +7,7 @@ import logging
 import shutil
 import time
 import json
+import hashlib
 from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime
 from pathlib import Path
@@ -15,9 +16,9 @@ logger = logging.getLogger(__name__)
 
 
 class Database:
-    """CoverPicker SQLite 数据库管理类 - 状态持久化"""
+    """CoverPicker SQLite 数据库管理类 - 支持跨设备视频状态同步"""
 
-    DB_VERSION = 1
+    DB_VERSION = 2
 
     def __init__(self, db_path: Optional[str] = None):
         if db_path is None:
@@ -36,15 +37,34 @@ class Database:
             self._conn.execute("PRAGMA foreign_keys = ON")
         return self._conn
 
+    def _compute_file_id(self, file_path: str, file_size: int, modified_time: int) -> str:
+        """计算文件唯一标识（跨设备一致）"""
+        file_name = os.path.basename(file_path)
+        unique_str = f"{file_name}|{file_size}|{modified_time}"
+        return hashlib.md5(unique_str.encode('utf-8')).hexdigest()
+
+    def _column_exists(self, table: str, column: str) -> bool:
+        """检查表中是否存在指定列（更可靠的方法）"""
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        try:
+            # 使用 PRAGMA table_info 获取所有列
+            cursor.execute(f"PRAGMA table_info({table})")
+            columns = [row[1].lower() for row in cursor.fetchall()]
+            return column.lower() in columns
+        except sqlite3.OperationalError:
+            return False
+
     def _init_db(self) -> None:
+        """初始化数据库表结构（支持跨设备同步）"""
         conn = self._get_conn()
         cursor = conn.cursor()
 
-        # 创建 videos 表
+        # 创建 videos 表（先创建基础表）
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS videos (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                file_path TEXT NOT NULL UNIQUE,
+                file_path TEXT NOT NULL,
                 file_name TEXT NOT NULL,
                 duration INTEGER,
                 resolution TEXT,
@@ -57,8 +77,60 @@ class Database:
                 created_at INTEGER DEFAULT (strftime('%s','now'))
             )
         """)
+        conn.commit()
 
-        # 创建 segments 表（增加 excluded_ranges 字段）
+        # ============================================================
+        # 迁移：添加 file_id 列（使用更可靠的方法）
+        # ============================================================
+        try:
+            # 先检查列是否存在
+            cursor.execute("PRAGMA table_info(videos)")
+            existing_columns = [row[1].lower() for row in cursor.fetchall()]
+            
+            if 'file_id' not in existing_columns:
+                logger.info("正在添加 file_id 列...")
+                # 先尝试直接添加
+                try:
+                    cursor.execute("ALTER TABLE videos ADD COLUMN file_id TEXT UNIQUE")
+                    conn.commit()
+                    logger.info("成功添加 file_id 列")
+                except sqlite3.OperationalError as e:
+                    logger.warning(f"直接添加失败: {e}")
+                    # 如果直接添加失败，尝试重建表
+                    self._migrate_add_file_id()
+        except Exception as e:
+            logger.error(f"file_id 迁移失败: {e}")
+
+        # 再次检查 file_id 是否存在
+        cursor.execute("PRAGMA table_info(videos)")
+        existing_columns = [row[1].lower() for row in cursor.fetchall()]
+        
+        if 'file_id' in existing_columns:
+            # 为现有视频生成 file_id
+            cursor.execute("SELECT id, file_path, file_size, modified_time FROM videos WHERE file_id IS NULL")
+            rows = cursor.fetchall()
+            for row in rows:
+                file_id = self._compute_file_id(
+                    row['file_path'],
+                    row['file_size'] or 0,
+                    row['modified_time'] or 0
+                )
+                cursor.execute(
+                    "UPDATE videos SET file_id = ? WHERE id = ?",
+                    (file_id, row['id'])
+                )
+            if rows:
+                conn.commit()
+                logger.info(f"为 {len(rows)} 个视频生成了 file_id")
+
+            # 创建 file_id 索引
+            try:
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_videos_file_id ON videos(file_id)")
+                conn.commit()
+            except sqlite3.OperationalError as e:
+                logger.warning(f"创建索引失败: {e}")
+
+        # 创建 segments 表
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS segments (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -76,11 +148,13 @@ class Database:
         """)
 
         # 迁移：为 segments 表添加 excluded_ranges 列（如果不存在）
-        try:
-            cursor.execute("ALTER TABLE segments ADD COLUMN excluded_ranges TEXT DEFAULT '[]'")
-            logger.info("数据库迁移: segments 表添加 excluded_ranges 列")
-        except sqlite3.OperationalError:
-            pass
+        if not self._column_exists('segments', 'excluded_ranges'):
+            try:
+                cursor.execute("ALTER TABLE segments ADD COLUMN excluded_ranges TEXT DEFAULT '[]'")
+                conn.commit()
+                logger.info("数据库迁移: segments 表添加 excluded_ranges 列")
+            except sqlite3.OperationalError as e:
+                logger.warning(f"添加 excluded_ranges 列失败: {e}")
 
         # 创建 favorites 表
         cursor.execute("""
@@ -97,18 +171,23 @@ class Database:
         """)
 
         # 迁移：为 favorites 表添加 is_exported 列（如果不存在）
-        try:
-            cursor.execute("ALTER TABLE favorites ADD COLUMN is_exported INTEGER DEFAULT 0")
-            logger.info("数据库迁移: favorites 表添加 is_exported 列")
-        except sqlite3.OperationalError:
-            pass
+        if not self._column_exists('favorites', 'is_exported'):
+            try:
+                cursor.execute("ALTER TABLE favorites ADD COLUMN is_exported INTEGER DEFAULT 0")
+                conn.commit()
+                logger.info("数据库迁移: favorites 表添加 is_exported 列")
+            except sqlite3.OperationalError as e:
+                logger.warning(f"添加 is_exported 列失败: {e}")
 
         # 创建索引
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_videos_viewed ON videos(is_viewed)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_videos_starred ON videos(is_starred)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_videos_exported ON videos(is_exported)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_favorites_video ON favorites(video_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_videos_file_path ON videos(file_path)")
+        try:
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_videos_viewed ON videos(is_viewed)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_videos_starred ON videos(is_starred)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_videos_exported ON videos(is_exported)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_favorites_video ON favorites(video_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_videos_file_path ON videos(file_path)")
+        except sqlite3.OperationalError as e:
+            logger.warning(f"创建索引失败: {e}")
 
         # 创建版本表
         cursor.execute("""
@@ -125,25 +204,99 @@ class Database:
         conn.commit()
         logger.info(f"数据库初始化完成: {self.db_path}")
 
+    def _migrate_add_file_id(self):
+        """通过重建表的方式添加 file_id 列（备用方案）"""
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        
+        try:
+            logger.info("使用备用方案添加 file_id 列...")
+            
+            # 1. 创建新表（包含 file_id）
+            cursor.execute("""
+                CREATE TABLE videos_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    file_id TEXT UNIQUE,
+                    file_path TEXT NOT NULL,
+                    file_name TEXT NOT NULL,
+                    duration INTEGER,
+                    resolution TEXT,
+                    file_size INTEGER,
+                    modified_time INTEGER,
+                    is_viewed INTEGER DEFAULT 0,
+                    is_starred INTEGER DEFAULT 0,
+                    is_exported INTEGER DEFAULT 0,
+                    last_edited INTEGER,
+                    created_at INTEGER DEFAULT (strftime('%s','now'))
+                )
+            """)
+            
+            # 2. 复制数据
+            cursor.execute("""
+                INSERT INTO videos_new (
+                    id, file_path, file_name, duration, resolution,
+                    file_size, modified_time, is_viewed, is_starred,
+                    is_exported, last_edited, created_at
+                )
+                SELECT 
+                    id, file_path, file_name, duration, resolution,
+                    file_size, modified_time, is_viewed, is_starred,
+                    is_exported, last_edited, created_at
+                FROM videos
+            """)
+            
+            # 3. 生成 file_id
+            cursor.execute("SELECT id, file_path, file_size, modified_time FROM videos_new")
+            rows = cursor.fetchall()
+            for row in rows:
+                file_id = self._compute_file_id(
+                    row['file_path'],
+                    row['file_size'] or 0,
+                    row['modified_time'] or 0
+                )
+                cursor.execute(
+                    "UPDATE videos_new SET file_id = ? WHERE id = ?",
+                    (file_id, row['id'])
+                )
+            
+            # 4. 删除旧表，重命名新表
+            cursor.execute("DROP TABLE videos")
+            cursor.execute("ALTER TABLE videos_new RENAME TO videos")
+            
+            conn.commit()
+            logger.info("备用方案成功添加 file_id 列")
+        except Exception as e:
+            logger.error(f"备用方案失败: {e}")
+            conn.rollback()
+            raise
+
     def close(self) -> None:
         if self._conn:
             self._conn.close()
             self._conn = None
 
     # ============================================================
-    # 视频操作
+    # 视频操作（支持跨设备同步）
     # ============================================================
 
     def get_or_create_video(self, file_path: str, file_name: str, duration: int,
                             resolution: str = "", file_size: int = 0,
                             modified_time: int = 0) -> int:
+        """获取或创建视频记录，返回视频 ID。使用 file_id 作为跨设备唯一标识。"""
         conn = self._get_conn()
         cursor = conn.cursor()
 
-        cursor.execute("SELECT id, duration, file_size, modified_time FROM videos WHERE file_path = ?", (file_path,))
+        # 计算文件唯一标识
+        file_id = self._compute_file_id(file_path, file_size, modified_time)
+
+        # 先通过 file_id 查找
+        cursor.execute("SELECT id, file_path, duration, file_size, modified_time FROM videos WHERE file_id = ?", (file_id,))
         row = cursor.fetchone()
+
         if row:
             vid = row['id']
+            if row['file_path'] != file_path:
+                cursor.execute("UPDATE videos SET file_path = ? WHERE id = ?", (file_path, vid))
             if row['file_size'] != file_size or row['modified_time'] != modified_time:
                 cursor.execute("""
                     UPDATE videos SET 
@@ -154,11 +307,21 @@ class Database:
                 logger.debug(f"更新视频元数据: {file_name} (ID: {vid})")
             return vid
 
+        # 如果没有 file_id，尝试通过文件路径查找（兼容旧数据）
+        cursor.execute("SELECT id, file_size, modified_time FROM videos WHERE file_path = ?", (file_path,))
+        row = cursor.fetchone()
+        if row:
+            vid = row['id']
+            cursor.execute("UPDATE videos SET file_id = ? WHERE id = ?", (file_id, vid))
+            conn.commit()
+            return vid
+
+        # 创建新记录
         cursor.execute("""
             INSERT INTO videos (
-                file_path, file_name, duration, resolution, file_size, modified_time
-            ) VALUES (?, ?, ?, ?, ?, ?)
-        """, (file_path, file_name, duration, resolution, file_size, modified_time))
+                file_id, file_path, file_name, duration, resolution, file_size, modified_time
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (file_id, file_path, file_name, duration, resolution, file_size, modified_time))
         conn.commit()
         return cursor.lastrowid
 
@@ -168,6 +331,33 @@ class Database:
         cursor.execute("SELECT * FROM videos WHERE file_path = ?", (file_path,))
         row = cursor.fetchone()
         return dict(row) if row else None
+
+    def get_video_by_file_id(self, file_id: str) -> Optional[Dict]:
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM videos WHERE file_id = ?", (file_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+    def get_video_id_by_path_or_file_id(self, file_path: str, file_size: int, modified_time: int) -> Optional[int]:
+        conn = self._get_conn()
+        cursor = conn.cursor()
+
+        file_id = self._compute_file_id(file_path, file_size, modified_time)
+
+        cursor.execute("SELECT id FROM videos WHERE file_id = ?", (file_id,))
+        row = cursor.fetchone()
+        if row:
+            return row['id']
+
+        cursor.execute("SELECT id FROM videos WHERE file_path = ?", (file_path,))
+        row = cursor.fetchone()
+        if row:
+            cursor.execute("UPDATE videos SET file_id = ? WHERE id = ?", (file_id, row['id']))
+            conn.commit()
+            return row['id']
+
+        return None
 
     def update_video_state(self, video_id: int, is_viewed: Optional[bool] = None,
                            is_starred: Optional[bool] = None,
