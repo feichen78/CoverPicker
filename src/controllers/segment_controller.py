@@ -1,4 +1,6 @@
 # src/controllers/segment_controller.py
+# 修改：收藏截图保存到视频所在目录的 [视频名]_covers 子目录
+
 import os, asyncio, random, tempfile, shutil, logging, json
 from typing import Dict, List, Set, Tuple, Optional, Any
 from datetime import timedelta
@@ -6,8 +8,10 @@ from dataclasses import dataclass
 from src.database import Database
 from src.video_scanner import get_video_duration, calculate_segments, extract_frame, extract_frames_batch_fast
 logger = logging.getLogger(__name__)
+
 @dataclass
 class Action: type: str; video_id: int; seg_label: str; timestamp_ms: int; old_state: bool; new_state: bool
+
 class SegmentController:
     def __init__(self):
         print("[DEBUG] SegmentController __init__ 开始")
@@ -35,12 +39,33 @@ class SegmentController:
         self._on_data_changed: Optional[callable] = None
         self._on_progress_update: Optional[callable] = None
         print("[DEBUG] SegmentController __init__ 完成")
+
     def set_data_changed_callback(self, callback): self._on_data_changed = callback
     def set_progress_callback(self, callback): self._on_progress_update = callback
     def _notify_data_changed(self):
         if self._on_data_changed: self._on_data_changed()
     def _notify_progress(self, message: str):
         if self._on_progress_update: self._on_progress_update(message)
+
+    def _get_favorites_dir(self) -> str:
+        """获取视频所在目录下的收藏截图子目录"""
+        if not self.video_path:
+            return self.temp_dir
+        video_dir = os.path.dirname(self.video_path)
+        video_name = os.path.splitext(os.path.basename(self.video_path))[0]
+        favorites_dir = os.path.join(video_dir, f"{video_name}_covers")
+        os.makedirs(favorites_dir, exist_ok=True)
+        return favorites_dir
+
+    def _get_favorite_path(self, seg_label: str, time_sec: float, suffix: str = "") -> str:
+        """生成收藏截图的文件路径"""
+        favorites_dir = self._get_favorites_dir()
+        if suffix:
+            filename = f"fav_{seg_label}_{time_sec:.2f}_{suffix}.jpg"
+        else:
+            filename = f"fav_{seg_label}_{time_sec:.2f}.jpg"
+        return os.path.join(favorites_dir, filename)
+
     def set_num_segments(self, num: int):
         if num < 3: num = 3
         elif num > 7: num = 7
@@ -204,6 +229,21 @@ class SegmentController:
         self._notify_progress(f"{label} 分段加载完成 ({len(new_items)} 张, 复用 {reused_count} 张)")
         self._notify_data_changed()
         print(f"[DEBUG] ========== _load_segment 完成: {label} ==========")
+
+    def _save_favorite_to_nas(self, seg_label: str, time_sec: float, source_path: str) -> str:
+        """将收藏截图保存到NAS上的视频目录"""
+        dest_path = self._get_favorite_path(seg_label, time_sec)
+        try:
+            shutil.copy2(source_path, dest_path)
+            logger.info(f"收藏截图已保存到NAS: {dest_path}")
+            return dest_path
+        except Exception as e:
+            logger.error(f"保存收藏截图到NAS失败: {e}")
+            # 如果保存失败，回退到临时目录
+            fallback_path = os.path.join(self.temp_dir, os.path.basename(source_path))
+            shutil.copy2(source_path, fallback_path)
+            return fallback_path
+
     def favorite_selected(self, seg_label: str, positions: List[int]) -> Tuple[int, int]:
         if self._is_undo_or_redo: return self._favorite_selected_impl(seg_label, positions, record_history=False)
         return self._favorite_selected_impl(seg_label, positions, record_history=True)
@@ -219,12 +259,15 @@ class SegmentController:
                 if self.video_id:
                     timestamp_ms = int(item['time'] * 1000)
                     if not self.db.is_favorite(self.video_id, seg_label, timestamp_ms):
-                        self.db.add_favorite(self.video_id, seg_label, timestamp_ms, item.get('path', ''), item.get('exported', False))
-                self.favorites.append({'video_path': self.video_path, 'segment': seg_label, 'time': item['time'], 'path': item['path'], 'exported': item.get('exported', False)})
+                        # 将截图保存到NAS
+                        nas_path = self._save_favorite_to_nas(seg_label, item['time'], item['path'])
+                        self.db.add_favorite(self.video_id, seg_label, timestamp_ms, nas_path, os.path.basename(nas_path), item.get('exported', False))
+                self.favorites.append({'video_path': self.video_path, 'segment': seg_label, 'time': item['time'], 'path': nas_path if self.video_id else item['path'], 'exported': item.get('exported', False)})
                 added_count += 1
                 if record_history: self._push_action(Action('favorite', self.video_id, seg_label, timestamp_ms, old_state, new_state))
         if added_count > 0: self._save_state_to_db(); self._notify_data_changed()
         return added_count, skipped_count
+
     def unfavorite_selected(self, seg_label: str, positions: List[int]) -> int:
         if self._is_undo_or_redo: return self._unfavorite_selected_impl(seg_label, positions, record_history=False)
         return self._unfavorite_selected_impl(seg_label, positions, record_history=True)
@@ -243,7 +286,9 @@ class SegmentController:
                 if record_history: self._push_action(Action('unfavorite', self.video_id, seg_label, timestamp_ms, old_state, new_state))
         if removed_count > 0: self._save_state_to_db(); self._notify_data_changed()
         return removed_count
+
     def get_current_favorites(self) -> List[dict]: return [f for f in self.favorites if f.get('video_path') == self.video_path]
+
     def export_selected(self, seg_label: str, positions: List[int], export_dir: Optional[str] = None) -> Tuple[int, List[Tuple[str, str]]]:
         items = self.screenshots.get(seg_label, []); export_paths = []
         for pos in positions:
@@ -270,6 +315,7 @@ class SegmentController:
             except: pass
         if exported > 0: self._save_state_to_db(); self._notify_data_changed()
         return exported, exported_list
+
     def replace_screenshot(self, seg_label: str, pos: int, new_time: float, new_path: str, old_time: float) -> bool:
         items = self.screenshots.get(seg_label, [])
         if pos >= len(items): return False
@@ -282,11 +328,14 @@ class SegmentController:
         if favorite and self.video_id:
             old_timestamp_ms = int(old_time * 1000); new_timestamp_ms = int(new_time * 1000)
             self.db.remove_favorite(self.video_id, seg_label, old_timestamp_ms)
-            self.db.add_favorite(self.video_id, seg_label, new_timestamp_ms, new_temp_path, is_exported=exported)
+            # 保存到NAS
+            nas_path = self._save_favorite_to_nas(seg_label, new_time, new_temp_path)
+            self.db.add_favorite(self.video_id, seg_label, new_timestamp_ms, nas_path, os.path.basename(nas_path), is_exported=exported)
             for fav in self.favorites:
                 if (fav.get('video_path')==self.video_path and fav.get('segment')==seg_label and abs(fav.get('time',0)-old_time)<0.01):
-                    fav['time'] = new_time; fav['path'] = new_temp_path; fav['exported'] = exported; break
+                    fav['time'] = new_time; fav['path'] = nas_path; fav['exported'] = exported; break
         self._notify_data_changed(); return True
+
     def replace_favorite_screenshot(self, seg_label: str, old_time: float, new_time: float, new_path: str) -> bool:
         print(f"[DEBUG] replace_favorite_screenshot: seg_label={seg_label}, old_time={old_time:.2f}, new_time={new_time:.2f}")
         fav_item = None; fav_index = -1
@@ -296,23 +345,23 @@ class SegmentController:
         if fav_item is None:
             print(f"[DEBUG] replace_favorite_screenshot: 未找到收藏项")
             return False
-        new_temp_path = os.path.join(self.temp_dir, f"fav_{seg_label}_{new_time:.2f}_replaced.jpg")
-        try: shutil.copy2(new_path, new_temp_path)
-        except: return False
+        # 保存到NAS
+        nas_path = self._save_favorite_to_nas(seg_label, new_time, new_path)
         old_timestamp_ms = int(old_time * 1000); new_timestamp_ms = int(new_time * 1000)
         exported = fav_item.get('exported', False)
-        fav_item['time'] = new_time; fav_item['path'] = new_temp_path
+        fav_item['time'] = new_time; fav_item['path'] = nas_path
         if self.video_id:
             self.db.remove_favorite(self.video_id, seg_label, old_timestamp_ms)
-            self.db.add_favorite(self.video_id, seg_label, new_timestamp_ms, new_temp_path, is_exported=exported)
+            self.db.add_favorite(self.video_id, seg_label, new_timestamp_ms, nas_path, os.path.basename(nas_path), is_exported=exported)
             logger.info(f"[DEBUG] 数据库已更新: 替换收藏截图")
         items = self.screenshots.get(seg_label, [])
         for item in items:
             if abs(item.get('time', 0) - old_time) < 0.01:
-                item['favorite'] = True; item['path'] = new_temp_path; item['time'] = new_time; break
+                item['favorite'] = True; item['path'] = nas_path; item['time'] = new_time; break
         self._notify_data_changed()
         print(f"[DEBUG] replace_favorite_screenshot: 替换成功")
         return True
+
     def lock_selected(self, seg_label: str, positions: List[int]) -> int:
         if self._is_undo_or_redo: return self._lock_selected_impl(seg_label, positions, record_history=False)
         return self._lock_selected_impl(seg_label, positions, record_history=True)
@@ -383,8 +432,10 @@ class SegmentController:
                 for item in items:
                     if abs(item['time'] - target_time) < 0.01:
                         thumb_path = item.get('path', ''); break
-                self.db.add_favorite(action.video_id, action.seg_label, action.timestamp_ms, thumb_path, is_exported=False)
-                self.favorites.append({'video_path': self.video_path, 'segment': action.seg_label, 'time': target_time, 'path': thumb_path, 'exported': False})
+                # 保存到NAS
+                nas_path = self._save_favorite_to_nas(action.seg_label, target_time, thumb_path)
+                self.db.add_favorite(action.video_id, action.seg_label, action.timestamp_ms, nas_path, os.path.basename(nas_path), is_exported=False)
+                self.favorites.append({'video_path': self.video_path, 'segment': action.seg_label, 'time': target_time, 'path': nas_path, 'exported': False})
         else:
             self.db.remove_favorite(action.video_id, action.seg_label, action.timestamp_ms)
             self.favorites = [f for f in self.favorites if not (f.get('video_path')==self.video_path and f.get('segment')==action.seg_label and abs(f.get('time',0)-target_time)<0.01)]
@@ -524,6 +575,54 @@ class SegmentController:
         if len(valid) > target_count: valid = valid[:target_count]
         valid.sort()
         return valid
+    def _restore_favorites_from_db(self):
+        """从数据库恢复收藏，优先查找NAS上的收藏目录"""
+        if not self.video_path or not self.video_id: return
+        db_favs = self.db.get_favorites(self.video_id)
+        if not db_favs: self.favorites = []; return
+        self.favorites = []
+        favorites_dir = self._get_favorites_dir()
+        video_dir = os.path.dirname(self.video_path)
+        for fav in db_favs:
+            exported = bool(fav.get('is_exported', 0))
+            thumb_path = fav.get('thumbnail_path', '')
+            thumb_name = fav.get('thumbnail_name', '')
+            path = ""
+            # 1. 优先在NAS收藏目录查找（按文件名）
+            if thumb_name:
+                nas_path = os.path.join(favorites_dir, thumb_name)
+                if os.path.exists(nas_path):
+                    path = nas_path
+                    logger.debug(f"在NAS收藏目录找到: {nas_path}")
+            # 2. 尝试原路径
+            if not path and thumb_path and os.path.exists(thumb_path):
+                path = thumb_path
+            # 3. 尝试视频目录
+            if not path and thumb_name:
+                video_dir_path = os.path.join(video_dir, thumb_name)
+                if os.path.exists(video_dir_path):
+                    path = video_dir_path
+            # 4. 如果仍然找不到，使用原路径（可能不存在，但保留记录）
+            if not path:
+                path = thumb_path
+                logger.warning(f"收藏截图未找到: {thumb_name}")
+            self.favorites.append({
+                'video_path': self.video_path,
+                'segment': fav['segment_label'],
+                'time': fav['timestamp_ms'] / 1000,
+                'path': path,
+                'exported': exported,
+            })
+    def _restore_favorites_to_screenshots(self):
+        if not self.video_path: return
+        fav_items = [f for f in self.favorites if f.get('video_path') == self.video_path]
+        if not fav_items: return
+        for seg_label, items in self.screenshots.items():
+            for item in items:
+                matched_favs = [f for f in fav_items if f.get('segment') == seg_label and abs(f.get('time', 0) - item['time']) < 0.1]
+                if matched_favs:
+                    matched = next((f for f in matched_favs if f.get('exported', False)), matched_favs[0])
+                    item['favorite'] = True; item['exported'] = matched.get('exported', False)
     def _save_state_to_db(self):
         if not self.video_path or not self.video_id: return
         for seg_label, items in self.screenshots.items():
@@ -551,33 +650,11 @@ class SegmentController:
                     timestamp_ms = int(item['time'] * 1000)
                     current_key = (seg_label, timestamp_ms)
                     if current_key not in existing_set:
-                        self.db.add_favorite(self.video_id, seg_label, timestamp_ms, item.get('path', ''), is_exported=item.get('exported', False))
+                        # 保存到NAS
+                        nas_path = self._save_favorite_to_nas(seg_label, item['time'], item['path'])
+                        self.db.add_favorite(self.video_id, seg_label, timestamp_ms, nas_path, os.path.basename(nas_path), is_exported=item.get('exported', False))
                     else:
                         self.db.update_favorite_exported(self.video_id, seg_label, timestamp_ms)
-    def _restore_favorites_from_db(self):
-        if not self.video_path or not self.video_id: return
-        db_favs = self.db.get_favorites(self.video_id)
-        if not db_favs: self.favorites = []; return
-        self.favorites = []
-        video_name = os.path.splitext(os.path.basename(self.video_path))[0]
-        export_dir = os.path.join(self.export_base, video_name)
-        for fav in db_favs:
-            exported = bool(fav.get('is_exported', 0))
-            if exported:
-                time_sec = fav['timestamp_ms'] / 1000
-                expected_file = os.path.join(export_dir, f"cover_{time_sec:.2f}s.jpg")
-                if not os.path.exists(expected_file): exported = False
-            self.favorites.append({'video_path': self.video_path, 'segment': fav['segment_label'], 'time': fav['timestamp_ms']/1000, 'path': fav['thumbnail_path'], 'exported': exported})
-    def _restore_favorites_to_screenshots(self):
-        if not self.video_path: return
-        fav_items = [f for f in self.favorites if f.get('video_path') == self.video_path]
-        if not fav_items: return
-        for seg_label, items in self.screenshots.items():
-            for item in items:
-                matched_favs = [f for f in fav_items if f.get('segment') == seg_label and abs(f.get('time', 0) - item['time']) < 0.1]
-                if matched_favs:
-                    matched = next((f for f in matched_favs if f.get('exported', False)), matched_favs[0])
-                    item['favorite'] = True; item['exported'] = matched.get('exported', False)
     def cleanup(self):
         if self._load_task and not self._load_task.done(): self._load_task.cancel()
         if self.video_id and self.video_path: self._save_state_to_db()

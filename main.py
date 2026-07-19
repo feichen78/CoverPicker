@@ -1,43 +1,25 @@
 # main.py
-# 添加控制台日志输出
-
-import sys
-import os
-import asyncio
-import logging
+import sys, os, asyncio, logging, shutil
 from PySide6.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QMessageBox
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QPalette, QColor, QAction
 from qasync import QEventLoop
-
-# ============================================================
-# 强制控制台日志输出（调试用）
-# ============================================================
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.StreamHandler(sys.stderr)
-    ]
-)
-
-# 设置第三方库的日志级别（减少干扰）
-logging.getLogger("PySide6").setLevel(logging.WARNING)
-logging.getLogger("shiboken6").setLevel(logging.WARNING)
-
-print("=== CoverPicker 启动 ===")
-print(f"Python 版本: {sys.version}")
-print(f"工作目录: {os.getcwd()}")
-
-logger = logging.getLogger(__name__)
-
 from ui.views.segment_view import SegmentView
 from src.config_manager import ConfigManager
 
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout), logging.StreamHandler(sys.stderr)]
+)
+logging.getLogger("PySide6").setLevel(logging.WARNING)
+logging.getLogger("shiboken6").setLevel(logging.WARNING)
+print("=== CoverPicker 启动 ===")
+print(f"Python 版本: {sys.version}")
+print(f"工作目录: {os.getcwd()}")
+logger = logging.getLogger(__name__)
 
 def apply_theme(app: QApplication, is_dark: bool):
-    """应用深色/浅色主题"""
     if is_dark:
         app.setStyle("Fusion")
         dark_palette = QPalette()
@@ -169,21 +151,15 @@ def apply_theme(app: QApplication, is_dark: bool):
         """)
         logger.info("应用浅色主题")
 
-
 def detect_system_theme() -> bool:
-    """检测 Windows 系统主题是否为深色模式"""
     try:
         import winreg
-        key = winreg.OpenKey(
-            winreg.HKEY_CURRENT_USER,
-            r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
-        )
+        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize")
         value, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
         winreg.CloseKey(key)
         return value == 0
     except Exception:
         return False
-
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -192,54 +168,46 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("CoverPicker")
         self.resize(1280, 720)
         self.config = ConfigManager()
-        
+        self._auto_backup_done = False
+
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout(central_widget)
         layout.setContentsMargins(0,0,0,0)
-        
+
         self.segment_view = SegmentView()
         layout.addWidget(self.segment_view)
-        
-        # 添加菜单栏
+
         self.setup_menu()
-        
-        # 应用保存的主题
         self.apply_saved_theme()
         print("[DEBUG] MainWindow __init__ 完成")
-    
+
     def setup_menu(self):
         menubar = self.menuBar()
         view_menu = menubar.addMenu("视图")
         theme_menu = view_menu.addMenu("主题切换")
-        
         self.theme_action_system = QAction("跟随系统", self, checkable=True)
         self.theme_action_light = QAction("浅色", self, checkable=True)
         self.theme_action_dark = QAction("深色", self, checkable=True)
-        
         theme_menu.addAction(self.theme_action_system)
         theme_menu.addAction(self.theme_action_light)
         theme_menu.addAction(self.theme_action_dark)
-        
-        # 连接信号
         self.theme_action_system.triggered.connect(lambda: self.set_theme('system'))
         self.theme_action_light.triggered.connect(lambda: self.set_theme('light'))
         self.theme_action_dark.triggered.connect(lambda: self.set_theme('dark'))
-        
-        # 更新勾选状态
         self.update_theme_actions()
-    
+
     def update_theme_actions(self):
         current = self.config.get_theme()
         self.theme_action_system.setChecked(current == 'system')
         self.theme_action_light.setChecked(current == 'light')
         self.theme_action_dark.setChecked(current == 'dark')
-    
+
     def set_theme(self, theme: str):
         self.config.set_theme(theme)
         self.apply_saved_theme()
         self.update_theme_actions()
-    
+
     def apply_saved_theme(self):
         theme = self.config.get_theme()
         if theme == 'system':
@@ -249,11 +217,52 @@ class MainWindow(QMainWindow):
         else:
             is_dark = False
         apply_theme(QApplication.instance(), is_dark)
-    
+
+    def _auto_backup(self):
+        """自动备份当前状态"""
+        if self._auto_backup_done:
+            return
+        self._auto_backup_done = True
+
+        backup_dir = self.config.get_backup_dir()
+        if not backup_dir:
+            return
+
+        if not os.path.exists(backup_dir):
+            try:
+                os.makedirs(backup_dir)
+            except Exception as e:
+                logger.error(f"自动备份失败: 无法创建目录 {backup_dir} - {e}")
+                return
+
+        try:
+            controller = self.segment_view.controller
+            if controller.video_id and controller.video_path:
+                controller._save_state_to_db()
+            success, result = controller.db.backup(backup_dir)
+            if success:
+                logger.info(f"自动备份成功: {result}")
+            else:
+                logger.error(f"自动备份失败: {result}")
+        except Exception as e:
+            logger.error(f"自动备份异常: {e}")
+
+    def closeEvent(self, event):
+        """窗口关闭时自动备份"""
+        print("[DEBUG] 窗口关闭，执行自动备份...")
+        self._auto_backup()
+
+        if self.segment_view.preview_dialog and self.segment_view.preview_dialog.isVisible():
+            self.segment_view.preview_dialog.close()
+
+        self.segment_view.controller.cleanup()
+        event.accept()
+        print("[DEBUG] 窗口已关闭")
+
     def showEvent(self, event):
         super().showEvent(event)
         QTimer.singleShot(500, self._check_cache)
-    
+
     def _check_cache(self):
         try:
             controller = self.segment_view.controller
@@ -274,22 +283,17 @@ class MainWindow(QMainWindow):
         except Exception as e:
             logger.error(f"检查缓存失败: {e}")
 
-
 def main():
     print("[DEBUG] main() 开始")
     app = QApplication(sys.argv)
     app.setApplicationName("CoverPicker")
-    
     window = MainWindow()
     window.show()
-    
     loop = QEventLoop(app)
     asyncio.set_event_loop(loop)
-    
     print("[DEBUG] 进入事件循环")
     with loop:
         loop.run_forever()
-
 
 if __name__ == "__main__":
     main()
