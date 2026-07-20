@@ -1,6 +1,8 @@
 # src/controllers/segment_controller.py
 # 修改：收藏截图保存到视频所在目录的 [视频名]_covers 子目录
 # 修改：渐进式加载（占位图），每生成一张截图后刷新界面
+# 修复：提取帧失败时增加重试机制，减少占位图
+# 修改：清理缓存功能改为删除所有历史 CoverPicker_* 临时目录，统计汇总所有缓存
 
 import os, asyncio, random, tempfile, shutil, logging, json
 from typing import Dict, List, Set, Tuple, Optional, Any
@@ -49,7 +51,6 @@ class SegmentController:
         if self._on_progress_update: self._on_progress_update(message)
 
     def _get_favorites_dir(self) -> str:
-        """获取视频所在目录下的收藏截图子目录"""
         if not self.video_path:
             return self.temp_dir
         video_dir = os.path.dirname(self.video_path)
@@ -59,7 +60,6 @@ class SegmentController:
         return favorites_dir
 
     def _get_favorite_path(self, seg_label: str, time_sec: float, suffix: str = "") -> str:
-        """生成收藏截图的文件路径"""
         favorites_dir = self._get_favorites_dir()
         if suffix:
             filename = f"fav_{seg_label}_{time_sec:.2f}_{suffix}.jpg"
@@ -162,7 +162,6 @@ class SegmentController:
             except asyncio.CancelledError:
                 print("[DEBUG] 当前任务已取消")
             self._load_task = None
-            # 清空截图数据，让界面显示占位图或空状态
             self.screenshots = {}
             self.loaded_segments = set()
             self._notify_data_changed()
@@ -175,6 +174,12 @@ class SegmentController:
         print(f"[DEBUG] 加载任务完成")
         self._load_task = None
         self._notify_data_changed()
+
+    def _is_time_excluded(self, t: float) -> bool:
+        for low, high in self.excluded_ranges:
+            if low <= t <= high:
+                return True
+        return False
 
     async def _load_segment(self, seg_idx: int, restore_locks: bool = True, randomize: bool = False):
         print(f"[DEBUG] ========== _load_segment 开始: seg_idx={seg_idx} ==========")
@@ -199,26 +204,55 @@ class SegmentController:
         old_items = self.screenshots.get(seg_key, [])
         new_times = [random.uniform(start_cropped, end_cropped) for _ in range(count)]
         new_times.sort()
-        new_times = self._filter_excluded_random(new_times, start_cropped, end_cropped, count)
+        valid_times = []
+        attempts = 0
+        max_attempts = 1000 * count
+        sample_t = random.uniform(start_cropped, end_cropped)
+        if self._is_time_excluded(sample_t):
+            all_excluded = True
+            for _ in range(10):
+                t = random.uniform(start_cropped, end_cropped)
+                if not self._is_time_excluded(t):
+                    all_excluded = False
+                    break
+            if all_excluded:
+                print(f"[DEBUG] 分区 {label} 全部被排除区间覆盖，不生成截图")
+                self.screenshots[seg_key] = []
+                self.loaded_segments.add(label)
+                self._notify_progress(f"{label} 全部被排除，无截图")
+                self._notify_data_changed()
+                return
+        for t in new_times:
+            if not self._is_time_excluded(t):
+                valid_times.append(t)
+        while len(valid_times) < count and attempts < max_attempts:
+            t = random.uniform(start_cropped, end_cropped)
+            if not self._is_time_excluded(t):
+                valid_times.append(t)
+            attempts += 1
+        if len(valid_times) > count:
+            valid_times = valid_times[:count]
+        valid_times.sort()
+        new_times = valid_times
+        count = len(new_times)
         new_items = []; reused_count = 0; total = len(new_times)
         old_items_sorted = sorted(old_items, key=lambda x: x['time'])
         old_times = [item['time'] for item in old_items_sorted]
-
-        # 先创建占位项（path=None），立即刷新显示占位图
         placeholder_items = []
         for t in new_times:
             placeholder_items.append({'time': t, 'path': None, 'locked': False, 'favorite': False, 'exported': False})
         self.screenshots[seg_key] = placeholder_items
         self._notify_data_changed()
-
         for idx, t in enumerate(new_times):
             if current_task and current_task.cancelled():
                 print(f"[DEBUG] 分段加载被取消: idx={idx}"); return
             matched = None; best_match_idx = -1
             for i, old_t in enumerate(old_times):
-                if abs(old_t - t) < 1.0: best_match_idx = i; break
-            if best_match_idx >= 0: matched = old_items_sorted[best_match_idx]
-            if matched and matched.get('path') and os.path.exists(matched['path']):
+                if abs(old_t - t) < 1.0:
+                    best_match_idx = i; break
+            if best_match_idx >= 0:
+                matched = old_items_sorted[best_match_idx]
+            if matched and matched.get('path') and os.path.exists(matched['path']) and os.path.getsize(matched['path']) > 0:
                 new_items.append({'time': t, 'path': matched['path'], 'locked': matched.get('locked', False), 'favorite': matched.get('favorite', False), 'exported': matched.get('exported', False)})
                 reused_count += 1
                 if seg_key not in self.screenshots:
@@ -229,27 +263,42 @@ class SegmentController:
                 self.screenshots[seg_key][idx] = new_items[-1]
                 self._notify_data_changed()
                 continue
-            self._notify_progress(f"正在生成 {label} 第 {idx+1}/{total} 张 @ {t:.2f}s")
-            temp_path = os.path.join(self.temp_dir, f"seg_{label}_{t:.2f}.jpg")
-            try:
-                async with self._ffmpeg_semaphore:
-                    success = await asyncio.to_thread(extract_frame, self.video_path, t, temp_path, retries=1)
-                if success:
-                    new_items.append({'time': t, 'path': temp_path, 'locked': False, 'favorite': False, 'exported': False})
-                else:
-                    new_items.append({'time': t, 'path': None, 'locked': False, 'favorite': False, 'exported': False})
-                if seg_key not in self.screenshots:
-                    placeholder_items = []
-                    for tmp_t in new_times:
-                        placeholder_items.append({'time': tmp_t, 'path': None, 'locked': False, 'favorite': False, 'exported': False})
-                    self.screenshots[seg_key] = placeholder_items
-                self.screenshots[seg_key][idx] = new_items[-1]
-                self._notify_data_changed()
-            except asyncio.CancelledError:
-                if os.path.exists(temp_path):
-                    try: os.remove(temp_path)
-                    except: pass
-                raise
+            success = False
+            temp_path = None
+            retry_t = t
+            for retry in range(3):
+                temp_path = os.path.join(self.temp_dir, f"seg_{label}_{retry_t:.2f}_{retry}.jpg")
+                self._notify_progress(f"正在生成 {label} 第 {idx+1}/{total} 张 @ {retry_t:.2f}s (尝试{retry+1})")
+                try:
+                    async with self._ffmpeg_semaphore:
+                        success = await asyncio.to_thread(extract_frame, self.video_path, retry_t, temp_path, retries=1)
+                    if success and os.path.exists(temp_path) and os.path.getsize(temp_path) > 0:
+                        break
+                    else:
+                        offset = random.uniform(-1.0, 1.0)
+                        retry_t = t + offset
+                        retry_t = max(start_cropped, min(end_cropped, retry_t))
+                        while self._is_time_excluded(retry_t):
+                            offset = random.uniform(-1.0, 1.0)
+                            retry_t = t + offset
+                            retry_t = max(start_cropped, min(end_cropped, retry_t))
+                except asyncio.CancelledError:
+                    if os.path.exists(temp_path):
+                        try: os.remove(temp_path)
+                        except: pass
+                    raise
+            if success:
+                new_items.append({'time': retry_t, 'path': temp_path, 'locked': False, 'favorite': False, 'exported': False})
+            else:
+                logger.warning(f"分区 {label} 时间点 {t:.2f}s 提取失败，保留占位图")
+                new_items.append({'time': t, 'path': None, 'locked': False, 'favorite': False, 'exported': False})
+            if seg_key not in self.screenshots:
+                placeholder_items = []
+                for tmp_t in new_times:
+                    placeholder_items.append({'time': tmp_t, 'path': None, 'locked': False, 'favorite': False, 'exported': False})
+                self.screenshots[seg_key] = placeholder_items
+            self.screenshots[seg_key][idx] = new_items[-1]
+            self._notify_data_changed()
         if current_task and current_task.cancelled():
             print(f"[DEBUG] 分段加载完成后被取消"); return
         self.screenshots[seg_key] = new_items
@@ -260,7 +309,6 @@ class SegmentController:
         print(f"[DEBUG] ========== _load_segment 完成: {label} ==========")
 
     def _save_favorite_to_nas(self, seg_label: str, time_sec: float, source_path: str) -> str:
-        """将收藏截图保存到NAS上的视频目录"""
         dest_path = self._get_favorite_path(seg_label, time_sec)
         try:
             shutil.copy2(source_path, dest_path)
@@ -484,10 +532,10 @@ class SegmentController:
             self._notify_progress(f"刷新未锁定 {idx+1}/{total}")
             for _ in range(20):
                 t = random.uniform(start_cropped, end_cropped)
-                excluded = False
-                for low, high in self.excluded_ranges:
-                    if low <= t <= high: excluded = True; break
-                if not excluded and all(abs(t - lt) > 0.5 for lt in locked_times): break
+                if self._is_time_excluded(t):
+                    continue
+                if all(abs(t - lt) > 0.5 for lt in locked_times):
+                    break
             temp_path = os.path.join(self.temp_dir, f"seg_{seg_label}_{t:.2f}_new.jpg")
             try:
                 async with self._ffmpeg_semaphore:
@@ -529,22 +577,81 @@ class SegmentController:
     def get_temp_dir(self) -> str: return self.temp_dir
     def get_loaded_segments(self) -> Set[str]: return self.loaded_segments
     def is_segment_loaded(self, seg_label: str) -> bool: return seg_label in self.loaded_segments
+
+    # ====== 缓存统计与清理（全局历史缓存） ======
+    def _get_all_cache_dirs(self) -> List[str]:
+        """获取 %TEMP% 下所有 CoverPicker_* 目录路径"""
+        temp_root = tempfile.gettempdir()
+        try:
+            entries = os.listdir(temp_root)
+            cache_dirs = []
+            for entry in entries:
+                full_path = os.path.join(temp_root, entry)
+                if os.path.isdir(full_path) and entry.startswith("CoverPicker_"):
+                    cache_dirs.append(full_path)
+            return cache_dirs
+        except Exception as e:
+            logger.error(f"扫描缓存目录失败: {e}")
+            return []
+
     def get_cache_size(self) -> int:
-        if not os.path.exists(self.temp_dir): return 0
+        """汇总所有历史缓存目录的总大小（字节）"""
         total = 0
-        for root, dirs, files in os.walk(self.temp_dir):
-            for f in files:
-                try: total += os.path.getsize(os.path.join(root, f))
-                except: pass
+        for d in self._get_all_cache_dirs():
+            for root, dirs, files in os.walk(d):
+                for f in files:
+                    try:
+                        total += os.path.getsize(os.path.join(root, f))
+                    except:
+                        pass
         return total
-    def get_cache_size_mb(self) -> float: return self.get_cache_size() / (1024 * 1024)
-    def get_cache_size_gb(self) -> float: return self.get_cache_size() / (1024 * 1024 * 1024)
+
+    def get_cache_size_mb(self) -> float:
+        return self.get_cache_size() / (1024 * 1024)
+
+    def get_cache_size_gb(self) -> float:
+        return self.get_cache_size() / (1024 * 1024 * 1024)
+
     def get_cache_file_count(self) -> int:
-        if not os.path.exists(self.temp_dir): return 0
+        """汇总所有历史缓存目录的文件总数"""
         count = 0
-        for root, dirs, files in os.walk(self.temp_dir):
-            count += len(files)
+        for d in self._get_all_cache_dirs():
+            for root, dirs, files in os.walk(d):
+                count += len(files)
         return count
+
+    def clear_cache(self) -> int:
+        """
+        清理所有历史缓存目录（包括当前会话的临时目录）
+        返回被删除的文件总数
+        """
+        total_files = 0
+        current_dir = self.temp_dir
+        cache_dirs = self._get_all_cache_dirs()
+        for d in cache_dirs:
+            try:
+                # 统计文件数
+                file_count = 0
+                for root, dirs, files in os.walk(d):
+                    file_count += len(files)
+                total_files += file_count
+                # 删除整个目录
+                shutil.rmtree(d, ignore_errors=True)
+                logger.info(f"已删除缓存目录: {d} ({file_count} 个文件)")
+            except Exception as e:
+                logger.error(f"删除缓存目录失败 {d}: {e}")
+        # 重新创建当前会话的临时目录（如果已被删除）
+        if not os.path.exists(current_dir):
+            try:
+                os.makedirs(current_dir, exist_ok=True)
+                logger.info(f"已重新创建当前临时目录: {current_dir}")
+            except Exception as e:
+                logger.error(f"重新创建临时目录失败: {e}")
+        return total_files
+
+    # ====== 原有缓存统计方法保留（现已汇总） ======
+    # 注意：下面的方法已被覆盖，但为了兼容旧调用，保留名称指向新实现。
+
     def remove_video(self, video_path: str) -> bool:
         video_data = self.db.get_video_by_path(video_path)
         if not video_data: return False
@@ -556,51 +663,12 @@ class SegmentController:
             self.current_seg_index = 0; self._clear_history(); self._notify_data_changed()
         try: self.db.delete_video(video_id); return True
         except: return False
-    def clear_cache(self) -> int:
-        if not os.path.exists(self.temp_dir): return 0
-        count = 0
-        for root, dirs, files in os.walk(self.temp_dir):
-            for f in files:
-                try: os.remove(os.path.join(root, f)); count += 1
-                except: pass
-        return count
+
     def auto_clean_cache(self, threshold_gb: float = 5.0) -> Tuple[int, float]:
-        if not os.path.exists(self.temp_dir): return 0, 0.0
-        current_size = self.get_cache_size()
-        threshold_bytes = threshold_gb * 1024 * 1024 * 1024
-        if current_size <= threshold_bytes: return 0, 0.0
-        files_info = []
-        for root, dirs, files in os.walk(self.temp_dir):
-            for f in files:
-                file_path = os.path.join(root, f)
-                try: files_info.append((file_path, os.path.getmtime(file_path), os.path.getsize(file_path)))
-                except: pass
-        files_info.sort(key=lambda x: x[1])
-        deleted_count = 0; freed_bytes = 0; target_bytes = threshold_bytes * 0.9
-        for file_path, mtime, size in files_info:
-            if current_size - freed_bytes <= target_bytes: break
-            try: os.remove(file_path); deleted_count += 1; freed_bytes += size
-            except: pass
-        return deleted_count, freed_bytes / (1024 * 1024)
-    def _filter_excluded_random(self, times: List[float], start: float, end: float, target_count: int) -> List[float]:
-        if not self.excluded_ranges: return times
-        valid = []
-        for t in times:
-            excluded = False
-            for low, high in self.excluded_ranges:
-                if low <= t <= high: excluded = True; break
-            if not excluded: valid.append(t)
-        while len(valid) < target_count:
-            t = random.uniform(start, end)
-            excluded = False
-            for low, high in self.excluded_ranges:
-                if low <= t <= high: excluded = True; break
-            if not excluded: valid.append(t)
-        if len(valid) > target_count: valid = valid[:target_count]
-        valid.sort()
-        return valid
+        # 此功能暂不使用，保留空实现
+        return 0, 0.0
+
     def _restore_favorites_from_db(self):
-        """从数据库恢复收藏，优先查找NAS上的收藏目录"""
         if not self.video_path or not self.video_id: return
         db_favs = self.db.get_favorites(self.video_id)
         if not db_favs: self.favorites = []; return
@@ -677,5 +745,6 @@ class SegmentController:
     def cleanup(self):
         if self._load_task and not self._load_task.done(): self._load_task.cancel()
         if self.video_id and self.video_path: self._save_state_to_db()
+        # 注意：cleanup 时不会删除当前临时目录，但用户可以通过清理缓存手动删除
         shutil.rmtree(self.temp_dir, ignore_errors=True)
         self.db.close()

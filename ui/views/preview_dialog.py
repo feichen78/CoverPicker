@@ -26,12 +26,12 @@ class PreviewDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("🎬 视频预览")
         self.setMinimumSize(500, 500)
-        self.resize(700, 600)
+        self.resize(900, 700)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowMaximizeButtonHint | Qt.WindowMinimizeButtonHint)
 
         self.controller = PreviewController()
         self.controller.set_progress_callback(self._on_progress_update)
 
-        # 主控制器引用（由 SegmentView 设置）
         self.main_controller = None
 
         self.duration: float = 0.0
@@ -45,7 +45,6 @@ class PreviewDialog(QDialog):
         self._pending_time: float = 0.0
         self._is_dragging: bool = False
 
-        # 分割点列表
         self.split_points: List[float] = []
 
         self.setup_ui()
@@ -53,7 +52,6 @@ class PreviewDialog(QDialog):
         self._update_split_display()
 
     def set_main_controller(self, controller):
-        """设置主控制器引用"""
         self.main_controller = controller
 
     def setup_ui(self):
@@ -61,7 +59,7 @@ class PreviewDialog(QDialog):
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(8)
 
-        # ===== 预览画面 =====
+        # 预览画面
         self.preview_label = QLabel("选择视频后预览")
         self.preview_label.setAlignment(Qt.AlignCenter)
         self.preview_label.setMinimumHeight(250)
@@ -76,16 +74,16 @@ class PreviewDialog(QDialog):
         self.preview_label.setScaledContents(False)
         main_layout.addWidget(self.preview_label, 1)
 
-        # ===== 时间信息 + 时间轴 =====
+        # 时间信息 + 时间轴
         time_info_layout = QHBoxLayout()
         self.position_label = QLabel("00:00:00")
-        self.position_label.setFont(QFont("monospace", 12))
-        self.position_label.setStyleSheet("color: #888;")
+        self.position_label.setFont(QFont("monospace", 13))
+        self.position_label.setStyleSheet("color: #888; font-size: 13px;")
         time_info_layout.addWidget(self.position_label)
         time_info_layout.addStretch()
         self.duration_label = QLabel("00:00:00")
-        self.duration_label.setFont(QFont("monospace", 12))
-        self.duration_label.setStyleSheet("color: #888;")
+        self.duration_label.setFont(QFont("monospace", 13))
+        self.duration_label.setStyleSheet("color: #888; font-size: 13px;")
         time_info_layout.addWidget(self.duration_label)
         main_layout.addLayout(time_info_layout)
 
@@ -118,42 +116,41 @@ class PreviewDialog(QDialog):
         self.slider.valueChanged.connect(self._on_slider_value_changed)
         main_layout.addWidget(self.slider)
 
-        # 刻度标签（使用 QWidget 精确定位）
+        # 刻度标签
         self.tick_container = QWidget()
         self.tick_container.setFixedHeight(20)
         self.tick_container.setStyleSheet("background: transparent;")
         self.tick_labels = []
+        tick_style = "color: #666; background: transparent; font-size: 13px; font-family: Arial;"
         for i in range(5):
             label = QLabel(self.tick_container)
+            label.setStyleSheet(tick_style)
             label.setAlignment(Qt.AlignCenter)
-            label.setStyleSheet("color: #666; font-size: 9px; background: transparent;")
             label.setFixedHeight(16)
             self.tick_labels.append(label)
         main_layout.addWidget(self.tick_container)
 
-        # ===== 范围状态标签 =====
-        self.range_label = QLabel("🎯 在时间轴上拖动浏览，点击按钮设置片段范围")
-        self.range_label.setStyleSheet("color: #666; font-size: 11px;")
-        self.range_label.setWordWrap(True)
-        main_layout.addWidget(self.range_label)
-
-        # ===== 按钮行 =====
+        # 底部按钮行（仅一行）
         btn_layout = QHBoxLayout()
-        btn_layout.setSpacing(6)
+        btn_layout.setSpacing(4)
 
-        split_label = QLabel("🔪 分区分割点:")
-        split_label.setStyleSheet("font-weight: bold; font-size: 11px;")
-        btn_layout.addWidget(split_label)
+        # 分割点列表显示（动态更新）
+        self.split_list_label = QLabel("分割点: 无")
+        self.split_list_label.setStyleSheet("color: #FF9800; font-size: 13px; font-family: Arial; font-weight: bold;")
+        self.split_list_label.setWordWrap(False)
+        btn_layout.addWidget(self.split_list_label)
 
-        self.add_split_btn = QPushButton("📍 添加分割点")
+        # 添加分割点
+        self.add_split_btn = QPushButton("添加分割点")
         self.add_split_btn.setStyleSheet("""
             QPushButton {
+                font-size: 13px;
+                font-family: Arial;
                 background: #FF9800;
                 color: white;
                 font-weight: bold;
-                padding: 5px 10px;
+                padding: 4px 8px;
                 border-radius: 4px;
-                font-size: 11px;
             }
             QPushButton:hover { background: #F57C00; }
             QPushButton:disabled { background: #555; color: #888; }
@@ -161,16 +158,17 @@ class PreviewDialog(QDialog):
         self.add_split_btn.clicked.connect(self.add_split_point)
         btn_layout.addWidget(self.add_split_btn)
 
-        self.clear_splits_btn = QPushButton("🗑️")
-        self.clear_splits_btn.setFixedSize(24, 24)
-        self.clear_splits_btn.setToolTip("清除分割点")
+        # 删除分割点（清除所有）
+        self.clear_splits_btn = QPushButton("删除分割点")
         self.clear_splits_btn.setStyleSheet("""
             QPushButton {
+                font-size: 13px;
+                font-family: Arial;
                 background: #e74c3c;
                 color: white;
                 font-weight: bold;
+                padding: 4px 8px;
                 border-radius: 4px;
-                font-size: 12px;
             }
             QPushButton:hover { background: #c0392b; }
             QPushButton:disabled { background: #555; color: #888; }
@@ -178,15 +176,17 @@ class PreviewDialog(QDialog):
         self.clear_splits_btn.clicked.connect(self.clear_split_points)
         btn_layout.addWidget(self.clear_splits_btn)
 
-        self.apply_splits_btn = QPushButton("✅ 应用分区")
+        # 应用分区
+        self.apply_splits_btn = QPushButton("应用分区")
         self.apply_splits_btn.setStyleSheet("""
             QPushButton {
+                font-size: 13px;
+                font-family: Arial;
                 background: #9C27B0;
                 color: white;
                 font-weight: bold;
-                padding: 5px 10px;
+                padding: 4px 8px;
                 border-radius: 4px;
-                font-size: 11px;
             }
             QPushButton:hover { background: #7B1FA2; }
             QPushButton:disabled { background: #555; color: #888; }
@@ -194,17 +194,17 @@ class PreviewDialog(QDialog):
         self.apply_splits_btn.clicked.connect(self.apply_split_points)
         btn_layout.addWidget(self.apply_splits_btn)
 
-        btn_layout.addStretch()
-
-        self.set_start_btn = QPushButton("📍 设起始")
+        # 设起始
+        self.set_start_btn = QPushButton("设起始")
         self.set_start_btn.setStyleSheet("""
             QPushButton {
+                font-size: 13px;
+                font-family: Arial;
                 background: #4CAF50;
                 color: white;
                 font-weight: bold;
-                padding: 5px 10px;
+                padding: 4px 8px;
                 border-radius: 4px;
-                font-size: 11px;
             }
             QPushButton:hover { background: #43a047; }
             QPushButton:disabled { background: #555; color: #888; }
@@ -212,15 +212,17 @@ class PreviewDialog(QDialog):
         self.set_start_btn.clicked.connect(self.set_start)
         btn_layout.addWidget(self.set_start_btn)
 
-        self.set_end_btn = QPushButton("📍 设结束")
+        # 设结束
+        self.set_end_btn = QPushButton("设结束")
         self.set_end_btn.setStyleSheet("""
             QPushButton {
+                font-size: 13px;
+                font-family: Arial;
                 background: #f44336;
                 color: white;
                 font-weight: bold;
-                padding: 5px 10px;
+                padding: 4px 8px;
                 border-radius: 4px;
-                font-size: 11px;
             }
             QPushButton:hover { background: #d32f2f; }
             QPushButton:disabled { background: #555; color: #888; }
@@ -228,31 +230,35 @@ class PreviewDialog(QDialog):
         self.set_end_btn.clicked.connect(self.set_end)
         btn_layout.addWidget(self.set_end_btn)
 
-        self.clear_range_btn = QPushButton("✕ 清除")
+        # 清除范围
+        self.clear_range_btn = QPushButton("清除")
         self.clear_range_btn.setStyleSheet("""
             QPushButton {
+                font-size: 13px;
+                font-family: Arial;
                 background: #666;
                 color: white;
                 font-weight: bold;
-                padding: 5px 10px;
+                padding: 4px 8px;
                 border-radius: 4px;
-                font-size: 11px;
             }
             QPushButton:hover { background: #888; }
         """)
         self.clear_range_btn.clicked.connect(self.clear_range)
         btn_layout.addWidget(self.clear_range_btn)
 
-        self.export_btn = QPushButton("📥 导出片段")
+        # 导出片段
+        self.export_btn = QPushButton("导出片段")
         self.export_btn.setEnabled(False)
         self.export_btn.setStyleSheet("""
             QPushButton {
+                font-size: 13px;
+                font-family: Arial;
                 background: #2196F3;
                 color: white;
                 font-weight: bold;
-                padding: 5px 10px;
+                padding: 4px 8px;
                 border-radius: 4px;
-                font-size: 11px;
             }
             QPushButton:hover { background: #1976D2; }
             QPushButton:disabled { background: #555; color: #888; }
@@ -260,17 +266,30 @@ class PreviewDialog(QDialog):
         self.export_btn.clicked.connect(self.export_clip)
         btn_layout.addWidget(self.export_btn)
 
+        # 导出GIF（暂未实现，占位）
+        self.export_gif_btn = QPushButton("导出GIF")
+        self.export_gif_btn.setEnabled(False)  # 暂不可用
+        self.export_gif_btn.setStyleSheet("""
+            QPushButton {
+                font-size: 13px;
+                font-family: Arial;
+                background: #FF5722;
+                color: white;
+                font-weight: bold;
+                padding: 4px 8px;
+                border-radius: 4px;
+            }
+            QPushButton:hover { background: #E64A19; }
+            QPushButton:disabled { background: #555; color: #888; }
+        """)
+        self.export_gif_btn.clicked.connect(self.export_gif)
+        btn_layout.addWidget(self.export_gif_btn)
+
         main_layout.addLayout(btn_layout)
 
-        # ===== 分割点列表显示 =====
-        self.split_list_label = QLabel("分割点: 无")
-        self.split_list_label.setStyleSheet("color: #888; font-size: 10px; padding: 2px;")
-        self.split_list_label.setWordWrap(True)
-        main_layout.addWidget(self.split_list_label)
-
-        # ===== 进度标签 =====
+        # 进度标签
         self.progress_label = QLabel("")
-        self.progress_label.setStyleSheet("color: #888; font-size: 10px; padding: 2px;")
+        self.progress_label.setStyleSheet("color: #888; font-size: 13px; font-family: Arial; padding: 2px;")
         main_layout.addWidget(self.progress_label)
 
         self.finished.connect(self.on_closed)
@@ -294,21 +313,15 @@ class PreviewDialog(QDialog):
         self.slider.setValue(0)
         self.preview_label.setText("加载预览中...")
 
-        # 更新刻度标签
         self._update_ticks()
-
         self._update_preview(0.0)
         self.clear_range()
         self.clear_split_points()
         self._update_split_buttons()
         QTimer.singleShot(50, self._update_tick_positions)
 
-    # ============================================================
-    # 刻度相关方法
-    # ============================================================
-
+    # ===== 刻度相关 =====
     def _update_ticks(self):
-        """更新滑块下方的刻度标签"""
         if self.duration <= 0:
             for label in self.tick_labels:
                 label.setText("")
@@ -324,14 +337,12 @@ class PreviewDialog(QDialog):
         self._update_tick_positions()
 
     def _update_tick_positions(self):
-        """更新刻度标签的位置，使其与滑块两端对齐"""
         container_width = self.tick_container.width()
         if container_width < 50:
             return
 
         margin = 15
         available_width = container_width - margin * 2
-
         positions = [0, 0.25, 0.5, 0.75, 1.0]
         for i, pos in enumerate(positions):
             if i >= len(self.tick_labels):
@@ -345,10 +356,7 @@ class PreviewDialog(QDialog):
                 x = container_width - label.width()
             label.move(x, y)
 
-    # ============================================================
-    # 内部方法
-    # ============================================================
-
+    # ===== 工具方法 =====
     def _format_time(self, seconds: float) -> str:
         if seconds < 0:
             seconds = 0
@@ -373,7 +381,6 @@ class PreviewDialog(QDialog):
             self.slider.blockSignals(False)
 
         frame_path = self.controller.set_preview_time(time_sec)
-
         if frame_path and os.path.exists(frame_path):
             pixmap = QPixmap(frame_path)
             if not pixmap.isNull():
@@ -385,7 +392,6 @@ class PreviewDialog(QDialog):
                 )
                 self.preview_label.setPixmap(scaled)
                 return
-
         self.preview_label.setText("无法加载预览帧")
 
     def _on_slider_pressed(self):
@@ -400,7 +406,6 @@ class PreviewDialog(QDialog):
     def _on_slider_value_changed(self, value: int):
         if self.duration <= 0:
             return
-
         time_sec = (value / 10000) * self.duration
         self._pending_time = time_sec
         self.position_label.setText(self._format_time(time_sec))
@@ -428,15 +433,11 @@ class PreviewDialog(QDialog):
     def _on_progress_update(self, message: str):
         self.progress_label.setText(message)
 
-    # ============================================================
-    # 片段操作
-    # ============================================================
-
+    # ===== 片段操作 =====
     def set_start(self):
         if not self.video_path:
             QMessageBox.information(self, "提示", "请先加载视频")
             return
-
         time_sec = self._pending_time
         self.controller.set_start_time(time_sec)
         self._update_range_display()
@@ -446,7 +447,6 @@ class PreviewDialog(QDialog):
         if not self.video_path:
             QMessageBox.information(self, "提示", "请先加载视频")
             return
-
         time_sec = self._pending_time
         self.controller.set_end_time(time_sec)
         self._update_range_display()
@@ -460,40 +460,28 @@ class PreviewDialog(QDialog):
     def _update_range_display(self):
         start, end = self.controller.get_range()
         if self.controller.is_range_valid():
-            self.range_label.setText(
-                f"🎯 范围: {self._format_time(start)} → {self._format_time(end)}  "
-                f"(时长: {end - start:.1f}s)"
-            )
-            self.range_label.setStyleSheet("color: #4CAF50; font-size: 11px; font-weight: bold;")
             self.export_btn.setEnabled(True)
         else:
-            self.range_label.setText("🎯 在时间轴上拖动浏览，点击按钮设置片段范围")
-            self.range_label.setStyleSheet("color: #666; font-size: 11px;")
             self.export_btn.setEnabled(False)
 
     def export_clip(self):
-        """导出视频片段，支持自定义保存位置"""
         if not self.video_path:
             QMessageBox.warning(self, "警告", "未加载视频")
             return
-
         if not self.controller.is_range_valid():
             QMessageBox.warning(self, "警告", "请先设置有效的片段范围（起始 < 结束）")
             return
-
         start, end = self.controller.get_range()
         if end - start < 0.5:
             QMessageBox.warning(self, "警告", f"片段太短（{end - start:.1f}s），请选择至少 0.5 秒")
             return
 
-        # 弹出文件夹选择对话框
         export_dir = QFileDialog.getExistingDirectory(
             self,
             "选择导出目录",
             os.path.expanduser("~"),
             QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
         )
-
         if not export_dir:
             return
 
@@ -514,8 +502,7 @@ class PreviewDialog(QDialog):
         async def do_export():
             success, result = await self.controller.export_clip(export_dir, re_encode=False)
             self.export_btn.setEnabled(True)
-            self.export_btn.setText("📥 导出片段")
-
+            self.export_btn.setText("导出片段")
             if success:
                 QMessageBox.information(self, "导出完成", f"片段已导出到:\n{result}")
                 self.export_clip_requested.emit(result)
@@ -524,25 +511,19 @@ class PreviewDialog(QDialog):
 
         asyncio.create_task(do_export())
 
-    # ============================================================
-    # 分割点管理
-    # ============================================================
-
+    # ===== 分割点管理 =====
     def add_split_point(self):
         if not self.video_path:
             QMessageBox.information(self, "提示", "请先加载视频")
             return
-
         time_sec = self._pending_time
         if time_sec <= 0.1 or time_sec >= self.duration - 0.1:
             QMessageBox.warning(self, "提示", "不能在视频起点或终点附近添加分割点")
             return
-
         for existing in self.split_points:
             if abs(existing - time_sec) < 0.5:
                 QMessageBox.information(self, "提示", f"已存在相近的分割点 {self._format_time(existing)}")
                 return
-
         self.split_points.append(time_sec)
         self.split_points.sort()
         self._update_split_display()
@@ -563,7 +544,6 @@ class PreviewDialog(QDialog):
         if not self.video_path:
             QMessageBox.information(self, "提示", "请先加载视频")
             return
-
         if len(self.split_points) < 1:
             QMessageBox.warning(self, "提示", "请至少添加一个分割点")
             return
@@ -612,20 +592,26 @@ class PreviewDialog(QDialog):
 
     def _update_split_display(self):
         if self.split_points:
-            times_str = ", ".join([self._format_time(t) for t in self.split_points])
-            self.split_list_label.setText(f"分割点 ({len(self.split_points)}): {times_str}")
-            self.split_list_label.setStyleSheet("color: #FF9800; font-size: 10px;")
+            times_str = " ".join([f"{self._format_time(t)}" for t in self.split_points])
+            self.split_list_label.setText(f"分割点: {times_str}")
+            self.split_list_label.setStyleSheet("color: #FF9800; font-size: 13px; font-family: Arial; font-weight: bold;")
             self.clear_splits_btn.setEnabled(True)
             self.apply_splits_btn.setEnabled(True)
         else:
             self.split_list_label.setText("分割点: 无")
-            self.split_list_label.setStyleSheet("color: #888; font-size: 10px;")
+            self.split_list_label.setStyleSheet("color: #888; font-size: 13px; font-family: Arial;")
             self.clear_splits_btn.setEnabled(False)
             self.apply_splits_btn.setEnabled(False)
 
     def _update_split_buttons(self):
         enabled = self.video_path is not None
         self.add_split_btn.setEnabled(enabled)
+        # 导出GIF暂不可用，保持禁用
+        self.export_gif_btn.setEnabled(False)
+
+    def export_gif(self):
+        """导出GIF（暂未实现）"""
+        QMessageBox.information(self, "提示", "GIF导出功能将在后续版本中实现。")
 
     def resizeEvent(self, event: QResizeEvent):
         super().resizeEvent(event)
