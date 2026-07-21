@@ -6,6 +6,9 @@
 # 修改左侧面板：加长视频列表，移除备份状态标签，按钮独立成行并调整顺序
 # 修复信息显示：增加 info_group 最小高度至 190，info_path 最小高度 45，确保换行
 # 修复网格布局：_refresh_grid 正确清空并重置拉伸，不使用 setColumnCount
+# 恢复自动备份：closeEvent 调用 cleanup（内部包含自动备份），启动时删除旧备份
+# 修复监控：跳过 _covers 目录，避免无效监控触发
+# 修复密度切换：取消旧任务，避免并发冲突导致卡死
 
 import os, asyncio, logging, traceback
 from typing import List, Set, Tuple
@@ -57,10 +60,11 @@ class SegmentView(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         print("[DEBUG] SegmentView __init__ 开始")
+        self.config = ConfigManager()
         self.controller = SegmentController()
+        self.controller.set_config(self.config)
         self.controller.set_data_changed_callback(self._on_data_changed)
         self.controller.set_progress_callback(self._on_progress_update)
-        self.config = ConfigManager()
         self.selected_indices: Set[tuple] = set()
         self.all_videos: List[str] = []
         self.filtered_videos: List[str] = []
@@ -70,6 +74,13 @@ class SegmentView(QWidget):
         db_videos = self.controller.db.get_all_videos()
         self.all_videos = [v['file_path'] for v in db_videos]
         self.filtered_videos = self.all_videos.copy()
+
+        backup_dir = self.config.get_backup_dir()
+        if backup_dir and os.path.exists(backup_dir):
+            deleted = self.controller.delete_old_backups(backup_dir)
+            if deleted > 0:
+                logger.info(f"启动时删除了 {deleted} 个旧备份文件")
+
         self.setup_ui()
         self.setFocusPolicy(Qt.StrongFocus)
         self.video_list.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -132,8 +143,8 @@ class SegmentView(QWidget):
         info_layout.addWidget(self.info_duration)
         info_layout.addWidget(self.info_size)
         info_layout.addWidget(self.info_path)
-        info_layout.addStretch()  # 将路径推到底部，防止被压缩
-        left_layout.addWidget(info_group, 0)  # stretch 0，由最小高度决定
+        info_layout.addStretch()
+        left_layout.addWidget(info_group, 0)
 
         # ---- 左侧状态区域 ----
         # 第1行：进度标签
@@ -267,7 +278,7 @@ class SegmentView(QWidget):
         for btn in self.seg_buttons: btn.setEnabled(False)
         self._update_select_all_state(); self._update_undo_redo_buttons(); self._update_backup_status_label(); self._update_cache_info()
 
-    # ---------- 以下方法保持不变（仅 _refresh_grid 修正） ----------
+    # ---------- 以下方法与之前相同 ----------
     def _setup_watch_dirs(self):
         dirs = self.config.get_watch_dirs()
         for d in dirs:
@@ -277,6 +288,9 @@ class SegmentView(QWidget):
             for root, subdirs, _ in os.walk(d):
                 for sub in subdirs:
                     sub_path = os.path.join(root, sub)
+                    # 跳过 _covers 目录（收藏截图目录），避免无效监控
+                    if os.path.basename(sub_path).endswith("_covers"):
+                        continue
                     if sub_path not in self.watcher.directories():
                         self.watcher.addPath(sub_path); logger.debug(f"监控子目录已添加: {sub_path}")
 
@@ -295,6 +309,8 @@ class SegmentView(QWidget):
                     for root, subdirs, _ in os.walk(dir_path):
                         for sub in subdirs:
                             sub_path = os.path.join(root, sub)
+                            if os.path.basename(sub_path).endswith("_covers"):
+                                continue
                             if sub_path not in self.watcher.directories():
                                 self.watcher.addPath(sub_path)
                 self.progress_label_left.setText(f"📂 监控目录已添加: {os.path.basename(dir_path)}")
@@ -937,11 +953,9 @@ class SegmentView(QWidget):
         self._update_select_all_state()
         self._update_selected_count()
 
-    # ========== 最终修正的 _refresh_grid（不使用 setColumnCount） ==========
     def _refresh_grid(self):
         try:
             print(f"[DEBUG] ========== _refresh_grid 开始 ==========")
-            # 清空布局内所有子控件
             while self.grid_layout.count():
                 child = self.grid_layout.takeAt(0)
                 if child.widget():
@@ -964,22 +978,11 @@ class SegmentView(QWidget):
             cols = {9: 3, 12: 3, 16: 4, 25: 5}.get(density, 4)
             print(f"[DEBUG] seg_label={seg_label}, count={count}, density={density}, cols={cols}")
 
-            # 清除旧列/行的拉伸
             for c in range(self.grid_layout.columnCount()):
                 self.grid_layout.setColumnStretch(c, 0)
             for r in range(self.grid_layout.rowCount()):
                 self.grid_layout.setRowStretch(r, 0)
 
-            # 设置新列拉伸（列数由 cols 决定，但需要确保列数足够）
-            # 注意：由于清空后列数为0，我们需要先添加控件，列数才会自动增加
-            # 因此我们将在添加控件后设置拉伸，或者在添加前先设置列拉伸？
-            # 实际上，可以先设置列拉伸，但列数未创建，会无效。所以我们先添加控件，再设置拉伸。
-            # 但我们可以先设置列数？但 setColumnCount 不存在，所以不设置。
-            # 方法是：添加控件后，再设置拉伸。
-            # 但为了确保拉伸正确，我们先清除旧拉伸，添加控件，然后设置每列的拉伸。
-            # 这样添加控件时会自动创建列，然后我们设置拉伸。
-
-            # 计算行数
             row_count = (count + cols - 1) // cols
             locked_count = sum(1 for it in items if it.get('locked', False))
             self.stat_locked.setText(f"锁定: {locked_count}")
@@ -1013,10 +1016,8 @@ class SegmentView(QWidget):
                 label.double_clicked.connect(partial(self.preview_image, pos))
                 self.grid_layout.addWidget(label, row, col)
 
-            # 现在设置列拉伸（列数已自动创建）
             for c in range(min(cols, self.grid_layout.columnCount())):
                 self.grid_layout.setColumnStretch(c, 1)
-            # 行拉伸
             for r in range(min(row_count, self.grid_layout.rowCount())):
                 self.grid_layout.setRowStretch(r, 1)
 
@@ -1116,6 +1117,8 @@ class SegmentView(QWidget):
             self.selected_indices.clear()
             self._update_select_all_state()
             QMessageBox.information(self, "完成", f"成功取消收藏 {removed} 张截图。")
+        else:
+            QMessageBox.information(self, "提示", "未找到要取消收藏的截图。")
 
     def lock_selected(self):
         if not self.selected_indices:
@@ -1212,6 +1215,9 @@ class SegmentView(QWidget):
         for btn in self.density_buttons:
             btn.setChecked(int(btn.text()) == val)
         if self.controller.get_video_path():
+            # 取消当前加载任务，避免多个任务同时运行导致卡死
+            if self.controller._load_task and not self.controller._load_task.done():
+                self.controller._load_task.cancel()
             asyncio.create_task(self.controller.load_segment(self.controller.current_seg_index, restore_locks=True, randomize=False))
 
     def closeEvent(self, event):

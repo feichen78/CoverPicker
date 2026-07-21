@@ -346,3 +346,5 @@ pyinstaller --onedir --name CoverPicker --windowed --paths .venv\Lib\site-packag
 
 powershell
 Get-ChildItem -Path . -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
+
+__pycache__ 只有在 Python 版本更换或包结构发生重大变化时才需要删除。python clean_cache.py

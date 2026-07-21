@@ -1,10 +1,23 @@
 # src/controllers/segment_controller.py
-# 简化版：取消复杂的异步并发，采用逐个提取并即时刷新，取消可靠
-# 时长获取失败时直接返回 False，不启动加载任务
+# 修改：收藏截图保存到视频所在目录的 [视频名]_covers 子目录
+# 修改：渐进式加载（占位图），每生成一张截图后刷新界面
+# 修复：提取帧失败时增加重试机制，减少占位图
+# 修改：清理缓存功能改为删除所有历史 CoverPicker_* 临时目录，统计汇总所有缓存
+# 恢复：排除区间自动调整分区边界，保持分区数不变
+# v3.0: 并发提取帧（使用 asyncio.gather + 信号量），支持取消时即时 kill 子进程
+# v3.0.2fix: 提高并发数至 min(CPU核心数*2, 8)，加快速度
+# v3.0.4fix: 移除批量提取，恢复渐进式加载（逐张刷新），使用 asyncio.as_completed 实现并发
+# v3.0.5fix: 增强取消处理，避免多个任务同时运行
+# v3.0.6fix: load_video 开始时强制重置所有状态，duration=None 或 <=0 时正确返回 False 并清空分区
+# v3.0.7fix: 简化版本，移除复杂并发，采用逐个提取并即时刷新
+# v3.0.8fix: 新增自动备份功能（关闭时备份）、启动时删除旧备份
+# v3.0.9fix: 新增 unfavorite_by_time 方法，支持按分区和时间戳取消收藏，删除NAS文件（仅删除.jpg截图，绝不删除视频）
+# v3.0.10fix: 主界面取消收藏保留缓存文件，只删除NAS图片；增强取消任务处理，防止密度切换卡死
+# v3.0.11fix: 修复 _restore_favorites_from_db 中 exported 状态从数据库正确读取
 
 import os, asyncio, random, tempfile, shutil, logging, json, multiprocessing
 from typing import Dict, List, Set, Tuple, Optional, Any
-from datetime import timedelta
+from datetime import datetime, timedelta
 from dataclasses import dataclass
 from src.database import Database
 from src.video_scanner import get_video_duration, calculate_segments, extract_frame_async
@@ -43,7 +56,11 @@ class SegmentController:
         logger.info(f"FFmpeg 并发数设为 {max_concurrent}")
         self._on_data_changed: Optional[callable] = None
         self._on_progress_update: Optional[callable] = None
+        self._config = None
         print("[DEBUG] SegmentController __init__ 完成")
+
+    def set_config(self, config):
+        self._config = config
 
     def set_data_changed_callback(self, callback): self._on_data_changed = callback
     def set_progress_callback(self, callback): self._on_progress_update = callback
@@ -51,6 +68,34 @@ class SegmentController:
         if self._on_data_changed: self._on_data_changed()
     def _notify_progress(self, message: str):
         if self._on_progress_update: self._on_progress_update(message)
+
+    def get_backup_dir(self) -> Optional[str]:
+        if self._config:
+            return self._config.get_backup_dir()
+        return None
+
+    def delete_old_backups(self, backup_dir: str) -> int:
+        if not backup_dir or not os.path.exists(backup_dir):
+            return 0
+        today = datetime.now().strftime("%Y%m%d")
+        deleted = 0
+        try:
+            for f in os.listdir(backup_dir):
+                if f.startswith("coverpicker_backup_") and f.endswith(".db"):
+                    parts = f.split("_")
+                    if len(parts) >= 4:
+                        date_str = parts[2]
+                        if date_str != today:
+                            file_path = os.path.join(backup_dir, f)
+                            try:
+                                os.remove(file_path)
+                                deleted += 1
+                                logger.info(f"已删除旧备份: {f}")
+                            except Exception as e:
+                                logger.error(f"删除旧备份失败 {f}: {e}")
+        except Exception as e:
+            logger.error(f"扫描备份目录失败: {e}")
+        return deleted
 
     def _get_favorites_dir(self) -> str:
         if not self.video_path:
@@ -130,7 +175,6 @@ class SegmentController:
             self.excluded_ranges = []
 
     async def _cancel_current_task(self):
-        """取消当前加载任务并等待完成"""
         if self._load_task is not None:
             if isinstance(self._load_task, asyncio.Task) and not self._load_task.done():
                 self._load_task.cancel()
@@ -141,14 +185,11 @@ class SegmentController:
                 except Exception as e:
                     logger.error(f"取消任务异常: {e}")
             self._load_task = None
-            # 给事件循环一点时间清理
             await asyncio.sleep(0.05)
 
     async def load_video(self, video_path: str) -> bool:
         print(f"[DEBUG] load_video 被调用: {video_path}")
         await self._cancel_current_task()
-
-        # 重置所有状态
         self.video_path = None
         self.video_id = None
         self.duration = 0.0
@@ -160,7 +201,6 @@ class SegmentController:
         self.current_seg_index = 0
         self._clear_history()
         self._notify_data_changed()
-
         self.video_path = video_path
         self.video_name = os.path.basename(video_path)
         duration = get_video_duration(video_path)
@@ -170,7 +210,6 @@ class SegmentController:
             self.segments = []
             self._notify_data_changed()
             return False
-
         self.duration = duration
         if self.num_segments == -1:
             self.num_segments = 5
@@ -318,7 +357,6 @@ class SegmentController:
         count = self.density
         old_items = self.screenshots.get(seg_key, [])
 
-        # 生成随机时间点
         new_times = []
         attempts = 0
         max_attempts = 1000 * count
@@ -341,7 +379,6 @@ class SegmentController:
         self.loaded_segments.add(label)
         self._notify_data_changed()
 
-        # 复用缓存
         old_items_sorted = sorted(old_items, key=lambda x: x['time'])
         old_times = [item['time'] for item in old_items_sorted]
         reused_count = 0
@@ -358,7 +395,6 @@ class SegmentController:
                 new_items[idx]['exported'] = matched.get('exported', False)
                 reused_count += 1
 
-        # 逐个提取未复用的帧
         total = len(new_times)
         for idx, item in enumerate(new_items):
             if item['path'] is not None:
@@ -378,7 +414,6 @@ class SegmentController:
                         success = True
                         break
                     else:
-                        # 偏移重试
                         offset2 = random.uniform(-1.0, 1.0)
                         retry_t = t + offset2
                         retry_t = max(start_cropped, min(end_cropped, retry_t))
@@ -387,12 +422,10 @@ class SegmentController:
                             retry_t = t + offset2
                             retry_t = max(start_cropped, min(end_cropped, retry_t))
                 except asyncio.CancelledError:
-                    # 取消时直接退出
                     raise
             if not success:
                 logger.warning(f"分区 {label} 时间点 {t:.2f}s 提取失败，保留占位图")
                 item['path'] = None
-            # 每处理一张刷新界面
             self._notify_data_changed()
             self._notify_progress(f"{label} {idx+1}/{total} 完成")
 
@@ -401,7 +434,6 @@ class SegmentController:
         self._notify_data_changed()
         print(f"[DEBUG] ========== _load_segment 完成: {label} ==========")
 
-    # ---------- 以下方法保持不变（收藏、导出、撤销、缓存等） ----------
     def _save_favorite_to_nas(self, seg_label: str, time_sec: float, source_path: str) -> str:
         dest_path = self._get_favorite_path(seg_label, time_sec)
         try:
@@ -450,11 +482,72 @@ class SegmentController:
                 if self.video_id:
                     timestamp_ms = int(item['time'] * 1000)
                     self.db.remove_favorite(self.video_id, seg_label, timestamp_ms)
-                self.favorites = [f for f in self.favorites if not (f.get('video_path')==self.video_path and f.get('segment')==seg_label and abs(f.get('time',0)-item['time'])<0.01)]
+                    # 从 favorites 中查找对应的 NAS 路径并删除
+                    target_time = item['time']
+                    nas_path = None
+                    for fav in self.favorites:
+                        if (fav.get('segment') == seg_label and 
+                            abs(fav.get('time', 0) - target_time) < 0.01):
+                            nas_path = fav.get('path')
+                            break
+                    if nas_path and os.path.exists(nas_path):
+                        try:
+                            os.remove(nas_path)
+                            logger.info(f"已删除NAS收藏截图: {nas_path}")
+                        except Exception as e:
+                            logger.error(f"删除NAS收藏截图失败: {e}")
+                            if self._on_progress_update:
+                                self._on_progress_update(f"删除NAS图片失败: {os.path.basename(nas_path)}")
+                    # 从 favorites 中移除
+                    self.favorites = [f for f in self.favorites if not (f.get('video_path')==self.video_path and f.get('segment')==seg_label and abs(f.get('time',0)-item['time'])<0.01)]
                 removed_count += 1
                 if record_history: self._push_action(Action('unfavorite', self.video_id, seg_label, timestamp_ms, old_state, new_state))
         if removed_count > 0: self._save_state_to_db(); self._notify_data_changed()
         return removed_count
+
+    def unfavorite_by_time(self, seg_label: str, timestamp_ms: int) -> bool:
+        """根据分区标签和时间戳取消收藏，并删除NAS文件（仅删除.jpg截图，绝不删除视频）"""
+        if not self.video_id:
+            return False
+
+        target_time = timestamp_ms / 1000.0
+
+        # 从数据库删除
+        self.db.remove_favorite(self.video_id, seg_label, timestamp_ms)
+
+        # 查找并删除NAS文件
+        nas_path = None
+        for fav in self.favorites:
+            if (fav.get('segment') == seg_label and 
+                abs(fav.get('time', 0) - target_time) < 0.01):
+                nas_path = fav.get('path')
+                break
+
+        if nas_path and os.path.exists(nas_path):
+            try:
+                os.remove(nas_path)
+                logger.info(f"已删除NAS收藏截图: {nas_path}")
+            except Exception as e:
+                logger.error(f"删除NAS收藏截图失败: {e}")
+                return False
+
+        # 从 favorites 列表中移除
+        self.favorites = [f for f in self.favorites if not (
+            f.get('segment') == seg_label and
+            abs(f.get('time', 0) - target_time) < 0.01
+        )]
+
+        # 从 screenshots 中移除收藏状态（保留缓存文件）
+        items = self.screenshots.get(seg_label, [])
+        for item in items:
+            if abs(item['time'] - target_time) < 0.01:
+                item['favorite'] = False
+                item['exported'] = False
+                break
+
+        self._save_state_to_db()
+        self._notify_data_changed()
+        return True
 
     def get_current_favorites(self) -> List[dict]: return [f for f in self.favorites if f.get('video_path') == self.video_path]
 
@@ -624,7 +717,6 @@ class SegmentController:
         refreshed = 0; total = len(unlocked_positions)
 
         for pos in unlocked_positions:
-            # 生成随机时间避开锁定和排除
             for _ in range(20):
                 t = random.uniform(start_cropped, end_cropped)
                 if self._is_time_excluded(t):
@@ -763,7 +855,7 @@ class SegmentController:
         favorites_dir = self._get_favorites_dir()
         video_dir = os.path.dirname(self.video_path)
         for fav in db_favs:
-            exported = bool(fav.get('is_exported', 0))
+            exported = bool(fav.get('is_exported', 0))  # 从数据库读取准确的 exported 状态
             thumb_path = fav.get('thumbnail_path', '')
             thumb_name = fav.get('thumbnail_name', '')
             path = ""
@@ -786,8 +878,9 @@ class SegmentController:
                 'segment': fav['segment_label'],
                 'time': fav['timestamp_ms'] / 1000,
                 'path': path,
-                'exported': exported,
+                'exported': exported,  # 使用数据库中的值
             })
+
     def _restore_favorites_to_screenshots(self):
         if not self.video_path: return
         fav_items = [f for f in self.favorites if f.get('video_path') == self.video_path]
@@ -797,7 +890,9 @@ class SegmentController:
                 matched_favs = [f for f in fav_items if f.get('segment') == seg_label and abs(f.get('time', 0) - item['time']) < 0.1]
                 if matched_favs:
                     matched = next((f for f in matched_favs if f.get('exported', False)), matched_favs[0])
-                    item['favorite'] = True; item['exported'] = matched.get('exported', False)
+                    item['favorite'] = True
+                    item['exported'] = matched.get('exported', False)  # 保持与收藏项一致
+
     def _save_state_to_db(self):
         if not self.video_path or not self.video_id: return
         for seg_label, items in self.screenshots.items():
@@ -829,9 +924,20 @@ class SegmentController:
                         self.db.add_favorite(self.video_id, seg_label, timestamp_ms, nas_path, os.path.basename(nas_path), is_exported=item.get('exported', False))
                     else:
                         self.db.update_favorite_exported(self.video_id, seg_label, timestamp_ms)
+
     def cleanup(self):
-        if self._load_task and not self._load_task.done(): self._load_task.cancel()
-        if self.video_id and self.video_path: self._save_state_to_db()
-        # 不删除缓存目录
-        # shutil.rmtree(self.temp_dir, ignore_errors=True)
+        if self._load_task and not self._load_task.done():
+            self._load_task.cancel()
+        if self.video_id and self.video_path:
+            self._save_state_to_db()
+        backup_dir = self.get_backup_dir()
+        if backup_dir and os.path.exists(backup_dir):
+            try:
+                success, result = self.db.backup(backup_dir)
+                if success:
+                    logger.info(f"自动备份成功: {result}")
+                else:
+                    logger.error(f"自动备份失败: {result}")
+            except Exception as e:
+                logger.error(f"自动备份异常: {e}")
         self.db.close()
