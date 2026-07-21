@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import QDialog, QVBoxLayout, QScrollArea, QLabel
-from PySide6.QtCore import Qt, QPoint
+from PySide6.QtCore import Qt, QPoint, QTimer
 from PySide6.QtGui import QPixmap, QMouseEvent, QWheelEvent, QKeyEvent
 
 class ZoomPreviewDialog(QDialog):
@@ -46,6 +46,17 @@ class ZoomPreviewDialog(QDialog):
 
         self.setFocusPolicy(Qt.StrongFocus)
         self.update_image()
+        # 延迟居中滚动，确保布局完成
+        QTimer.singleShot(50, self._center_scroll)
+
+    def _center_scroll(self):
+        """将滚动条设置为中间位置，使图片居中显示"""
+        h_bar = self.scroll_area.horizontalScrollBar()
+        v_bar = self.scroll_area.verticalScrollBar()
+        if h_bar and h_bar.maximum() > h_bar.minimum():
+            h_bar.setValue((h_bar.maximum() - h_bar.minimum()) // 2)
+        if v_bar and v_bar.maximum() > v_bar.minimum():
+            v_bar.setValue((v_bar.maximum() - v_bar.minimum()) // 2)
 
     def update_image(self):
         if self.original_pixmap.isNull():
@@ -68,6 +79,8 @@ class ZoomPreviewDialog(QDialog):
         self.image_label.setPixmap(scaled)
         self.image_label.resize(scaled.size())
         self.status_label.setText(f"缩放: {self.scale_factor:.1f}x  |  滚轮缩放  |  拖动平移")
+        # 更新后延迟居中
+        QTimer.singleShot(20, self._center_scroll)
 
     def image_wheel(self, event: QWheelEvent):
         delta = event.angleDelta().y()

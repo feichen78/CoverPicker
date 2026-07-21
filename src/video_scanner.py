@@ -1,11 +1,13 @@
 # src/video_scanner.py
 # 恢复稳定版本 —— 移除质量/尺寸参数，保留 -skip_frame nokey 加速
+# v3.0: 新增异步帧提取 extract_frame_async，支持取消时 kill 子进程
 
 import os
 import json
 import subprocess
 import logging
 import time
+import asyncio
 from typing import List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
@@ -106,6 +108,7 @@ def get_video_info(video_path: str) -> Optional[dict]:
 def extract_frame(video_path: str, timestamp: float, output_path: str, retries: int = 1) -> bool:
     """
     提取视频帧（快速 Seek + 关键帧跳过，固定高质量）
+    同步版本，保留用于兼容
     """
     for attempt in range(retries + 1):
         cmd = [
@@ -141,6 +144,51 @@ def extract_frame(video_path: str, timestamp: float, output_path: str, retries: 
             logger.error(f"FFmpeg 提取帧异常: {video_path} @ {timestamp}s, {e}")
             return False
     return False
+
+
+async def extract_frame_async(video_path: str, timestamp: float, output_path: str,
+                              retries: int = 1) -> Tuple[bool, Optional[asyncio.subprocess.Process]]:
+    """
+    异步提取视频帧，支持取消（取消时 kill 子进程）
+    返回 (成功标志, 进程对象)
+    """
+    for attempt in range(retries + 1):
+        cmd = [
+            "ffmpeg", "-hide_banner",
+            "-skip_frame", "nokey",
+            "-ss", str(timestamp),
+            "-i", video_path,
+            "-frames:v", "1",
+            "-q:v", "2",
+            "-y", output_path
+        ]
+        process = None
+        try:
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                creationflags=CREATE_NO_WINDOW
+            )
+            stdout, stderr = await process.communicate()
+            if process.returncode == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+                return True, process
+            else:
+                if attempt < retries:
+                    await asyncio.sleep(0.5)
+                else:
+                    logger.error(f"提取帧失败: {video_path} @ {timestamp}s, stderr: {stderr.decode(errors='ignore')}")
+                    return False, process
+        except asyncio.CancelledError:
+            # 取消时立即 kill 子进程
+            if process and process.returncode is None:
+                process.kill()
+                await process.wait()
+            raise
+        except Exception as e:
+            logger.error(f"FFmpeg 提取帧异常: {video_path} @ {timestamp}s, {e}")
+            return False, process
+    return False, None
 
 
 def extract_frames_batch(video_path: str, timestamps: List[float], output_dir: str) -> List[str]:

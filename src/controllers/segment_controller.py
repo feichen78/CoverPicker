@@ -1,15 +1,13 @@
 # src/controllers/segment_controller.py
-# 修改：收藏截图保存到视频所在目录的 [视频名]_covers 子目录
-# 修改：渐进式加载（占位图），每生成一张截图后刷新界面
-# 修复：提取帧失败时增加重试机制，减少占位图
-# 修改：清理缓存功能改为删除所有历史 CoverPicker_* 临时目录，统计汇总所有缓存
+# 简化版：取消复杂的异步并发，采用逐个提取并即时刷新，取消可靠
+# 时长获取失败时直接返回 False，不启动加载任务
 
-import os, asyncio, random, tempfile, shutil, logging, json
+import os, asyncio, random, tempfile, shutil, logging, json, multiprocessing
 from typing import Dict, List, Set, Tuple, Optional, Any
 from datetime import timedelta
 from dataclasses import dataclass
 from src.database import Database
-from src.video_scanner import get_video_duration, calculate_segments, extract_frame, extract_frames_batch_fast
+from src.video_scanner import get_video_duration, calculate_segments, extract_frame_async
 logger = logging.getLogger(__name__)
 
 @dataclass
@@ -32,13 +30,17 @@ class SegmentController:
         self.density: int = 9
         self.skip_ratio: float = 0.15
         self.excluded_ranges: List[Tuple[float, float]] = []
-        self.temp_dir: str = tempfile.mkdtemp(prefix="CoverPicker_")
+        self.temp_dir = os.path.join(tempfile.gettempdir(), "CoverPicker_cache")
+        os.makedirs(self.temp_dir, exist_ok=True)
         self.export_base: str = os.path.join(os.getcwd(), "StillPic")
         self._load_task: Optional[asyncio.Task] = None
         self.undo_stack: List[Action] = []
         self.redo_stack: List[Action] = []
         self._is_undo_or_redo: bool = False
-        self._ffmpeg_semaphore = asyncio.Semaphore(3)
+        cpu_count = multiprocessing.cpu_count()
+        max_concurrent = max(3, min(int(cpu_count * 2), 8))
+        self._ffmpeg_semaphore = asyncio.Semaphore(max_concurrent)
+        logger.info(f"FFmpeg 并发数设为 {max_concurrent}")
         self._on_data_changed: Optional[callable] = None
         self._on_progress_update: Optional[callable] = None
         print("[DEBUG] SegmentController __init__ 完成")
@@ -72,7 +74,10 @@ class SegmentController:
         elif num > 7: num = 7
         if self.num_segments != num and self.video_path and self.duration > 0:
             self.num_segments = num
-            self.segments = calculate_segments(self.duration, self.num_segments)
+            if self.excluded_ranges:
+                self._recalculate_segments_with_exclusions()
+            else:
+                self.segments = calculate_segments(self.duration, self.num_segments)
             self.screenshots = {}
             self.loaded_segments = set()
             self.current_seg_index = 0
@@ -99,6 +104,13 @@ class SegmentController:
         if save and self.video_id and self.video_path and self.segments:
             seg_label = self.segments[self.current_seg_index][0]
             self.db.update_segment_state(self.video_id, seg_label, excluded_ranges=ranges)
+            if self.num_segments != -1:
+                self._recalculate_segments_with_exclusions()
+                self.screenshots = {}
+                self.loaded_segments = set()
+                self.current_seg_index = 0
+                self._clear_history()
+                self._notify_data_changed()
             logger.info(f"排除区间已保存到数据库: {ranges}")
     def load_excluded_ranges_from_db(self):
         if not self.video_id or not self.segments: return
@@ -107,18 +119,61 @@ class SegmentController:
         if seg_state and seg_state.get('excluded_ranges'):
             self.excluded_ranges = seg_state['excluded_ranges']
             logger.info(f"从数据库加载排除区间: {self.excluded_ranges}")
-        else: self.excluded_ranges = []
+            if self.num_segments != -1:
+                self._recalculate_segments_with_exclusions()
+                self.screenshots = {}
+                self.loaded_segments = set()
+                self.current_seg_index = 0
+                self._clear_history()
+                self._notify_data_changed()
+        else:
+            self.excluded_ranges = []
+
+    async def _cancel_current_task(self):
+        """取消当前加载任务并等待完成"""
+        if self._load_task is not None:
+            if isinstance(self._load_task, asyncio.Task) and not self._load_task.done():
+                self._load_task.cancel()
+                try:
+                    await self._load_task
+                except asyncio.CancelledError:
+                    pass
+                except Exception as e:
+                    logger.error(f"取消任务异常: {e}")
+            self._load_task = None
+            # 给事件循环一点时间清理
+            await asyncio.sleep(0.05)
+
     async def load_video(self, video_path: str) -> bool:
         print(f"[DEBUG] load_video 被调用: {video_path}")
-        if self._load_task and not self._load_task.done(): self._load_task.cancel()
+        await self._cancel_current_task()
+
+        # 重置所有状态
+        self.video_path = None
+        self.video_id = None
+        self.duration = 0.0
+        self.video_name = ""
+        self.segments = []
+        self.screenshots = {}
+        self.loaded_segments = set()
+        self.favorites = []
+        self.current_seg_index = 0
+        self._clear_history()
+        self._notify_data_changed()
+
         self.video_path = video_path
         self.video_name = os.path.basename(video_path)
         duration = get_video_duration(video_path)
-        if duration is None:
-            print("[DEBUG] load_video 失败: 无法获取时长")
+        if duration is None or duration <= 0:
+            print("[DEBUG] load_video: 无法获取时长，返回 False")
+            self.duration = 0.0
+            self.segments = []
+            self._notify_data_changed()
             return False
+
         self.duration = duration
-        if self.num_segments == -1: self.num_segments = 5
+        if self.num_segments == -1:
+            self.num_segments = 5
         self.segments = calculate_segments(duration, self.num_segments)
         print(f"[DEBUG] load_video: 分区数={len(self.segments)}")
         file_name = os.path.basename(video_path)
@@ -138,40 +193,28 @@ class SegmentController:
         await self._load_task
         self._load_task = None
         self._restore_favorites_to_screenshots()
-        if self.loaded_segments: self.db.update_video_state(self.video_id, is_viewed=True)
+        if self.loaded_segments:
+            self.db.update_video_state(self.video_id, is_viewed=True)
         self._notify_data_changed()
         print("[DEBUG] load_video 完成")
         return True
+
     async def load_segment(self, seg_idx: int, restore_locks: bool = True, randomize: bool = False):
         print(f"[DEBUG] ========== load_segment 被调用: seg_idx={seg_idx} ==========")
-        print(f"[DEBUG] self.video_path={self.video_path}")
-        print(f"[DEBUG] self.segments={self.segments}")
-        print(f"[DEBUG] self.current_seg_index={self.current_seg_index}")
-        print(f"[DEBUG] self._load_task={self._load_task}")
         if not self.video_path or not self.segments:
-            print(f"[DEBUG] load_segment 返回: video_path={self.video_path}, segments={self.segments}")
+            print(f"[DEBUG] load_segment 返回: 无视频或无分区")
             return
         if seg_idx < 0 or seg_idx >= len(self.segments):
-            print(f"[DEBUG] load_segment 无效索引: seg_idx={seg_idx}, len={len(self.segments)}")
+            print(f"[DEBUG] load_segment 无效索引")
             return
-        if self._load_task and not self._load_task.done():
-            print(f"[DEBUG] 取消当前加载任务")
-            self._load_task.cancel()
-            try:
-                await self._load_task
-            except asyncio.CancelledError:
-                print("[DEBUG] 当前任务已取消")
-            self._load_task = None
-            self.screenshots = {}
-            self.loaded_segments = set()
-            self._notify_data_changed()
+        await self._cancel_current_task()
+        self.screenshots = {}
+        self.loaded_segments = set()
+        self._notify_data_changed()
         self.current_seg_index = seg_idx
-        print(f"[DEBUG] 当前分区索引已更新为: {seg_idx}")
         self.load_excluded_ranges_from_db()
         self._load_task = asyncio.create_task(self._load_segment(seg_idx, restore_locks, randomize))
-        print(f"[DEBUG] 新加载任务已创建，等待完成...")
         await self._load_task
-        print(f"[DEBUG] 加载任务完成")
         self._load_task = None
         self._notify_data_changed()
 
@@ -181,133 +224,184 @@ class SegmentController:
                 return True
         return False
 
+    # ===== 排除区间自适应分区 =====
+    def _merge_excluded_ranges(self) -> List[Tuple[float, float]]:
+        if not self.excluded_ranges:
+            return []
+        sorted_ranges = sorted(self.excluded_ranges, key=lambda x: x[0])
+        merged = []
+        for start, end in sorted_ranges:
+            if not merged or start > merged[-1][1]:
+                merged.append([start, end])
+            else:
+                merged[-1][1] = max(merged[-1][1], end)
+        return [(s, e) for s, e in merged]
+
+    def _get_available_intervals(self, merged_exclusions: List[Tuple[float, float]]) -> List[Tuple[float, float]]:
+        if not merged_exclusions:
+            return [(0.0, self.duration)]
+        available = []
+        current = 0.0
+        for start, end in merged_exclusions:
+            if start > current:
+                available.append((current, min(start, self.duration)))
+            current = max(current, end)
+        if current < self.duration:
+            available.append((current, self.duration))
+        return [(s, e) for s, e in available if e - s > 0.001]
+
+    def _map_available_to_original(self, avail_time: float, available_intervals: List[Tuple[float, float]]) -> float:
+        cum = 0.0
+        for start, end in available_intervals:
+            length = end - start
+            if cum + length > avail_time or abs(cum + length - avail_time) < 0.0001:
+                return start + (avail_time - cum)
+            cum += length
+        if available_intervals:
+            return available_intervals[-1][1]
+        return 0.0
+
+    def _recalculate_segments_with_exclusions(self):
+        if not self.video_path or self.duration <= 0:
+            return
+        if self.num_segments == -1:
+            return
+        merged = self._merge_excluded_ranges()
+        available = self._get_available_intervals(merged)
+        if not available:
+            self.segments = []
+            self._notify_data_changed()
+            logger.warning("整个视频被排除区间覆盖")
+            return
+        total_available = sum(end - start for start, end in available)
+        if total_available <= 0.1:
+            self.segments = []
+            self._notify_data_changed()
+            logger.warning("可用时长过短")
+            return
+        if abs(total_available - self.duration) < 0.1:
+            self.segments = calculate_segments(self.duration, self.num_segments)
+            return
+        seg_duration = total_available / self.num_segments
+        if seg_duration < 1.0:
+            new_num = max(3, int(total_available // 1.0))
+            if new_num != self.num_segments:
+                logger.info(f"调整分区数 {self.num_segments} -> {new_num}")
+                self.num_segments = new_num
+            seg_duration = total_available / self.num_segments
+        new_segments = []
+        for i in range(self.num_segments):
+            start_avail = i * seg_duration
+            end_avail = (i + 1) * seg_duration
+            start_orig = self._map_available_to_original(start_avail, available)
+            end_orig = self._map_available_to_original(end_avail, available)
+            label = chr(ord('A') + i)
+            new_segments.append((label, max(0, start_orig), min(self.duration, end_orig)))
+        self.segments = new_segments
+        self._notify_data_changed()
+        logger.info(f"重新划分分区，共 {len(self.segments)} 个")
+
     async def _load_segment(self, seg_idx: int, restore_locks: bool = True, randomize: bool = False):
         print(f"[DEBUG] ========== _load_segment 开始: seg_idx={seg_idx} ==========")
-        if not self.video_path:
-            print("[DEBUG] _load_segment 返回: video_path 为空"); return
-        if not self.segments:
-            print("[DEBUG] _load_segment 返回: segments 为空"); return
+        if not self.video_path or not self.segments:
+            return
         if seg_idx < 0 or seg_idx >= len(self.segments):
-            print(f"[DEBUG] _load_segment 返回: seg_idx={seg_idx} 超出范围"); return
-        current_task = asyncio.current_task()
-        if current_task and current_task.cancelled():
-            print(f"[DEBUG] 分段 {seg_idx} 加载被取消"); return
+            return
         label, start, end = self.segments[seg_idx]
-        print(f"[DEBUG] 加载分区 {label}: {start:.1f}s - {end:.1f}s")
         seg_key = label
-        if seg_key in self.loaded_segments and not randomize:
-            print(f"[DEBUG] 分区 {label} 已加载，但继续执行加载（刷新数据）")
         offset = (end - start) * self.skip_ratio
-        start_cropped = start + offset; end_cropped = end - offset
-        if end_cropped <= start_cropped: start_cropped = start; end_cropped = end
+        start_cropped = start + offset
+        end_cropped = end - offset
+        if end_cropped <= start_cropped:
+            start_cropped = start
+            end_cropped = end
         count = self.density
         old_items = self.screenshots.get(seg_key, [])
-        new_times = [random.uniform(start_cropped, end_cropped) for _ in range(count)]
-        new_times.sort()
-        valid_times = []
+
+        # 生成随机时间点
+        new_times = []
         attempts = 0
         max_attempts = 1000 * count
-        sample_t = random.uniform(start_cropped, end_cropped)
-        if self._is_time_excluded(sample_t):
-            all_excluded = True
-            for _ in range(10):
-                t = random.uniform(start_cropped, end_cropped)
-                if not self._is_time_excluded(t):
-                    all_excluded = False
-                    break
-            if all_excluded:
-                print(f"[DEBUG] 分区 {label} 全部被排除区间覆盖，不生成截图")
-                self.screenshots[seg_key] = []
-                self.loaded_segments.add(label)
-                self._notify_progress(f"{label} 全部被排除，无截图")
-                self._notify_data_changed()
-                return
-        for t in new_times:
-            if not self._is_time_excluded(t):
-                valid_times.append(t)
-        while len(valid_times) < count and attempts < max_attempts:
+        while len(new_times) < count and attempts < max_attempts:
             t = random.uniform(start_cropped, end_cropped)
             if not self._is_time_excluded(t):
-                valid_times.append(t)
+                new_times.append(t)
             attempts += 1
-        if len(valid_times) > count:
-            valid_times = valid_times[:count]
-        valid_times.sort()
-        new_times = valid_times
-        count = len(new_times)
-        new_items = []; reused_count = 0; total = len(new_times)
+        if len(new_times) == 0:
+            self.screenshots[seg_key] = []
+            self.loaded_segments.add(label)
+            self._notify_progress(f"{label} 无可生成截图")
+            self._notify_data_changed()
+            return
+        new_times.sort()
+        new_items = []
+        for t in new_times:
+            new_items.append({'time': t, 'path': None, 'locked': False, 'favorite': False, 'exported': False})
+        self.screenshots[seg_key] = new_items
+        self.loaded_segments.add(label)
+        self._notify_data_changed()
+
+        # 复用缓存
         old_items_sorted = sorted(old_items, key=lambda x: x['time'])
         old_times = [item['time'] for item in old_items_sorted]
-        placeholder_items = []
-        for t in new_times:
-            placeholder_items.append({'time': t, 'path': None, 'locked': False, 'favorite': False, 'exported': False})
-        self.screenshots[seg_key] = placeholder_items
-        self._notify_data_changed()
+        reused_count = 0
         for idx, t in enumerate(new_times):
-            if current_task and current_task.cancelled():
-                print(f"[DEBUG] 分段加载被取消: idx={idx}"); return
-            matched = None; best_match_idx = -1
+            matched = None
             for i, old_t in enumerate(old_times):
                 if abs(old_t - t) < 1.0:
-                    best_match_idx = i; break
-            if best_match_idx >= 0:
-                matched = old_items_sorted[best_match_idx]
-            if matched and matched.get('path') and os.path.exists(matched['path']) and os.path.getsize(matched['path']) > 0:
-                new_items.append({'time': t, 'path': matched['path'], 'locked': matched.get('locked', False), 'favorite': matched.get('favorite', False), 'exported': matched.get('exported', False)})
+                    matched = old_items_sorted[i]
+                    break
+            if matched and matched.get('path') and os.path.exists(matched['path']):
+                new_items[idx]['path'] = matched['path']
+                new_items[idx]['locked'] = matched.get('locked', False)
+                new_items[idx]['favorite'] = matched.get('favorite', False)
+                new_items[idx]['exported'] = matched.get('exported', False)
                 reused_count += 1
-                if seg_key not in self.screenshots:
-                    placeholder_items = []
-                    for tmp_t in new_times:
-                        placeholder_items.append({'time': tmp_t, 'path': None, 'locked': False, 'favorite': False, 'exported': False})
-                    self.screenshots[seg_key] = placeholder_items
-                self.screenshots[seg_key][idx] = new_items[-1]
-                self._notify_data_changed()
+
+        # 逐个提取未复用的帧
+        total = len(new_times)
+        for idx, item in enumerate(new_items):
+            if item['path'] is not None:
                 continue
-            success = False
-            temp_path = None
+            t = item['time']
             retry_t = t
+            success = False
             for retry in range(3):
                 temp_path = os.path.join(self.temp_dir, f"seg_{label}_{retry_t:.2f}_{retry}.jpg")
                 self._notify_progress(f"正在生成 {label} 第 {idx+1}/{total} 张 @ {retry_t:.2f}s (尝试{retry+1})")
                 try:
                     async with self._ffmpeg_semaphore:
-                        success = await asyncio.to_thread(extract_frame, self.video_path, retry_t, temp_path, retries=1)
-                    if success and os.path.exists(temp_path) and os.path.getsize(temp_path) > 0:
+                        ok, _ = await extract_frame_async(self.video_path, retry_t, temp_path, retries=1)
+                    if ok and os.path.exists(temp_path) and os.path.getsize(temp_path) > 0:
+                        item['path'] = temp_path
+                        item['time'] = retry_t
+                        success = True
                         break
                     else:
-                        offset = random.uniform(-1.0, 1.0)
-                        retry_t = t + offset
+                        # 偏移重试
+                        offset2 = random.uniform(-1.0, 1.0)
+                        retry_t = t + offset2
                         retry_t = max(start_cropped, min(end_cropped, retry_t))
                         while self._is_time_excluded(retry_t):
-                            offset = random.uniform(-1.0, 1.0)
-                            retry_t = t + offset
+                            offset2 = random.uniform(-1.0, 1.0)
+                            retry_t = t + offset2
                             retry_t = max(start_cropped, min(end_cropped, retry_t))
                 except asyncio.CancelledError:
-                    if os.path.exists(temp_path):
-                        try: os.remove(temp_path)
-                        except: pass
+                    # 取消时直接退出
                     raise
-            if success:
-                new_items.append({'time': retry_t, 'path': temp_path, 'locked': False, 'favorite': False, 'exported': False})
-            else:
+            if not success:
                 logger.warning(f"分区 {label} 时间点 {t:.2f}s 提取失败，保留占位图")
-                new_items.append({'time': t, 'path': None, 'locked': False, 'favorite': False, 'exported': False})
-            if seg_key not in self.screenshots:
-                placeholder_items = []
-                for tmp_t in new_times:
-                    placeholder_items.append({'time': tmp_t, 'path': None, 'locked': False, 'favorite': False, 'exported': False})
-                self.screenshots[seg_key] = placeholder_items
-            self.screenshots[seg_key][idx] = new_items[-1]
+                item['path'] = None
+            # 每处理一张刷新界面
             self._notify_data_changed()
-        if current_task and current_task.cancelled():
-            print(f"[DEBUG] 分段加载完成后被取消"); return
-        self.screenshots[seg_key] = new_items
-        self.loaded_segments.add(label)
+            self._notify_progress(f"{label} {idx+1}/{total} 完成")
+
         self._restore_favorites_to_screenshots()
         self._notify_progress(f"{label} 分段加载完成 ({len(new_items)} 张, 复用 {reused_count} 张)")
         self._notify_data_changed()
         print(f"[DEBUG] ========== _load_segment 完成: {label} ==========")
 
+    # ---------- 以下方法保持不变（收藏、导出、撤销、缓存等） ----------
     def _save_favorite_to_nas(self, seg_label: str, time_sec: float, source_path: str) -> str:
         dest_path = self._get_favorite_path(seg_label, time_sec)
         try:
@@ -528,21 +622,28 @@ class SegmentController:
         if not unlocked_positions: return 0
         locked_times = [item['time'] for item in items if item.get('locked', False)]
         refreshed = 0; total = len(unlocked_positions)
-        for idx, pos in enumerate(unlocked_positions):
-            self._notify_progress(f"刷新未锁定 {idx+1}/{total}")
+
+        for pos in unlocked_positions:
+            # 生成随机时间避开锁定和排除
             for _ in range(20):
                 t = random.uniform(start_cropped, end_cropped)
                 if self._is_time_excluded(t):
                     continue
                 if all(abs(t - lt) > 0.5 for lt in locked_times):
                     break
-            temp_path = os.path.join(self.temp_dir, f"seg_{seg_label}_{t:.2f}_new.jpg")
+            temp_path = os.path.join(self.temp_dir, f"seg_{seg_label}_{t:.2f}_refresh.jpg")
             try:
                 async with self._ffmpeg_semaphore:
-                    success = await asyncio.to_thread(extract_frame, self.video_path, t, temp_path, retries=1)
-                if success:
-                    items[pos]['time'] = t; items[pos]['path'] = temp_path; items[pos]['locked'] = False; refreshed += 1
-            except asyncio.CancelledError: raise
+                    ok, _ = await extract_frame_async(self.video_path, t, temp_path, retries=1)
+                if ok:
+                    items[pos]['time'] = t
+                    items[pos]['path'] = temp_path
+                    items[pos]['locked'] = False
+                    refreshed += 1
+                    self._notify_data_changed()
+                    self._notify_progress(f"刷新中... {refreshed}/{total}")
+            except asyncio.CancelledError:
+                raise
         if refreshed > 0: self._notify_data_changed()
         self._notify_progress(f"刷新完成: {refreshed} 张")
         return refreshed
@@ -578,9 +679,8 @@ class SegmentController:
     def get_loaded_segments(self) -> Set[str]: return self.loaded_segments
     def is_segment_loaded(self, seg_label: str) -> bool: return seg_label in self.loaded_segments
 
-    # ====== 缓存统计与清理（全局历史缓存） ======
+    # ====== 缓存统计与清理 ======
     def _get_all_cache_dirs(self) -> List[str]:
-        """获取 %TEMP% 下所有 CoverPicker_* 目录路径"""
         temp_root = tempfile.gettempdir()
         try:
             entries = os.listdir(temp_root)
@@ -595,7 +695,6 @@ class SegmentController:
             return []
 
     def get_cache_size(self) -> int:
-        """汇总所有历史缓存目录的总大小（字节）"""
         total = 0
         for d in self._get_all_cache_dirs():
             for root, dirs, files in os.walk(d):
@@ -613,7 +712,6 @@ class SegmentController:
         return self.get_cache_size() / (1024 * 1024 * 1024)
 
     def get_cache_file_count(self) -> int:
-        """汇总所有历史缓存目录的文件总数"""
         count = 0
         for d in self._get_all_cache_dirs():
             for root, dirs, files in os.walk(d):
@@ -621,26 +719,19 @@ class SegmentController:
         return count
 
     def clear_cache(self) -> int:
-        """
-        清理所有历史缓存目录（包括当前会话的临时目录）
-        返回被删除的文件总数
-        """
         total_files = 0
         current_dir = self.temp_dir
         cache_dirs = self._get_all_cache_dirs()
         for d in cache_dirs:
             try:
-                # 统计文件数
                 file_count = 0
                 for root, dirs, files in os.walk(d):
                     file_count += len(files)
                 total_files += file_count
-                # 删除整个目录
                 shutil.rmtree(d, ignore_errors=True)
                 logger.info(f"已删除缓存目录: {d} ({file_count} 个文件)")
             except Exception as e:
                 logger.error(f"删除缓存目录失败 {d}: {e}")
-        # 重新创建当前会话的临时目录（如果已被删除）
         if not os.path.exists(current_dir):
             try:
                 os.makedirs(current_dir, exist_ok=True)
@@ -648,9 +739,6 @@ class SegmentController:
             except Exception as e:
                 logger.error(f"重新创建临时目录失败: {e}")
         return total_files
-
-    # ====== 原有缓存统计方法保留（现已汇总） ======
-    # 注意：下面的方法已被覆盖，但为了兼容旧调用，保留名称指向新实现。
 
     def remove_video(self, video_path: str) -> bool:
         video_data = self.db.get_video_by_path(video_path)
@@ -665,7 +753,6 @@ class SegmentController:
         except: return False
 
     def auto_clean_cache(self, threshold_gb: float = 5.0) -> Tuple[int, float]:
-        # 此功能暂不使用，保留空实现
         return 0, 0.0
 
     def _restore_favorites_from_db(self):
@@ -745,6 +832,6 @@ class SegmentController:
     def cleanup(self):
         if self._load_task and not self._load_task.done(): self._load_task.cancel()
         if self.video_id and self.video_path: self._save_state_to_db()
-        # 注意：cleanup 时不会删除当前临时目录，但用户可以通过清理缓存手动删除
-        shutil.rmtree(self.temp_dir, ignore_errors=True)
+        # 不删除缓存目录
+        # shutil.rmtree(self.temp_dir, ignore_errors=True)
         self.db.close()

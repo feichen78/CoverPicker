@@ -341,3 +341,8 @@ git push -u origin main
 不要激活虚拟环境，直接在当前 CMD 中运行（系统 Python 环境）
 cd C:\Personal\CoverPicker
 pyinstaller --onedir --name CoverPicker --windowed --paths .venv\Lib\site-packages --collect-all PySide6 --collect-all shiboken6 --hidden-import qasync --hidden-import src.database --hidden-import src.video_scanner --hidden-import src.controllers.segment_controller --noconfirm main.py
+
+在项目根目录（C:\Personal\CoverPicker\）打开PowerShell，执行以下命令删除所有 __pycache__ 目录：
+
+powershell
+Get-ChildItem -Path . -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
