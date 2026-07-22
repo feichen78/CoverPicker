@@ -1,5 +1,6 @@
 # ui/views/segment_view.py
-# 修改：on_density_changed 中增加取消当前任务并等待，避免任务冲突
+# 修复：favorite_selected/unfavorite_selected/lock_selected/unlock_selected 操作后调用 _refresh_grid 刷新选中状态
+# 确保收藏/取消收藏/锁定/解锁后蓝点正确消失
 
 import os, asyncio, logging, traceback
 from typing import List, Set, Tuple
@@ -211,7 +212,6 @@ class SegmentView(QWidget):
         seg_group = QHBoxLayout(); seg_group.setSpacing(2); seg_group.setContentsMargins(0,0,0,0); self.seg_buttons_layout = seg_group; control_bar.addLayout(seg_group,1)
         seg_count_label = QLabel("分区:"); seg_count_label.setFont(QFont("Arial",9)); control_bar.addWidget(seg_count_label)
         self.seg_count_combo = QComboBox(); self.seg_count_combo.setFixedWidth(44); self.seg_count_combo.setFont(QFont("Arial",9))
-        # 修改：分区范围从 3~7 改为 1~5，默认选中 3
         for i in range(1, 6):
             self.seg_count_combo.addItem(str(i), i)
         self.seg_count_combo.setCurrentIndex(self.seg_count_combo.findData(3))
@@ -281,7 +281,6 @@ class SegmentView(QWidget):
             for root, subdirs, _ in os.walk(d):
                 for sub in subdirs:
                     sub_path = os.path.join(root, sub)
-                    # 跳过 _covers 目录（收藏截图目录），避免无效监控
                     if os.path.basename(sub_path).endswith("_covers"):
                         continue
                     if sub_path not in self.watcher.directories():
@@ -1085,6 +1084,8 @@ class SegmentView(QWidget):
         dlg.exec()
         self._refresh_grid()
 
+    # ========== 修复：操作后强制刷新网格，确保选中状态同步 ==========
+
     def favorite_selected(self):
         if not self.selected_indices:
             QMessageBox.information(self, "提示", "请先选中要收藏的截图。")
@@ -1095,6 +1096,7 @@ class SegmentView(QWidget):
         if added > 0:
             self.selected_indices.clear()
             self._update_select_all_state()
+            self._refresh_grid()  # 强制刷新，清除蓝点
             QMessageBox.information(self, "完成", f"成功收藏 {added} 张截图。")
         else:
             QMessageBox.information(self, "提示", "选中的截图已经收藏过了。")
@@ -1109,6 +1111,7 @@ class SegmentView(QWidget):
         if removed > 0:
             self.selected_indices.clear()
             self._update_select_all_state()
+            self._refresh_grid()  # 强制刷新，清除蓝点
             QMessageBox.information(self, "完成", f"成功取消收藏 {removed} 张截图。")
         else:
             QMessageBox.information(self, "提示", "未找到要取消收藏的截图。")
@@ -1122,6 +1125,7 @@ class SegmentView(QWidget):
         self.controller.lock_selected(seg_label, positions)
         self.selected_indices.clear()
         self._update_select_all_state()
+        self._refresh_grid()  # 强制刷新，清除蓝点
 
     def unlock_selected(self):
         if not self.selected_indices:
@@ -1132,6 +1136,9 @@ class SegmentView(QWidget):
         self.controller.unlock_selected(seg_label, positions)
         self.selected_indices.clear()
         self._update_select_all_state()
+        self._refresh_grid()  # 强制刷新，清除蓝点
+
+    # ========== 以上方法修复完成 ==========
 
     async def refresh_unlocked(self):
         seg_idx = self.controller.current_seg_index
@@ -1152,7 +1159,6 @@ class SegmentView(QWidget):
         if not self.selected_indices:
             QMessageBox.information(self, "提示", "请先选中要导出的截图。")
             return
-        # 使用记忆的上次导出目录
         default_dir = self.config.get_last_export_dir() or os.path.expanduser("~")
         export_dir = QFileDialog.getExistingDirectory(
             self,
@@ -1162,7 +1168,6 @@ class SegmentView(QWidget):
         )
         if not export_dir:
             return
-        # 保存本次选择的目录
         self.config.set_last_export_dir(export_dir)
 
         seg_label, _, _ = self.controller.get_current_segment()
@@ -1173,6 +1178,7 @@ class SegmentView(QWidget):
             return
         self.selected_indices.clear()
         self._update_select_all_state()
+        self._refresh_all_video_icons()  # 刷新视频列表状态图标
         QMessageBox.information(self, "导出完成", f"成功导出 {exported} 张截图到:\n{export_dir}")
 
     def _update_undo_redo_buttons(self):
@@ -1214,16 +1220,12 @@ class SegmentView(QWidget):
         self._refresh_grid()
 
     def on_density_changed(self, val: int):
-        # 先取消当前正在进行的加载任务，避免任务冲突
         if self.controller._load_task and not self.controller._load_task.done():
             self.controller._load_task.cancel()
-            # 等待取消完成（但为了避免阻塞UI，使用同步等待，但因为是异步的，我们简单处理）
-            # 最好使用事件循环，但这里通过让出事件循环来确保取消有机会执行
         self.controller.density = val
         for btn in self.density_buttons:
             btn.setChecked(int(btn.text()) == val)
         if self.controller.get_video_path():
-            # 重新加载当前分区
             asyncio.create_task(self.controller.load_segment(self.controller.current_seg_index, restore_locks=True, randomize=False))
 
     def closeEvent(self, event):

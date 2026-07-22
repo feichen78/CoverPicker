@@ -1,5 +1,5 @@
 # ui/dialogs/favorites_dialog.py
-# 收藏弹窗 - 按分区分组显示，自适应列数，保持图片比例
+# 所有收藏截图统一缩放到 400x225，QFlowLayout 排列（每行最多5列），滚动查看
 
 import os
 import logging
@@ -7,14 +7,102 @@ from typing import List, Dict, Optional, Set
 from functools import partial
 
 from PySide6.QtWidgets import *
-from PySide6.QtCore import Qt, QTimer, QSize
-from PySide6.QtGui import QPixmap, QFont, QColor, QAction, QKeyEvent, QResizeEvent
+from PySide6.QtCore import Qt, QTimer, QSize, QPoint, QRect
+from PySide6.QtGui import QPixmap, QFont, QColor, QAction, QKeyEvent, QResizeEvent, QPainter
 
 from ui.widgets import FavImageLabel
 from ui.views.zoom_dialog import ZoomDialog
 from ui.views.zoom_preview import ZoomPreviewDialog
 
 logger = logging.getLogger(__name__)
+
+
+class QFlowLayout(QLayout):
+    """简单的流式布局，每行最多5列"""
+    def __init__(self, parent=None, margin=4, h_spacing=6, v_spacing=6, max_cols=5):
+        super().__init__(parent)
+        self._items = []
+        self._h_spacing = h_spacing
+        self._v_spacing = v_spacing
+        self._max_cols = max_cols
+        if parent:
+            self.setContentsMargins(margin, margin, margin, margin)
+
+    def addItem(self, item):
+        self._items.append(item)
+
+    def count(self):
+        return len(self._items)
+
+    def itemAt(self, index):
+        return self._items[index] if 0 <= index < len(self._items) else None
+
+    def takeAt(self, index):
+        if 0 <= index < len(self._items):
+            return self._items.pop(index)
+        return None
+
+    def expandingDirections(self):
+        return Qt.Orientation(0)
+
+    def hasHeightForWidth(self):
+        return True
+
+    def heightForWidth(self, width):
+        if width <= 0:
+            return 100  # 返回一个默认高度，避免初始化时高度为0
+        return self._do_layout(QRect(0, 0, max(width, 100), 0), True)
+
+    def setGeometry(self, rect):
+        super().setGeometry(rect)
+        self._do_layout(rect, False)
+
+    def sizeHint(self):
+        return self.minimumSize()
+
+    def minimumSize(self):
+        size = QSize()
+        for item in self._items:
+            size = size.expandedTo(item.minimumSize())
+        margin = self.contentsMargins()
+        size += QSize(margin.left() + margin.right(), margin.top() + margin.bottom())
+        return size
+
+    def _do_layout(self, rect, test_only):
+        x = rect.x()
+        y = rect.y()
+        line_height = 0
+        items_in_row = 0
+        spacing = self._h_spacing
+        margin = self.contentsMargins()
+        x += margin.left()
+        y += margin.top()
+        max_width = rect.width() - margin.left() - margin.right()
+
+        for item in self._items:
+            widget = item.widget()
+            if widget and not widget.isVisible():
+                continue
+            item_size = item.sizeHint()
+            item_width = item_size.width()
+            item_height = item_size.height()
+
+            # 每行最多 _max_cols 列
+            next_x = x + item_width + spacing
+            if (next_x - spacing > max_width or items_in_row >= self._max_cols) and line_height > 0:
+                x = rect.x() + margin.left()
+                y = y + line_height + self._v_spacing
+                next_x = x + item_width + spacing
+                line_height = 0
+                items_in_row = 0
+
+            if not test_only:
+                item.setGeometry(QRect(QPoint(x, y), item_size))
+            x = next_x
+            line_height = max(line_height, item_height)
+            items_in_row += 1
+
+        return y + line_height - rect.y()
 
 
 class FavoritesDialog(QDialog):
@@ -25,15 +113,19 @@ class FavoritesDialog(QDialog):
 
         self.setMinimumSize(700, 500)
         self.resize(900, 650)
-        self.setWindowFlags(self.windowFlags() | Qt.WindowMaximizeButtonHint)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowMinimizeButtonHint | Qt.WindowMaximizeButtonHint)
 
         self.parent_view = parent
         self.controller = parent.controller if parent else None
         self.current_favorites = favorites.copy()
         self.export_base = export_base
         self.video_path = video_path
-        self.selected_indices: Set[int] = set()  # 存储 (group_index, item_index) 的编码
-        self.image_labels: List[tuple] = []  # 存储 (label, group_index, item_index)
+        self.selected_indices: Set[int] = set()
+        self.image_labels: List[tuple] = []
+
+        # 固定缩略图尺寸（保持宽高比）
+        self.thumb_width = 400
+        self.thumb_height = 225
 
         self.setup_ui()
         self._refresh_favorites()
@@ -73,7 +165,7 @@ class FavoritesDialog(QDialog):
         self.container_widget = QWidget()
         self.container_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.container_layout = QVBoxLayout(self.container_widget)
-        self.container_layout.setSpacing(12)
+        self.container_layout.setSpacing(8)
         self.container_layout.setContentsMargins(4, 4, 4, 4)
 
         self.scroll.setWidget(self.container_widget)
@@ -83,12 +175,12 @@ class FavoritesDialog(QDialog):
         bottom_bar = QHBoxLayout()
         bottom_bar.setSpacing(6)
 
+        bottom_bar.addStretch()
+
         self.select_all_btn = QPushButton("☑ 全选")
         self.select_all_btn.setCheckable(True)
         self.select_all_btn.clicked.connect(self.toggle_select_all)
         bottom_bar.addWidget(self.select_all_btn)
-
-        bottom_bar.addStretch()
 
         self.fav_btn = QPushButton("⭐ 收藏")
         self.fav_btn.setStyleSheet("background:#FF9800;color:white;font-weight:bold;")
@@ -115,6 +207,8 @@ class FavoritesDialog(QDialog):
         self.replace_btn.clicked.connect(self.replace_selected)
         bottom_bar.addWidget(self.replace_btn)
 
+        bottom_bar.addStretch()
+
         main_layout.addLayout(bottom_bar)
 
         self.progress_label = QLabel("")
@@ -124,8 +218,7 @@ class FavoritesDialog(QDialog):
         self.setFocusPolicy(Qt.StrongFocus)
 
     def _refresh_favorites(self):
-        """按分区分组刷新收藏列表"""
-        # 清空容器
+        """使用 QFlowLayout 排列所有收藏截图，每行最多5列"""
         while self.container_layout.count():
             child = self.container_layout.takeAt(0)
             if child.widget():
@@ -134,7 +227,6 @@ class FavoritesDialog(QDialog):
         self.selected_indices.clear()
 
         count = len(self.current_favorites)
-        # 更新窗口标题
         self.setWindowTitle(f"⭐ 收藏 - {self.video_name} ({count} 张)")
         self.title_label.setText(f"⭐ 收藏截图 ({count} 张)")
 
@@ -153,94 +245,79 @@ class FavoritesDialog(QDialog):
                 groups[seg] = []
             groups[seg].append(fav)
 
-        # 按分区标签排序（A, B, C, ...）
         sorted_segments = sorted(groups.keys(), key=lambda x: (len(x), x) if x.isalpha() else (99, x))
-
-        # 获取当前窗口宽度用于计算列数
-        container_width = self.container_widget.width()
-        if container_width < 100:
-            container_width = self.scroll.viewport().width() or 800
-
-        # 计算每行列数（根据窗口宽度自适应）
-        item_min_width = 180
-        cols = max(1, container_width // item_min_width)
-        cols = min(cols, 6)  # 最多6列
 
         for seg_label in sorted_segments:
             items = groups[seg_label]
-            # 按时间排序
-            items.sort(key=lambda x: x.get('time', 0))
+            if not items:
+                continue
 
-            # 创建分区组
-            group_widget = QWidget()
-            group_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
-            group_layout = QVBoxLayout(group_widget)
-            group_layout.setSpacing(4)
-            group_layout.setContentsMargins(0, 0, 0, 0)
+            items.sort(key=lambda x: x.get('time', 0))
 
             # 分区标题
             title_label = QLabel(f"{seg_label}区 ({len(items)} 张)")
             title_label.setFont(QFont("Arial", 11, QFont.Bold))
-            title_label.setStyleSheet("color:#FF9800;padding:2px 0;")
-            group_layout.addWidget(title_label)
+            title_label.setStyleSheet("color:#FF9800;padding:4px 0 2px 0;")
+            self.container_layout.addWidget(title_label)
 
-            # 截图网格
-            grid_widget = QWidget()
-            grid_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
-            grid_layout = QGridLayout(grid_widget)
-            grid_layout.setSpacing(4)
-            grid_layout.setContentsMargins(0, 0, 0, 0)
-
-            # 计算实际列数（基于当前窗口宽度）
-            current_cols = self._calculate_cols()
-            for c in range(current_cols):
-                grid_layout.setColumnStretch(c, 1)
+            # 该分区的截图使用流式布局，每行最多5列
+            flow_widget = QWidget()
+            flow_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+            flow_layout = QFlowLayout(flow_widget, margin=2, h_spacing=6, v_spacing=6, max_cols=5)
 
             for idx, fav in enumerate(items):
-                row = idx // current_cols
-                col = idx % current_cols
                 path = fav.get('path')
                 time_sec = fav.get('time', 0)
                 exported = fav.get('exported', False)
 
+                # 加载图片并缩放到统一尺寸（保持宽高比）
                 if path and os.path.exists(path):
                     pixmap = QPixmap(path)
                     if pixmap.isNull():
-                        pixmap = QPixmap(200, 150)
+                        pixmap = QPixmap(self.thumb_width, self.thumb_height)
                         pixmap.fill(QColor(60, 60, 60))
+                    else:
+                        # 缩放，保持宽高比
+                        scaled = pixmap.scaled(
+                            self.thumb_width,
+                            self.thumb_height,
+                            Qt.KeepAspectRatio,
+                            Qt.SmoothTransformation
+                        )
+                        # 创建目标尺寸的画布，居中放置缩放后的图片
+                        canvas = QPixmap(self.thumb_width, self.thumb_height)
+                        canvas.fill(QColor(30, 30, 30))
+                        painter = QPainter(canvas)
+                        x = (self.thumb_width - scaled.width()) // 2
+                        y = (self.thumb_height - scaled.height()) // 2
+                        painter.drawPixmap(x, y, scaled)
+                        painter.end()
+                        pixmap = canvas
                 else:
-                    pixmap = QPixmap(200, 150)
+                    pixmap = QPixmap(self.thumb_width, self.thumb_height)
                     pixmap.fill(QColor(60, 60, 60))
 
-                # 计算全局索引（用于选中状态）
                 global_idx = len(self.image_labels)
 
+                # 使用 FavImageLabel（无背景，但已缩放）
                 label = FavImageLabel(pixmap, time_sec, idx + 1)
                 label.set_favorite(True)
-                label.set_exported(exported)
+                label.set_exported(exported)  # 正确设置 exported 状态
+                label.setFixedSize(self.thumb_width, self.thumb_height)
                 if global_idx in self.selected_indices:
                     label.set_selected(True)
                 label.clicked.connect(partial(self.on_image_click, global_idx))
                 label.double_clicked.connect(partial(self.preview_image, global_idx))
 
-                grid_layout.addWidget(label, row, col)
+                flow_layout.addWidget(label)
                 self.image_labels.append((label, seg_label, idx))
 
-            group_layout.addWidget(grid_widget)
-            self.container_layout.addWidget(group_widget)
+            self.container_layout.addWidget(flow_widget)
+
+        self.container_layout.addStretch()
 
         self._update_selected_count()
         self._update_button_states()
-
-    def _calculate_cols(self) -> int:
-        """根据窗口宽度计算每行列数"""
-        viewport_width = self.scroll.viewport().width()
-        if viewport_width < 100:
-            viewport_width = 800
-        # 每个截图最小宽度 180px + 间距
-        item_width = 180
-        cols = max(1, viewport_width // item_width)
-        return min(cols, 6)
 
     def _update_selected_count(self):
         count = len(self.selected_indices)
@@ -268,7 +345,6 @@ class FavoritesDialog(QDialog):
             self.selected_indices.remove(global_idx)
         else:
             self.selected_indices.add(global_idx)
-        # 更新对应标签的选中状态
         for i, (label, seg_label, item_idx) in enumerate(self.image_labels):
             label.set_selected(i in self.selected_indices)
         self._update_selected_count()
@@ -278,7 +354,6 @@ class FavoritesDialog(QDialog):
         if global_idx >= len(self.image_labels):
             return
         label, seg_label, item_idx = self.image_labels[global_idx]
-        # 从当前收藏中查找对应的项
         fav = None
         for f in self.current_favorites:
             if f.get('segment') == seg_label and abs(f.get('time', 0) - label.timestamp) < 0.01:
@@ -408,7 +483,6 @@ class FavoritesDialog(QDialog):
             QMessageBox.information(self, "提示", "请先选中要导出的截图。")
             return
 
-        # 使用记忆的上次导出目录
         if self.parent_view and hasattr(self.parent_view, 'config'):
             default_dir = self.parent_view.config.get_last_export_dir() or os.path.expanduser("~")
         else:
@@ -422,7 +496,6 @@ class FavoritesDialog(QDialog):
         )
         if not export_dir:
             return
-        # 保存本次选择的目录
         if self.parent_view and hasattr(self.parent_view, 'config'):
             self.parent_view.config.set_last_export_dir(export_dir)
 
@@ -591,7 +664,6 @@ class FavoritesDialog(QDialog):
 
     def resizeEvent(self, event: QResizeEvent):
         super().resizeEvent(event)
-        # 窗口大小变化时刷新布局，重新计算列数
         QTimer.singleShot(50, self._refresh_favorites)
 
     def closeEvent(self, event):

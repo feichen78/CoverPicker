@@ -1,9 +1,8 @@
 # src/controllers/segment_controller.py
 # 修改：默认分区数 5 -> 3，边界 3~7 -> 1~5
 # 修改：已有视频强制重置为3分区
-# 修改：收藏标签从5分区映射到3分区（D/E -> C）
-# 修复：_load_segment 增加取消检测，避免取消后继续执行
-# 修复：增加 _cancel_current_task 的等待，确保取消完成
+# 移除：_migrate_favorite_label 分区标签迁移函数（未经用户授权擅自添加）
+# 移除：_restore_favorites_from_db 中的标签迁移逻辑
 
 import os, asyncio, random, tempfile, shutil, logging, json, multiprocessing
 from typing import Dict, List, Set, Tuple, Optional, Any
@@ -24,7 +23,6 @@ class SegmentController:
         self.video_id: Optional[int] = None
         self.duration: float = 0.0
         self.video_name: str = ""
-        # 默认分区数从 5 改为 3
         self.num_segments: int = 3
         self.segments: List[Tuple[str, float, float]] = []
         self.current_seg_index: int = 0
@@ -105,7 +103,6 @@ class SegmentController:
             filename = f"fav_{seg_label}_{time_sec:.2f}.jpg"
         return os.path.join(favorites_dir, filename)
 
-    # 边界由 3~7 改为 1~5
     def set_num_segments(self, num: int):
         if num < 1:
             num = 1
@@ -211,7 +208,6 @@ class SegmentController:
             return False
         self.duration = duration
 
-        # 强制使用 3 个分区（新默认值），覆盖已有视频的旧分区数
         self.num_segments = 3
         self.segments = calculate_segments(duration, self.num_segments)
         print(f"[DEBUG] load_video: 分区数={len(self.segments)}")
@@ -221,14 +217,12 @@ class SegmentController:
         modified_time = int(os.path.getmtime(video_path))
         self.video_id = self.db.get_or_create_video(video_path, file_name, int(duration), "", file_size, modified_time)
 
-        # 更新数据库中的 segment 表，确保与新的分区结构匹配
         for label, start, end in self.segments:
             self.db.get_or_create_segment(self.video_id, label, int(start), int(end))
 
         self.load_excluded_ranges_from_db()
         self.favorites = []
 
-        # 从数据库恢复收藏，并迁移分区标签（5分区 → 3分区）
         self._restore_favorites_from_db()
 
         self.screenshots = {}
@@ -270,7 +264,6 @@ class SegmentController:
                 return True
         return False
 
-    # ===== 排除区间自适应分区 =====
     def _merge_excluded_ranges(self) -> List[Tuple[float, float]]:
         if not self.excluded_ranges:
             return []
@@ -329,7 +322,6 @@ class SegmentController:
             self.segments = calculate_segments(self.duration, self.num_segments)
             return
         seg_duration = total_available / self.num_segments
-        # 支持 1 个分区
         if seg_duration < 1.0:
             new_num = max(1, int(total_available // 1.0))
             if new_num != self.num_segments:
@@ -430,8 +422,6 @@ class SegmentController:
                     else:
                         logger.warning(f"提取帧失败 (尝试{retry+1}): {label} @ {retry_t:.2f}s")
                 except asyncio.CancelledError:
-                    # 任务取消，重新抛出并退出循环
-                    logger.debug(f"提取帧被取消: {label} @ {retry_t:.2f}s")
                     raise
                 except Exception as e:
                     logger.error(f"提取帧异常 (尝试{retry+1}): {e}")
@@ -439,7 +429,6 @@ class SegmentController:
             if not success:
                 logger.warning(f"分区 {label} 时间点 {t:.2f}s 提取失败，保留占位图")
                 item['path'] = None
-            # 每处理完一张就刷新界面
             self._notify_data_changed()
             self._notify_progress(f"{label} {idx+1}/{total} 完成")
 
@@ -807,7 +796,6 @@ class SegmentController:
 
     def is_segment_loaded(self, seg_label: str) -> bool: return seg_label in self.loaded_segments
 
-    # ====== 缓存统计与清理 ======
     def _get_all_cache_dirs(self) -> List[str]:
         temp_root = tempfile.gettempdir()
         try:
@@ -883,15 +871,8 @@ class SegmentController:
     def auto_clean_cache(self, threshold_gb: float = 5.0) -> Tuple[int, float]:
         return 0, 0.0
 
-    # ====== 收藏标签迁移（5分区 → 3分区） ======
-    def _migrate_favorite_label(self, old_label: str) -> str:
-        """将旧的5分区标签映射到新的3分区标签"""
-        # 映射规则：A→A, B→B, C→C, D→C, E→C
-        if old_label in ('D', 'E'):
-            return 'C'
-        return old_label
-
     def _restore_favorites_from_db(self):
+        """从数据库恢复收藏，直接使用原始 segment_label，不做任何迁移"""
         if not self.video_path or not self.video_id:
             return
         db_favs = self.db.get_favorites(self.video_id)
@@ -902,25 +883,10 @@ class SegmentController:
         self.favorites = []
         favorites_dir = self._get_favorites_dir()
         video_dir = os.path.dirname(self.video_path)
-        # 当前分区数（强制为3）
-        current_num_segments = self.num_segments
 
         for fav in db_favs:
-            old_label = fav['segment_label']
-            # 应用标签映射
-            new_label = self._migrate_favorite_label(old_label)
-
-            # 如果映射后的标签与原标签不同，更新数据库
-            if new_label != old_label:
-                logger.info(f"迁移收藏标签: {old_label} -> {new_label} (视频: {self.video_name})")
-                # 直接更新数据库中的收藏标签
-                conn = self.db._get_conn()
-                cursor = conn.cursor()
-                cursor.execute(
-                    "UPDATE favorites SET segment_label = ? WHERE video_id = ? AND segment_label = ? AND timestamp_ms = ?",
-                    (new_label, self.video_id, old_label, fav['timestamp_ms'])
-                )
-                conn.commit()
+            # 直接使用数据库中的原始 segment_label，不做迁移
+            seg_label = fav['segment_label']
 
             exported = bool(fav.get('is_exported', 0))
             thumb_path = fav.get('thumbnail_path', '')
@@ -944,7 +910,7 @@ class SegmentController:
 
             self.favorites.append({
                 'video_path': self.video_path,
-                'segment': new_label,
+                'segment': seg_label,
                 'time': fav['timestamp_ms'] / 1000,
                 'path': path,
                 'exported': exported,

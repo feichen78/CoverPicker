@@ -1,5 +1,6 @@
 # ui/widgets/image_labels.py
-# 修复：添加 QRect 导入，解决 NameError 崩溃
+# 收藏窗口图片不缩放，显示原始尺寸
+# 增加 allow_background 参数，收藏窗口关闭背景
 
 import os
 import logging
@@ -14,7 +15,7 @@ class ClickableLabel(QLabel):
     clicked = Signal(int)
     double_clicked = Signal(int)
 
-    def __init__(self, pixmap, timestamp, index_num, parent=None):
+    def __init__(self, pixmap, timestamp, index_num, parent=None, allow_background: bool = True, allow_scale: bool = True):
         super().__init__(parent)
         self.original_pixmap = pixmap
         self.timestamp = timestamp
@@ -24,6 +25,8 @@ class ClickableLabel(QLabel):
         self.is_favorite = False
         self.is_exported = False
         self.is_loading = False
+        self.allow_background = allow_background
+        self.allow_scale = allow_scale
         self.setScaledContents(False)
         self.setAlignment(Qt.AlignCenter)
         self.setMinimumSize(100, 80)
@@ -65,41 +68,45 @@ class ClickableLabel(QLabel):
             painter.setPen(QColor(200, 200, 200))
             painter.drawText(rect, Qt.AlignCenter, "加载中...")
         else:
-            painter.fillRect(rect, QColor(50, 50, 50))
-            scaled = self.original_pixmap.scaled(
-                img_rect.size(),
-                Qt.KeepAspectRatio,
-                Qt.SmoothTransformation
-            )
-            x = img_rect.x() + (img_rect.width() - scaled.width()) // 2
-            y = img_rect.y() + (img_rect.height() - scaled.height()) // 2
-            painter.drawPixmap(x, y, scaled)
+            if self.allow_background:
+                painter.fillRect(rect, QColor(50, 50, 50))
 
-        # 选中边框
+            if self.allow_scale:
+                scaled = self.original_pixmap.scaled(
+                    img_rect.size(),
+                    Qt.KeepAspectRatio,
+                    Qt.SmoothTransformation
+                )
+                x = img_rect.x() + (img_rect.width() - scaled.width()) // 2
+                y = img_rect.y() + (img_rect.height() - scaled.height()) // 2
+                painter.drawPixmap(x, y, scaled)
+            else:
+                # 不缩放：直接绘制原始尺寸，居中显示
+                pix = self.original_pixmap
+                x = img_rect.x() + (img_rect.width() - pix.width()) // 2
+                y = img_rect.y() + (img_rect.height() - pix.height()) // 2
+                painter.drawPixmap(x, y, pix)
+
         if self.is_selected:
             painter.setPen(QPen(QColor(41, 128, 185), 2))
             painter.setBrush(Qt.NoBrush)
             painter.drawRect(rect)
 
-        # 状态标记
         font = QFont("Arial", 8)
         painter.setFont(font)
 
-        # 序号（左上角）
         painter.setPen(QColor(255, 255, 255))
         painter.drawText(rect.left() + 4, rect.top() + 14, str(self.index_num))
 
-        # ===== 时间戳（右上角，黑底白字矩形块，格式 h:mm:ss） =====
         hours = int(self.timestamp // 3600)
         minutes = int((self.timestamp % 3600) // 60)
         seconds = int(self.timestamp % 60)
-        time_str = f"{hours}:{minutes:02d}:{seconds:02d}"  # 小时不补零
+        time_str = f"{hours}:{minutes:02d}:{seconds:02d}"
 
         painter.setFont(QFont("Arial", 9, QFont.Bold))
         fm = painter.fontMetrics()
         text_rect = fm.boundingRect(time_str)
 
-        # 矩形块边距
         padding = 3
         bg_rect = QRect(
             rect.right() - text_rect.width() - 6 - padding,
@@ -107,9 +114,7 @@ class ClickableLabel(QLabel):
             text_rect.width() + 2 * padding,
             text_rect.height() + 2 * padding
         )
-        # 绘制黑色背景
         painter.fillRect(bg_rect, QColor(0, 0, 0))
-        # 绘制白色文字
         painter.setPen(QColor(255, 255, 255))
         painter.drawText(
             rect.right() - text_rect.width() - 6,
@@ -117,26 +122,22 @@ class ClickableLabel(QLabel):
             time_str
         )
 
-        # 锁定（左上角）
         if self.is_locked:
             painter.setPen(QColor(255, 255, 0))
             painter.setFont(QFont("Arial", 8))
             painter.drawText(rect.left() + 4, rect.top() + 30, "🔒")
 
-        # 收藏（左上角，红色桃心）
         if self.is_favorite:
             painter.setPen(QColor(255, 0, 0))
             painter.setFont(QFont("Arial", 10))
             y_offset = 46 if self.is_locked else 30
             painter.drawText(rect.left() + 4, rect.top() + y_offset, "❤️")
 
-        # 已导出（右下角绿点）
         if self.is_exported:
             painter.setBrush(QColor(0, 200, 0))
             painter.setPen(Qt.NoPen)
             painter.drawEllipse(rect.right() - 16, rect.bottom() - 16, 10, 10)
 
-        # 选中圆点（左上角）
         if self.is_selected:
             painter.setBrush(QColor(41, 128, 185))
             painter.setPen(Qt.NoPen)
@@ -156,5 +157,6 @@ class ClickableLabel(QLabel):
 
 
 class FavImageLabel(ClickableLabel):
+    """收藏窗口专用标签 —— 无背景，不缩放，原始尺寸"""
     def __init__(self, pixmap, timestamp, index_num, parent=None):
-        super().__init__(pixmap, timestamp, index_num, parent)
+        super().__init__(pixmap, timestamp, index_num, parent, allow_background=False, allow_scale=False)
