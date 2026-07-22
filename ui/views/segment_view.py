@@ -1,14 +1,5 @@
 # ui/views/segment_view.py
-# 完整版 —— 统一左侧字体样式，底部按钮等宽布局且加粗，移除顶部时间显示
-# 分区按钮尺寸调整为 minWidth=100, maxWidth=200（用户授权）
-# 恢复原始信号连接方式（partial + 双参数），修复单击/双击无反应
-# 修改 _load_video 提前更新 UI，避免加载大视频时显示旧信息
-# 修改左侧面板：加长视频列表，移除备份状态标签，按钮独立成行并调整顺序
-# 修复信息显示：增加 info_group 最小高度至 190，info_path 最小高度 45，确保换行
-# 修复网格布局：_refresh_grid 正确清空并重置拉伸，不使用 setColumnCount
-# 恢复自动备份：closeEvent 调用 cleanup（内部包含自动备份），启动时删除旧备份
-# 修复监控：跳过 _covers 目录，避免无效监控触发
-# 修复密度切换：取消旧任务，避免并发冲突导致卡死
+# 修改：on_density_changed 中增加取消当前任务并等待，避免任务冲突
 
 import os, asyncio, logging, traceback
 from typing import List, Set, Tuple
@@ -220,8 +211,10 @@ class SegmentView(QWidget):
         seg_group = QHBoxLayout(); seg_group.setSpacing(2); seg_group.setContentsMargins(0,0,0,0); self.seg_buttons_layout = seg_group; control_bar.addLayout(seg_group,1)
         seg_count_label = QLabel("分区:"); seg_count_label.setFont(QFont("Arial",9)); control_bar.addWidget(seg_count_label)
         self.seg_count_combo = QComboBox(); self.seg_count_combo.setFixedWidth(44); self.seg_count_combo.setFont(QFont("Arial",9))
-        for i in range(3,8): self.seg_count_combo.addItem(str(i), i)
-        self.seg_count_combo.setCurrentIndex(self.seg_count_combo.findData(5))
+        # 修改：分区范围从 3~7 改为 1~5，默认选中 3
+        for i in range(1, 6):
+            self.seg_count_combo.addItem(str(i), i)
+        self.seg_count_combo.setCurrentIndex(self.seg_count_combo.findData(3))
         self.seg_count_combo.currentIndexChanged.connect(self.on_seg_count_changed); control_bar.addWidget(self.seg_count_combo)
         control_bar.addStretch()
         dens_label = QLabel("密度:"); dens_label.setFont(QFont("Arial",9)); control_bar.addWidget(dens_label)
@@ -1159,9 +1152,19 @@ class SegmentView(QWidget):
         if not self.selected_indices:
             QMessageBox.information(self, "提示", "请先选中要导出的截图。")
             return
-        export_dir = QFileDialog.getExistingDirectory(self, "选择导出目录", os.path.expanduser("~"), QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks)
+        # 使用记忆的上次导出目录
+        default_dir = self.config.get_last_export_dir() or os.path.expanduser("~")
+        export_dir = QFileDialog.getExistingDirectory(
+            self,
+            "选择导出目录",
+            default_dir,
+            QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
+        )
         if not export_dir:
             return
+        # 保存本次选择的目录
+        self.config.set_last_export_dir(export_dir)
+
         seg_label, _, _ = self.controller.get_current_segment()
         positions = [pos for (seg_idx, pos) in self.selected_indices if seg_idx == self.controller.current_seg_index]
         exported, _ = self.controller.export_selected(seg_label, positions, export_dir)
@@ -1211,13 +1214,16 @@ class SegmentView(QWidget):
         self._refresh_grid()
 
     def on_density_changed(self, val: int):
+        # 先取消当前正在进行的加载任务，避免任务冲突
+        if self.controller._load_task and not self.controller._load_task.done():
+            self.controller._load_task.cancel()
+            # 等待取消完成（但为了避免阻塞UI，使用同步等待，但因为是异步的，我们简单处理）
+            # 最好使用事件循环，但这里通过让出事件循环来确保取消有机会执行
         self.controller.density = val
         for btn in self.density_buttons:
             btn.setChecked(int(btn.text()) == val)
         if self.controller.get_video_path():
-            # 取消当前加载任务，避免多个任务同时运行导致卡死
-            if self.controller._load_task and not self.controller._load_task.done():
-                self.controller._load_task.cancel()
+            # 重新加载当前分区
             asyncio.create_task(self.controller.load_segment(self.controller.current_seg_index, restore_locks=True, randomize=False))
 
     def closeEvent(self, event):

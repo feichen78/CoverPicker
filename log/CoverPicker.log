@@ -6822,3 +6822,1356 @@ task: <Task pending name='Task-61' coro=<BaseSubprocessTransport._connect_pipes(
 2026-07-21 22:42:25 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 3)}
 2026-07-21 22:42:42 - src.controllers.segment_controller - INFO - 自动备份成功: C:/CoverPicker-Backup/BaiduSyncdisk\coverpicker_backup_20260721_224242.db
 2026-07-21 22:42:42 - root - INFO - 应用退出
+2026-07-22 08:38:47 - root - INFO - 日志系统初始化完成，日志文件: C:\Personal\CoverPicker\log\CoverPicker.log
+2026-07-22 08:38:47 - root - INFO - ============================================================
+2026-07-22 08:38:47 - root - INFO - CoverPicker 启动
+2026-07-22 08:38:47 - root - INFO - ============================================================
+2026-07-22 08:38:47 - src.crash_handler - INFO - 崩溃报告处理器已安装，报告目录: C:\Personal\CoverPicker\log\crashes
+2026-07-22 08:38:47 - src.config_manager - INFO - 配置文件已加载: C:\Users\CATIC\.coverpicker\config.json
+2026-07-22 08:38:47 - src.controllers.segment_controller - INFO - FFmpeg 并发数设为 8
+2026-07-22 08:38:47 - src.controllers.segment_controller - INFO - 已删除旧备份: coverpicker_backup_20260721_204345.db
+2026-07-22 08:38:47 - src.controllers.segment_controller - INFO - 已删除旧备份: coverpicker_backup_20260721_210523.db
+2026-07-22 08:38:47 - src.controllers.segment_controller - INFO - 已删除旧备份: coverpicker_backup_20260721_212459.db
+2026-07-22 08:38:47 - src.controllers.segment_controller - INFO - 已删除旧备份: coverpicker_backup_20260721_214955.db
+2026-07-22 08:38:47 - src.controllers.segment_controller - INFO - 已删除旧备份: coverpicker_backup_20260721_221111.db
+2026-07-22 08:38:47 - src.controllers.segment_controller - INFO - 已删除旧备份: coverpicker_backup_20260721_221341.db
+2026-07-22 08:38:47 - src.controllers.segment_controller - INFO - 已删除旧备份: coverpicker_backup_20260721_221715.db
+2026-07-22 08:38:47 - src.controllers.segment_controller - INFO - 已删除旧备份: coverpicker_backup_20260721_224242.db
+2026-07-22 08:38:47 - ui.views.segment_view - INFO - 启动时删除了 8 个旧备份文件
+2026-07-22 08:38:48 - root - INFO - 主窗口已显示
+2026-07-22 08:39:01 - ui.views.segment_view - WARNING - 视频加载失败（可能无法获取时长），但已保留基本信息: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA.mkv
+2026-07-22 08:40:39 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 08:40:39 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 08:40:39 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 08:40:39 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 08:40:39 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 08:40:39 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 08:40:39 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 08:40:39 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_B_1856.55.jpg
+2026-07-22 08:40:39 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 08:40:39 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 08:40:39 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 08:40:39 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 08:40:39 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 08:40:39 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 08:40:39 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 08:40:39 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 08:40:39 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 08:40:39 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 08:40:39 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 08:40:39 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 08:40:39 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 08:40:39 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 08:40:39 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 08:40:39 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 08:40:39 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 08:40:39 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 08:40:39 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 08:40:39 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_E_4629.45.jpg
+2026-07-22 08:40:39 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 08:40:39 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 08:40:39 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 08:40:39 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 08:40:39 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 08:40:39 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_E_4811.02.jpg
+2026-07-22 08:40:39 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 08:40:39 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 08:40:39 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 08:40:39 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 08:40:39 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_E_5006.15.jpg
+2026-07-22 08:40:39 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_E_5026.28.jpg
+2026-07-22 08:40:39 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:40:43 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:40:45 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:40:48 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:40:52 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:40:55 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:41:00 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:41:05 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:41:11 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:41:17 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:41:18 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:41:19 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:41:20 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:52:18 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:52:19 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:52:19 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:52:20 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:52:21 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:52:21 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:52:22 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:52:23 - src.controllers.segment_controller - INFO - 已删除NAS收藏截图: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_B_1856.55.jpg
+2026-07-22 08:52:23 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:52:23 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:52:23 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:52:24 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:52:25 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:52:27 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:52:28 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:52:30 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:52:31 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:52:33 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:52:35 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:52:36 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:52:38 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:52:40 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:52:41 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:52:43 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:52:45 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:52:47 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:52:48 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:52:50 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:52:52 - src.controllers.segment_controller - INFO - 已删除NAS收藏截图: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_E_4629.45.jpg
+2026-07-22 08:52:52 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:52:54 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:52:56 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:52:58 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:53:00 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:53:03 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:53:05 - src.controllers.segment_controller - INFO - 已删除NAS收藏截图: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_E_4811.02.jpg
+2026-07-22 08:53:05 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:53:07 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:53:09 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:53:12 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:53:14 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:53:16 - src.controllers.segment_controller - INFO - 已删除NAS收藏截图: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_E_5006.15.jpg
+2026-07-22 08:53:16 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:53:18 - src.controllers.segment_controller - INFO - 已删除NAS收藏截图: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_E_5026.28.jpg
+2026-07-22 08:53:19 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:53:54 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:53:57 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:54:01 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:54:05 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:54:10 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:54:14 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:54:19 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:54:24 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:54:30 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:54:35 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 08:54:38 - ui.views.segment_view - DEBUG - 点击图片: pos=5, key=(1, 5), 当前选中=set()
+2026-07-22 08:54:38 - ui.views.segment_view - DEBUG - 添加选中: (1, 5)
+2026-07-22 08:54:38 - ui.views.segment_view - DEBUG - 选中后: {(1, 5)}
+2026-07-22 08:54:38 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(1, 5)}
+2026-07-22 08:54:38 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(1, 5)}
+2026-07-22 08:54:38 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(1, 5)}
+2026-07-22 08:54:38 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(1, 5)}
+2026-07-22 08:54:39 - ui.views.segment_view - DEBUG - 点击图片: pos=6, key=(1, 6), 当前选中={(1, 5)}
+2026-07-22 08:54:39 - ui.views.segment_view - DEBUG - 添加选中: (1, 6)
+2026-07-22 08:54:39 - ui.views.segment_view - DEBUG - 选中后: {(1, 6), (1, 5)}
+2026-07-22 08:54:39 - ui.views.segment_view - DEBUG - 选中计数更新: 2 张, selected_indices={(1, 6), (1, 5)}
+2026-07-22 08:54:40 - ui.views.segment_view - DEBUG - 点击图片: pos=7, key=(1, 7), 当前选中={(1, 6), (1, 5)}
+2026-07-22 08:54:40 - ui.views.segment_view - DEBUG - 添加选中: (1, 7)
+2026-07-22 08:54:40 - ui.views.segment_view - DEBUG - 选中后: {(1, 6), (1, 7), (1, 5)}
+2026-07-22 08:54:40 - ui.views.segment_view - DEBUG - 选中计数更新: 3 张, selected_indices={(1, 6), (1, 7), (1, 5)}
+2026-07-22 08:54:40 - ui.views.segment_view - DEBUG - 点击图片: pos=8, key=(1, 8), 当前选中={(1, 6), (1, 7), (1, 5)}
+2026-07-22 08:54:40 - ui.views.segment_view - DEBUG - 添加选中: (1, 8)
+2026-07-22 08:54:40 - ui.views.segment_view - DEBUG - 选中后: {(1, 6), (1, 7), (1, 8), (1, 5)}
+2026-07-22 08:54:40 - ui.views.segment_view - DEBUG - 选中计数更新: 4 张, selected_indices={(1, 6), (1, 7), (1, 8), (1, 5)}
+2026-07-22 08:54:43 - src.controllers.segment_controller - INFO - 收藏截图已保存到NAS: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_B_1807.48.jpg
+2026-07-22 08:54:44 - src.controllers.segment_controller - INFO - 收藏截图已保存到NAS: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_B_1853.23.jpg
+2026-07-22 08:54:44 - src.controllers.segment_controller - INFO - 收藏截图已保存到NAS: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_B_1917.27.jpg
+2026-07-22 08:54:45 - src.controllers.segment_controller - INFO - 收藏截图已保存到NAS: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_B_1751.40.jpg
+2026-07-22 08:54:45 - ui.views.segment_view - DEBUG - 选中计数更新: 4 张, selected_indices={(1, 6), (1, 7), (1, 8), (1, 5)}
+2026-07-22 08:55:25 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:11:00 - ui.views.segment_view - DEBUG - 点击图片: pos=1, key=(1, 1), 当前选中=set()
+2026-07-22 09:11:00 - ui.views.segment_view - DEBUG - 添加选中: (1, 1)
+2026-07-22 09:11:00 - ui.views.segment_view - DEBUG - 选中后: {(1, 1)}
+2026-07-22 09:11:01 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(1, 1)}
+2026-07-22 09:11:01 - ui.views.segment_view - DEBUG - 点击图片: pos=1, key=(1, 1), 当前选中={(1, 1)}
+2026-07-22 09:11:01 - ui.views.segment_view - DEBUG - 移除选中: (1, 1)
+2026-07-22 09:11:01 - ui.views.segment_view - DEBUG - 选中后: set()
+2026-07-22 09:11:01 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:11:02 - ui.views.segment_view - DEBUG - 点击图片: pos=5, key=(1, 5), 当前选中=set()
+2026-07-22 09:11:02 - ui.views.segment_view - DEBUG - 添加选中: (1, 5)
+2026-07-22 09:11:02 - ui.views.segment_view - DEBUG - 选中后: {(1, 5)}
+2026-07-22 09:11:02 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(1, 5)}
+2026-07-22 09:11:04 - ui.views.segment_view - DEBUG - 点击图片: pos=5, key=(1, 5), 当前选中={(1, 5)}
+2026-07-22 09:11:04 - ui.views.segment_view - DEBUG - 移除选中: (1, 5)
+2026-07-22 09:11:04 - ui.views.segment_view - DEBUG - 选中后: set()
+2026-07-22 09:11:04 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:11:13 - ui.views.segment_view - DEBUG - 点击图片: pos=5, key=(1, 5), 当前选中=set()
+2026-07-22 09:11:13 - ui.views.segment_view - DEBUG - 添加选中: (1, 5)
+2026-07-22 09:11:13 - ui.views.segment_view - DEBUG - 选中后: {(1, 5)}
+2026-07-22 09:11:13 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(1, 5)}
+2026-07-22 09:11:15 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(1, 5)}
+2026-07-22 09:11:23 - ui.views.segment_view - DEBUG - 点击图片: pos=5, key=(1, 5), 当前选中=set()
+2026-07-22 09:11:23 - ui.views.segment_view - DEBUG - 添加选中: (1, 5)
+2026-07-22 09:11:23 - ui.views.segment_view - DEBUG - 选中后: {(1, 5)}
+2026-07-22 09:11:24 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(1, 5)}
+2026-07-22 09:11:25 - src.controllers.segment_controller - INFO - 已删除NAS收藏截图: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_B_1751.40.jpg
+2026-07-22 09:11:25 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(1, 5)}
+2026-07-22 09:11:30 - ui.views.segment_view - DEBUG - 点击图片: pos=5, key=(1, 5), 当前选中=set()
+2026-07-22 09:11:30 - ui.views.segment_view - DEBUG - 添加选中: (1, 5)
+2026-07-22 09:11:30 - ui.views.segment_view - DEBUG - 选中后: {(1, 5)}
+2026-07-22 09:11:30 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(1, 5)}
+2026-07-22 09:11:33 - src.controllers.segment_controller - INFO - 收藏截图已保存到NAS: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_B_1751.40.jpg
+2026-07-22 09:11:33 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(1, 5)}
+2026-07-22 09:16:26 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:16:30 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:16:30 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:16:30 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:16:30 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:16:30 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:16:30 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:16:34 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:16:39 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:16:44 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:16:49 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:16:55 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:17:00 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:17:05 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:17:11 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:17:16 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:17:17 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:17:18 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:17:18 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:18:19 - ui.views.segment_view - DEBUG - 点击图片: pos=3, key=(0, 3), 当前选中=set()
+2026-07-22 09:18:19 - ui.views.segment_view - DEBUG - 添加选中: (0, 3)
+2026-07-22 09:18:19 - ui.views.segment_view - DEBUG - 选中后: {(0, 3)}
+2026-07-22 09:18:19 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 3)}
+2026-07-22 09:18:23 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:18:26 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_B_1751.40.jpg
+2026-07-22 09:18:26 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_B_1807.48.jpg
+2026-07-22 09:18:26 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_B_1853.23.jpg
+2026-07-22 09:18:26 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_B_1917.27.jpg
+2026-07-22 09:18:26 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:18:30 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:18:33 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:18:36 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:18:39 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:18:43 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:18:46 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:18:46 - src.controllers.segment_controller - INFO - 已删除NAS收藏截图: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_B_1751.40.jpg
+2026-07-22 09:18:46 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:18:46 - src.controllers.segment_controller - INFO - 已删除NAS收藏截图: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_B_1807.48.jpg
+2026-07-22 09:18:46 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:18:46 - src.controllers.segment_controller - INFO - 已删除NAS收藏截图: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_B_1853.23.jpg
+2026-07-22 09:18:47 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:18:47 - src.controllers.segment_controller - INFO - 已删除NAS收藏截图: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_B_1917.27.jpg
+2026-07-22 09:18:47 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:18:49 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:18:51 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:18:53 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:18:54 - ui.views.segment_view - DEBUG - 点击图片: pos=7, key=(0, 7), 当前选中=set()
+2026-07-22 09:18:54 - ui.views.segment_view - DEBUG - 添加选中: (0, 7)
+2026-07-22 09:18:54 - ui.views.segment_view - DEBUG - 选中后: {(0, 7)}
+2026-07-22 09:18:54 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 7)}
+2026-07-22 09:18:55 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 7)}
+2026-07-22 09:18:55 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 7)}
+2026-07-22 09:18:55 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 7)}
+2026-07-22 09:18:56 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 7)}
+2026-07-22 09:18:58 - src.controllers.segment_controller - INFO - 收藏截图已保存到NAS: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_A_813.20.jpg
+2026-07-22 09:18:58 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 7)}
+2026-07-22 09:19:38 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:19:45 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:23:15 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:25:11 - ui.views.segment_view - DEBUG - 点击图片: pos=7, key=(0, 7), 当前选中=set()
+2026-07-22 09:25:11 - ui.views.segment_view - DEBUG - 添加选中: (0, 7)
+2026-07-22 09:25:11 - ui.views.segment_view - DEBUG - 选中后: {(0, 7)}
+2026-07-22 09:25:12 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 7)}
+2026-07-22 09:25:37 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 7)}
+2026-07-22 09:25:50 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:29:37 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:29:43 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:29:47 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:29:50 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:29:52 - ui.views.segment_view - DEBUG - 点击图片: pos=0, key=(0, 0), 当前选中=set()
+2026-07-22 09:29:52 - ui.views.segment_view - DEBUG - 添加选中: (0, 0)
+2026-07-22 09:29:52 - ui.views.segment_view - DEBUG - 选中后: {(0, 0)}
+2026-07-22 09:29:52 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 0)}
+2026-07-22 09:29:53 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 0)}
+2026-07-22 09:29:55 - src.controllers.segment_controller - INFO - 收藏截图已保存到NAS: Z:\有码\さとう遥希\mild-866\mild-866_covers\fav_A_338.05.jpg
+2026-07-22 09:29:55 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 0)}
+2026-07-22 09:29:57 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:29:59 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:30:00 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:30:01 - ui.views.segment_view - DEBUG - 点击图片: pos=0, key=(0, 0), 当前选中=set()
+2026-07-22 09:30:01 - ui.views.segment_view - DEBUG - 添加选中: (0, 0)
+2026-07-22 09:30:01 - ui.views.segment_view - DEBUG - 选中后: {(0, 0)}
+2026-07-22 09:30:01 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 0)}
+2026-07-22 09:30:03 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 0)}
+2026-07-22 09:30:05 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:30:07 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:30:07 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:30:07 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:30:07 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:30:07 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:30:07 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:30:11 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:30:15 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:30:20 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:30:26 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:30:31 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:30:37 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:30:43 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:30:47 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:30:50 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:30:50 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:30:51 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:30:51 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:38:20 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:38:25 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\120分钟MP4_covers\fav_A_335.91.jpg
+2026-07-22 09:38:25 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\120分钟MP4_covers\fav_A_420.41.jpg
+2026-07-22 09:38:25 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:38:25 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:38:25 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\120分钟MP4_covers\fav_A_612.22.jpg
+2026-07-22 09:38:25 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:38:25 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:38:25 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:38:25 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\120分钟MP4_covers\fav_A_808.54.jpg
+2026-07-22 09:38:25 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:38:25 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\120分钟MP4_covers\fav_B_2054.96.jpg
+2026-07-22 09:38:25 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\120分钟MP4_covers\fav_B_2143.57.jpg
+2026-07-22 09:38:25 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:38:25 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:38:25 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\120分钟MP4_covers\fav_B_2314.13.jpg
+2026-07-22 09:38:25 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\120分钟MP4_covers\fav_B_2375.39.jpg
+2026-07-22 09:38:25 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:38:25 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:38:25 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:38:25 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\120分钟MP4_covers\fav_C_3206.22.jpg
+2026-07-22 09:38:25 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\120分钟MP4_covers\fav_C_3574.85.jpg
+2026-07-22 09:38:25 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\120分钟MP4_covers\fav_C_3595.16.jpg
+2026-07-22 09:38:25 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\120分钟MP4_covers\fav_C_3792.86.jpg
+2026-07-22 09:38:25 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\120分钟MP4_covers\fav_C_4036.17.jpg
+2026-07-22 09:38:25 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\120分钟MP4_covers\fav_D_4867.46.jpg
+2026-07-22 09:38:25 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\120分钟MP4_covers\fav_D_5130.31.jpg
+2026-07-22 09:38:25 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:38:25 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\120分钟MP4_covers\fav_E_6066.27.jpg
+2026-07-22 09:38:25 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\120分钟MP4_covers\fav_E_6098.98.jpg
+2026-07-22 09:38:25 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\120分钟MP4_covers\fav_E_6132.44.jpg
+2026-07-22 09:38:25 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\120分钟MP4_covers\fav_E_6204.69.jpg
+2026-07-22 09:38:25 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\120分钟MP4_covers\fav_E_6341.62.jpg
+2026-07-22 09:38:25 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\120分钟MP4_covers\fav_E_6498.86.jpg
+2026-07-22 09:38:25 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\120分钟MP4_covers\fav_E_6514.30.jpg
+2026-07-22 09:38:25 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\120分钟MP4_covers\fav_E_6515.20.jpg
+2026-07-22 09:38:25 - src.controllers.segment_controller - WARNING - 收藏截图未找到: zoom_L1_2_6541.19.jpg
+2026-07-22 09:38:25 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\120分钟MP4_covers\fav_E_6543.22.jpg
+2026-07-22 09:38:25 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\120分钟MP4_covers\fav_E_6564.09.jpg
+2026-07-22 09:38:25 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\120分钟MP4_covers\fav_E_6665.46.jpg
+2026-07-22 09:38:25 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\120分钟MP4_covers\fav_E_6690.91.jpg
+2026-07-22 09:38:25 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\120分钟MP4_covers\fav_E_6716.23.jpg
+2026-07-22 09:38:25 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:38:25 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\120分钟MP4_covers\fav_E_6911.43.jpg
+2026-07-22 09:38:25 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:38:25 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:38:25 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\120分钟MP4_covers\fav_E_6974.16.jpg
+2026-07-22 09:38:25 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\120分钟MP4_covers\fav_E_6997.05.jpg
+2026-07-22 09:38:25 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:38:25 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\120分钟MP4_covers\fav_E_7040.08.jpg
+2026-07-22 09:38:25 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\120分钟MP4_covers\fav_E_7050.62.jpg
+2026-07-22 09:38:25 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:38:29 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:38:33 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:38:36 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:38:41 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:38:44 - ui.views.segment_view - DEBUG - 点击图片: pos=0, key=(0, 0), 当前选中=set()
+2026-07-22 09:38:44 - ui.views.segment_view - DEBUG - 添加选中: (0, 0)
+2026-07-22 09:38:44 - ui.views.segment_view - DEBUG - 选中后: {(0, 0)}
+2026-07-22 09:38:44 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 0)}
+2026-07-22 09:38:46 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 0)}
+2026-07-22 09:38:51 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 0)}
+2026-07-22 09:38:55 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 0)}
+2026-07-22 09:38:58 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 0)}
+2026-07-22 09:39:01 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 0)}
+2026-07-22 09:39:02 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:39:03 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:39:03 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:39:03 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:39:10 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:39:13 - src.controllers.segment_controller - INFO - 从数据库加载排除区间: [[0, 363]]
+2026-07-22 09:39:13 - src.controllers.segment_controller - INFO - 重新划分分区，共 5 个
+2026-07-22 09:39:14 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\16分钟MP4_covers\fav_C_482.22.jpg
+2026-07-22 09:39:14 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\16分钟MP4_covers\fav_E_853.99.jpg
+2026-07-22 09:39:14 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\16分钟MP4_covers\fav_E_977.42.jpg
+2026-07-22 09:39:14 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:39:21 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:39:27 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:39:30 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:39:33 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/洋妞\1小时MKV_covers\fav_A_480.59.jpg
+2026-07-22 09:39:33 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/洋妞\1小时MKV_covers\fav_A_524.85.jpg
+2026-07-22 09:39:33 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/洋妞\1小时MKV_covers\fav_B_1028.88.jpg
+2026-07-22 09:39:33 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/洋妞\1小时MKV_covers\fav_B_1032.88.jpg
+2026-07-22 09:39:33 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/洋妞\1小时MKV_covers\fav_B_1107.14.jpg
+2026-07-22 09:39:33 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/洋妞\1小时MKV_covers\fav_B_1207.13.jpg
+2026-07-22 09:39:33 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/洋妞\1小时MKV_covers\fav_B_1226.03.jpg
+2026-07-22 09:39:33 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/洋妞\1小时MKV_covers\fav_C_1878.02.jpg
+2026-07-22 09:39:33 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_D_2359.75.jpg
+2026-07-22 09:39:33 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_D_2639.42.jpg
+2026-07-22 09:39:33 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/洋妞\1小时MKV_covers\fav_E_3246.68.jpg
+2026-07-22 09:39:33 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/洋妞\1小时MKV_covers\fav_E_3275.01.jpg
+2026-07-22 09:39:33 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/洋妞\1小时MKV_covers\fav_E_3320.12.jpg
+2026-07-22 09:39:33 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:39:37 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:39:40 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:39:43 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:39:47 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:39:50 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:39:53 - src.controllers.segment_controller - INFO - 从数据库加载排除区间: [[0, 120]]
+2026-07-22 09:39:53 - src.controllers.segment_controller - INFO - 重新划分分区，共 5 个
+2026-07-22 09:39:54 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/洋妞\23分钟WMV_covers\fav_A_189.18.jpg
+2026-07-22 09:39:54 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:39:58 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:40:01 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:40:06 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:40:12 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:40:18 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:40:25 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:40:31 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:40:39 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:40:45 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:40:47 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:40:49 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:40:50 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:43:08 - ui.views.segment_view - DEBUG - 点击图片: pos=3, key=(0, 3), 当前选中=set()
+2026-07-22 09:43:08 - ui.views.segment_view - DEBUG - 添加选中: (0, 3)
+2026-07-22 09:43:08 - ui.views.segment_view - DEBUG - 选中后: {(0, 3)}
+2026-07-22 09:43:08 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 3)}
+2026-07-22 09:43:22 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 3)}
+2026-07-22 09:43:31 - ui.views.segment_view - DEBUG - 点击图片: pos=7, key=(0, 7), 当前选中=set()
+2026-07-22 09:43:31 - ui.views.segment_view - DEBUG - 添加选中: (0, 7)
+2026-07-22 09:43:31 - ui.views.segment_view - DEBUG - 选中后: {(0, 7)}
+2026-07-22 09:43:31 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 7)}
+2026-07-22 09:43:33 - ui.views.segment_view - DEBUG - 点击图片: pos=4, key=(0, 4), 当前选中={(0, 7)}
+2026-07-22 09:43:33 - ui.views.segment_view - DEBUG - 添加选中: (0, 4)
+2026-07-22 09:43:33 - ui.views.segment_view - DEBUG - 选中后: {(0, 7), (0, 4)}
+2026-07-22 09:43:34 - ui.views.segment_view - DEBUG - 选中计数更新: 2 张, selected_indices={(0, 7), (0, 4)}
+2026-07-22 09:43:37 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:43:39 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:43:42 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:43:45 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:43:49 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:43:51 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:43:56 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\3.5小时9GB_covers\fav_B_4217.93.jpg
+2026-07-22 09:43:56 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:44:01 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:44:08 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:44:09 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:44:13 - src.controllers.segment_controller - INFO - 从数据库加载排除区间: [[0, 142]]
+2026-07-22 09:44:13 - src.controllers.segment_controller - INFO - 重新划分分区，共 5 个
+2026-07-22 09:44:14 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/洋妞\40分钟7.8GB_covers\fav_A_347.75.jpg
+2026-07-22 09:44:14 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/洋妞\40分钟7.8GB_covers\fav_B_591.29.jpg
+2026-07-22 09:44:14 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/洋妞\40分钟7.8GB_covers\fav_B_651.20.jpg
+2026-07-22 09:44:14 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/洋妞\40分钟7.8GB_covers\fav_B_765.68.jpg
+2026-07-22 09:44:14 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:44:24 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:44:32 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:44:36 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:44:36 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:44:36 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:44:36 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:44:36 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:44:45 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:44:51 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:44:57 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:45:03 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:45:09 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:45:16 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:45:22 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:45:27 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:45:33 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:45:34 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:45:35 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:45:36 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:45:54 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:46:59 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:48:59 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:49:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:49:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:49:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:49:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:49:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:49:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:49:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:49:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:49:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:49:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:49:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:49:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:49:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:49:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:49:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:49:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:49:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:49:03 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:49:08 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:49:14 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:49:17 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\42分钟AVI_covers\fav_A_94.65.jpg
+2026-07-22 09:49:17 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\42分钟AVI_covers\fav_D_1741.33.jpg
+2026-07-22 09:49:17 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\42分钟AVI_covers\fav_E_2450.30.jpg
+2026-07-22 09:49:17 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:49:20 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:49:23 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:49:24 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:49:33 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:49:36 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:49:39 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:49:41 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:49:45 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/国货\6分钟短_covers\fav_A_23.33.jpg
+2026-07-22 09:49:45 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/国货\6分钟短_covers\fav_E_336.05.jpg
+2026-07-22 09:49:45 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:49:48 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:49:52 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:49:55 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:49:58 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:50:01 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:50:04 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:50:08 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:50:11 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:50:13 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:50:17 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:50:17 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:50:17 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:50:17 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:50:17 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:50:17 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 09:50:17 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:50:32 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:50:48 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:51:02 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:51:09 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:51:25 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:51:39 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:51:52 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:51:57 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:52:02 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2215.89.jpg
+2026-07-22 09:52:02 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2248.55.jpg
+2026-07-22 09:52:02 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2306.25.jpg
+2026-07-22 09:52:02 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2309.50.jpg
+2026-07-22 09:52:02 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2460.66.jpg
+2026-07-22 09:52:02 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2476.67.jpg
+2026-07-22 09:52:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2512.53.jpg
+2026-07-22 09:52:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2762.15.jpg
+2026-07-22 09:52:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2780.07.jpg
+2026-07-22 09:52:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2798.64.jpg
+2026-07-22 09:52:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2812.91.jpg
+2026-07-22 09:52:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2843.59.jpg
+2026-07-22 09:52:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3036.60.jpg
+2026-07-22 09:52:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3070.04.jpg
+2026-07-22 09:52:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3090.81.jpg
+2026-07-22 09:52:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3211.43.jpg
+2026-07-22 09:52:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3245.10.jpg
+2026-07-22 09:52:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3297.38.jpg
+2026-07-22 09:52:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3310.86.jpg
+2026-07-22 09:52:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3387.75.jpg
+2026-07-22 09:52:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3391.11.jpg
+2026-07-22 09:52:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3392.11.jpg
+2026-07-22 09:52:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3416.02.jpg
+2026-07-22 09:52:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3522.87.jpg
+2026-07-22 09:52:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3529.65.jpg
+2026-07-22 09:52:03 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:52:06 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:52:13 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:52:19 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:52:27 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:52:34 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:52:41 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:52:47 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:52:56 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:53:03 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:53:04 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:53:05 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 09:53:07 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:01:31 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:01:37 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/国货\6分钟短_covers\fav_A_23.33.jpg
+2026-07-22 10:01:37 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/国货\6分钟短_covers\fav_E_336.05.jpg
+2026-07-22 10:01:37 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:01:41 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:01:42 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:01:46 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 10:01:46 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 10:01:46 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 10:01:46 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 10:01:46 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 10:01:46 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 10:01:46 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:01:58 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:02:00 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:02:05 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 10:02:05 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 10:02:05 - src.controllers.segment_controller - WARNING - 收藏截图未找到: None
+2026-07-22 10:02:05 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:02:09 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:02:13 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:02:17 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:02:25 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:02:32 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:02:36 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:02:41 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:02:48 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:02:55 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:02:55 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:02:55 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:02:55 - qasync._QEventLoop - ERROR - Exception in callback <_asyncio.TaskStepMethWrapper object at 0x00000224115A3AC0>()
+handle: <Handle <_asyncio.TaskStepMethWrapper object at 0x00000224115A3AC0>()>
+Traceback (most recent call last):
+  File "C:\Users\CATIC\AppData\Local\Programs\Python\Python313\Lib\asyncio\events.py", line 89, in _run
+    self._context.run(self._callback, *self._args)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: Cannot enter into task <Task pending name='Task-620' coro=<SegmentView._load_video() running at C:\Personal\CoverPicker\ui\views\segment_view.py:802>> while another task <Task pending name='Task-582' coro=<SegmentView._load_video() running at C:\Personal\CoverPicker\ui\views\segment_view.py:817>> is being executed.
+2026-07-22 10:02:55 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:03:40 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:03:45 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:03:49 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:03:53 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:03:54 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:03:59 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:04:05 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:04:09 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:04:12 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:04:16 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:04:20 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:04:23 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:04:26 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:04:29 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:04:34 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:04:38 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:04:41 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:04:44 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:04:44 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:04:50 - src.controllers.segment_controller - INFO - 从数据库加载排除区间: [[0, 390]]
+2026-07-22 10:04:50 - src.controllers.segment_controller - INFO - 重新划分分区，共 5 个
+2026-07-22 10:04:50 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:04:54 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:04:58 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:05:00 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:05:04 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:\有码\さとう遥希\SDMT-415\SDMT-415_covers\fav_A_261.44.jpg
+2026-07-22 10:05:04 - src.controllers.segment_controller - WARNING - 收藏截图未找到: zoom_L1_8_264.09.jpg
+2026-07-22 10:05:04 - src.controllers.segment_controller - WARNING - 收藏截图未找到: zoom_L3_5_265.66.jpg
+2026-07-22 10:05:04 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:\有码\さとう遥希\SDMT-415\SDMT-415_covers\fav_A_632.22.jpg
+2026-07-22 10:05:04 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:\有码\さとう遥希\SDMT-415\SDMT-415_covers\fav_E_5577.21.jpg
+2026-07-22 10:05:04 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:\有码\さとう遥希\SDMT-415\SDMT-415_covers\fav_E_5722.17.jpg
+2026-07-22 10:05:04 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:\有码\さとう遥希\SDMT-415\SDMT-415_covers\fav_E_5753.05.jpg
+2026-07-22 10:05:04 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:\有码\さとう遥希\SDMT-415\SDMT-415_covers\fav_E_6324.41.jpg
+2026-07-22 10:05:04 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:\有码\さとう遥希\SDMT-415\SDMT-415_covers\fav_E_6334.19.jpg
+2026-07-22 10:05:04 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:\有码\さとう遥希\SDMT-415\SDMT-415_covers\fav_E_6357.67.jpg
+2026-07-22 10:05:04 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:\有码\さとう遥希\SDMT-415\SDMT-415_covers\fav_E_6477.35.jpg
+2026-07-22 10:05:04 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:\有码\さとう遥希\SDMT-415\SDMT-415_covers\fav_E_6478.63.jpg
+2026-07-22 10:05:04 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:05:07 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:05:11 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:05:11 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:05:17 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:\有码\さとう遥希\mild-866\mild-866_covers\fav_A_338.05.jpg
+2026-07-22 10:05:17 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:05:20 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:05:24 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:05:27 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:05:29 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:05:32 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2215.89.jpg
+2026-07-22 10:05:32 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2248.55.jpg
+2026-07-22 10:05:32 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2306.25.jpg
+2026-07-22 10:05:32 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2309.50.jpg
+2026-07-22 10:05:32 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2460.66.jpg
+2026-07-22 10:05:32 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2476.67.jpg
+2026-07-22 10:05:32 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2512.53.jpg
+2026-07-22 10:05:32 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2762.15.jpg
+2026-07-22 10:05:32 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2780.07.jpg
+2026-07-22 10:05:32 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2798.64.jpg
+2026-07-22 10:05:32 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2812.91.jpg
+2026-07-22 10:05:32 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2843.59.jpg
+2026-07-22 10:05:32 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3036.60.jpg
+2026-07-22 10:05:32 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3070.04.jpg
+2026-07-22 10:05:32 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3090.81.jpg
+2026-07-22 10:05:32 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3211.43.jpg
+2026-07-22 10:05:32 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3245.10.jpg
+2026-07-22 10:05:32 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3297.38.jpg
+2026-07-22 10:05:32 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3310.86.jpg
+2026-07-22 10:05:32 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3387.75.jpg
+2026-07-22 10:05:32 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3391.11.jpg
+2026-07-22 10:05:32 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3392.11.jpg
+2026-07-22 10:05:32 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3416.02.jpg
+2026-07-22 10:05:32 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3522.87.jpg
+2026-07-22 10:05:32 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3529.65.jpg
+2026-07-22 10:05:32 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:05:37 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:05:43 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:05:49 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:05:55 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:06:02 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:06:09 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:06:16 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:06:23 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:06:30 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:06:31 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:06:33 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:06:34 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 10:56:52 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 11:35:29 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 11:35:32 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 11:35:39 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 11:35:43 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 11:35:47 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 11:35:51 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 11:35:51 - qasync._QEventLoop - ERROR - Task was destroyed but it is pending!
+task: <Task pending name='Task-620' coro=<SegmentView._load_video() running at C:\Personal\CoverPicker\ui\views\segment_view.py:802>>
+2026-07-22 11:35:54 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 11:35:59 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 11:36:05 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 11:36:12 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 11:36:17 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 11:36:19 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 11:36:26 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 11:36:34 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 11:36:41 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 11:36:48 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 11:36:56 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 11:37:04 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 11:37:12 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 11:37:20 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 11:37:28 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 11:37:36 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 11:37:44 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 11:37:52 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 11:38:00 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 11:38:09 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 11:38:17 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 11:38:20 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 11:38:23 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 13:25:03 - src.controllers.segment_controller - INFO - 自动备份成功: C:/CoverPicker-Backup/BaiduSyncdisk\coverpicker_backup_20260722_132503.db
+2026-07-22 13:25:03 - root - INFO - 应用退出
+2026-07-22 14:02:07 - root - INFO - 日志系统初始化完成，日志文件: C:\Personal\CoverPicker\log\CoverPicker.log
+2026-07-22 14:02:07 - root - INFO - ============================================================
+2026-07-22 14:02:07 - root - INFO - CoverPicker 启动
+2026-07-22 14:02:07 - root - INFO - ============================================================
+2026-07-22 14:02:07 - src.crash_handler - INFO - 崩溃报告处理器已安装，报告目录: C:\Personal\CoverPicker\log\crashes
+2026-07-22 14:02:07 - src.config_manager - INFO - 配置文件已加载: C:\Users\CATIC\.coverpicker\config.json
+2026-07-22 14:02:07 - src.controllers.segment_controller - INFO - FFmpeg 并发数设为 8
+2026-07-22 14:02:08 - root - INFO - 主窗口已显示
+2026-07-22 14:02:21 - src.controllers.segment_controller - INFO - 从数据库加载排除区间: [[0, 363]]
+2026-07-22 14:02:21 - src.controllers.segment_controller - INFO - 重新划分分区，共 5 个
+2026-07-22 14:02:21 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\16分钟MP4_covers\fav_C_482.22.jpg
+2026-07-22 14:02:21 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\16分钟MP4_covers\fav_E_853.99.jpg
+2026-07-22 14:02:21 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\16分钟MP4_covers\fav_E_977.42.jpg
+2026-07-22 14:02:21 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 14:35:05 - root - INFO - 日志系统初始化完成，日志文件: C:\Personal\CoverPicker\log\CoverPicker.log
+2026-07-22 14:35:05 - root - INFO - ============================================================
+2026-07-22 14:35:05 - root - INFO - CoverPicker 启动
+2026-07-22 14:35:05 - root - INFO - ============================================================
+2026-07-22 14:35:05 - src.crash_handler - INFO - 崩溃报告处理器已安装，报告目录: C:\Personal\CoverPicker\log\crashes
+2026-07-22 14:35:05 - src.config_manager - INFO - 配置文件已加载: C:\Users\CATIC\.coverpicker\config.json
+2026-07-22 14:35:05 - src.controllers.segment_controller - INFO - FFmpeg 并发数设为 8
+2026-07-22 14:35:06 - root - INFO - 主窗口已显示
+2026-07-22 14:35:20 - src.controllers.segment_controller - INFO - 从数据库加载排除区间: [[0, 120]]
+2026-07-22 14:35:21 - src.controllers.segment_controller - INFO - 重新划分分区，共 3 个
+2026-07-22 14:35:21 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/洋妞\23分钟WMV_covers\fav_A_189.18.jpg
+2026-07-22 14:35:21 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 14:42:07 - root - INFO - 日志系统初始化完成，日志文件: C:\Personal\CoverPicker\log\CoverPicker.log
+2026-07-22 14:42:07 - root - INFO - ============================================================
+2026-07-22 14:42:07 - root - INFO - CoverPicker 启动
+2026-07-22 14:42:07 - root - INFO - ============================================================
+2026-07-22 14:42:07 - src.crash_handler - INFO - 崩溃报告处理器已安装，报告目录: C:\Personal\CoverPicker\log\crashes
+2026-07-22 14:42:07 - src.config_manager - INFO - 配置文件已加载: C:\Users\CATIC\.coverpicker\config.json
+2026-07-22 14:42:07 - src.controllers.segment_controller - INFO - FFmpeg 并发数设为 8
+2026-07-22 14:42:08 - root - INFO - 主窗口已显示
+2026-07-22 14:42:20 - src.controllers.segment_controller - INFO - 从数据库加载排除区间: [[0, 120]]
+2026-07-22 14:42:20 - src.controllers.segment_controller - INFO - 重新划分分区，共 3 个
+2026-07-22 14:42:20 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/洋妞\23分钟WMV_covers\fav_A_189.18.jpg
+2026-07-22 14:42:20 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 14:55:37 - root - INFO - 日志系统初始化完成，日志文件: C:\Personal\CoverPicker\log\CoverPicker.log
+2026-07-22 14:55:37 - root - INFO - ============================================================
+2026-07-22 14:55:37 - root - INFO - CoverPicker 启动
+2026-07-22 14:55:37 - root - INFO - ============================================================
+2026-07-22 14:55:38 - src.crash_handler - INFO - 崩溃报告处理器已安装，报告目录: C:\Personal\CoverPicker\log\crashes
+2026-07-22 14:55:38 - src.config_manager - INFO - 配置文件已加载: C:\Users\CATIC\.coverpicker\config.json
+2026-07-22 14:55:38 - src.controllers.segment_controller - INFO - FFmpeg 并发数设为 8
+2026-07-22 14:55:39 - root - INFO - 主窗口已显示
+2026-07-22 14:55:58 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:05:27 - root - INFO - 日志系统初始化完成，日志文件: C:\Personal\CoverPicker\log\CoverPicker.log
+2026-07-22 15:05:27 - root - INFO - ============================================================
+2026-07-22 15:05:27 - root - INFO - CoverPicker 启动
+2026-07-22 15:05:27 - root - INFO - ============================================================
+2026-07-22 15:05:27 - src.crash_handler - INFO - 崩溃报告处理器已安装，报告目录: C:\Personal\CoverPicker\log\crashes
+2026-07-22 15:05:27 - src.config_manager - INFO - 配置文件已加载: C:\Users\CATIC\.coverpicker\config.json
+2026-07-22 15:05:27 - src.controllers.segment_controller - INFO - FFmpeg 并发数设为 8
+2026-07-22 15:05:28 - root - INFO - 主窗口已显示
+2026-07-22 15:05:35 - src.controllers.segment_controller - INFO - 从数据库加载排除区间: [[0, 363]]
+2026-07-22 15:05:35 - src.controllers.segment_controller - INFO - 重新划分分区，共 3 个
+2026-07-22 15:05:35 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\16分钟MP4_covers\fav_C_482.22.jpg
+2026-07-22 15:05:35 - src.controllers.segment_controller - INFO - 迁移收藏标签: E -> C (视频: 16分钟MP4.mp4)
+2026-07-22 15:05:35 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\16分钟MP4_covers\fav_E_853.99.jpg
+2026-07-22 15:05:35 - src.controllers.segment_controller - INFO - 迁移收藏标签: E -> C (视频: 16分钟MP4.mp4)
+2026-07-22 15:05:35 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\16分钟MP4_covers\fav_E_977.42.jpg
+2026-07-22 15:05:35 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:13:36 - root - INFO - 日志系统初始化完成，日志文件: C:\Personal\CoverPicker\log\CoverPicker.log
+2026-07-22 15:13:36 - root - INFO - ============================================================
+2026-07-22 15:13:36 - root - INFO - CoverPicker 启动
+2026-07-22 15:13:36 - root - INFO - ============================================================
+2026-07-22 15:13:36 - src.crash_handler - INFO - 崩溃报告处理器已安装，报告目录: C:\Personal\CoverPicker\log\crashes
+2026-07-22 15:13:36 - src.config_manager - INFO - 配置文件已加载: C:\Users\CATIC\.coverpicker\config.json
+2026-07-22 15:13:36 - src.controllers.segment_controller - INFO - FFmpeg 并发数设为 8
+2026-07-22 15:13:37 - root - INFO - 主窗口已显示
+2026-07-22 15:16:01 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2215.89.jpg
+2026-07-22 15:16:01 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2248.55.jpg
+2026-07-22 15:16:01 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2306.25.jpg
+2026-07-22 15:16:01 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2309.50.jpg
+2026-07-22 15:16:01 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2460.66.jpg
+2026-07-22 15:16:01 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2476.67.jpg
+2026-07-22 15:16:01 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2512.53.jpg
+2026-07-22 15:16:01 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2762.15.jpg
+2026-07-22 15:16:01 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2780.07.jpg
+2026-07-22 15:16:01 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2798.64.jpg
+2026-07-22 15:16:01 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2812.91.jpg
+2026-07-22 15:16:01 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2843.59.jpg
+2026-07-22 15:16:01 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3036.60.jpg
+2026-07-22 15:16:01 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3070.04.jpg
+2026-07-22 15:16:01 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3090.81.jpg
+2026-07-22 15:16:01 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3211.43.jpg
+2026-07-22 15:16:01 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3245.10.jpg
+2026-07-22 15:16:01 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3297.38.jpg
+2026-07-22 15:16:01 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3310.86.jpg
+2026-07-22 15:16:01 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3387.75.jpg
+2026-07-22 15:16:01 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3391.11.jpg
+2026-07-22 15:16:01 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3392.11.jpg
+2026-07-22 15:16:01 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3416.02.jpg
+2026-07-22 15:16:01 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3522.87.jpg
+2026-07-22 15:16:01 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3529.65.jpg
+2026-07-22 15:16:01 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:16:01 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=1/9 时间=485.95s
+2026-07-22 15:16:02 - src.crash_handler - CRITICAL - 未捕获的异常: NameError: name 'QRect' is not defined
+崩溃报告已保存: C:\Personal\CoverPicker\log\crashes\crash_report_20260722_151602.txt
+2026-07-22 15:16:02 - src.crash_handler - CRITICAL - 未捕获的异常: NameError: name 'QRect' is not defined
+崩溃报告已保存: C:\Personal\CoverPicker\log\crashes\crash_report_20260722_151602.txt
+2026-07-22 15:16:02 - src.crash_handler - CRITICAL - 未捕获的异常: NameError: name 'QRect' is not defined
+崩溃报告已保存: C:\Personal\CoverPicker\log\crashes\crash_report_20260722_151602.txt
+2026-07-22 15:16:02 - src.crash_handler - CRITICAL - 未捕获的异常: NameError: name 'QRect' is not defined
+崩溃报告已保存: C:\Personal\CoverPicker\log\crashes\crash_report_20260722_151602.txt
+2026-07-22 15:16:02 - src.crash_handler - CRITICAL - 未捕获的异常: NameError: name 'QRect' is not defined
+崩溃报告已保存: C:\Personal\CoverPicker\log\crashes\crash_report_20260722_151602.txt
+2026-07-22 15:16:02 - src.crash_handler - CRITICAL - 未捕获的异常: NameError: name 'QRect' is not defined
+崩溃报告已保存: C:\Personal\CoverPicker\log\crashes\crash_report_20260722_151602.txt
+2026-07-22 15:16:02 - src.crash_handler - CRITICAL - 未捕获的异常: NameError: name 'QRect' is not defined
+崩溃报告已保存: C:\Personal\CoverPicker\log\crashes\crash_report_20260722_151602.txt
+2026-07-22 15:16:02 - src.crash_handler - CRITICAL - 未捕获的异常: NameError: name 'QRect' is not defined
+崩溃报告已保存: C:\Personal\CoverPicker\log\crashes\crash_report_20260722_151602.txt
+2026-07-22 15:16:02 - src.crash_handler - CRITICAL - 未捕获的异常: NameError: name 'QRect' is not defined
+崩溃报告已保存: C:\Personal\CoverPicker\log\crashes\crash_report_20260722_151602.txt
+2026-07-22 15:19:28 - root - INFO - 日志系统初始化完成，日志文件: C:\Personal\CoverPicker\log\CoverPicker.log
+2026-07-22 15:19:28 - root - INFO - ============================================================
+2026-07-22 15:19:28 - root - INFO - CoverPicker 启动
+2026-07-22 15:19:28 - root - INFO - ============================================================
+2026-07-22 15:19:28 - src.crash_handler - INFO - 崩溃报告处理器已安装，报告目录: C:\Personal\CoverPicker\log\crashes
+2026-07-22 15:19:28 - src.config_manager - INFO - 配置文件已加载: C:\Users\CATIC\.coverpicker\config.json
+2026-07-22 15:19:28 - src.controllers.segment_controller - INFO - FFmpeg 并发数设为 8
+2026-07-22 15:19:29 - root - INFO - 主窗口已显示
+2026-07-22 15:19:37 - src.controllers.segment_controller - INFO - 从数据库加载排除区间: [[0, 363]]
+2026-07-22 15:19:37 - src.controllers.segment_controller - INFO - 重新划分分区，共 3 个
+2026-07-22 15:19:37 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\16分钟MP4_covers\fav_C_482.22.jpg
+2026-07-22 15:19:37 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\16分钟MP4_covers\fav_E_853.99.jpg
+2026-07-22 15:19:37 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/无码\16分钟MP4_covers\fav_E_977.42.jpg
+2026-07-22 15:19:37 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:19:37 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=1/9 时间=397.38s
+2026-07-22 15:19:44 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=1/9 时间=397.38s
+2026-07-22 15:19:44 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:19:45 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=2/9 时间=414.01s
+2026-07-22 15:19:49 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=2/9 时间=414.01s
+2026-07-22 15:19:49 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:19:49 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=3/9 时间=457.51s
+2026-07-22 15:19:57 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=3/9 时间=457.51s
+2026-07-22 15:19:57 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:19:58 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=4/9 时间=463.37s
+2026-07-22 15:20:02 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=4/9 时间=463.37s
+2026-07-22 15:20:03 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:20:03 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=5/9 时间=482.56s
+2026-07-22 15:20:09 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=5/9 时间=482.56s
+2026-07-22 15:20:09 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:20:09 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=6/9 时间=485.25s
+2026-07-22 15:20:13 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=6/9 时间=485.25s
+2026-07-22 15:20:13 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:20:13 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=7/9 时间=522.54s
+2026-07-22 15:20:19 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=7/9 时间=522.54s
+2026-07-22 15:20:19 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:20:20 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=8/9 时间=526.85s
+2026-07-22 15:20:25 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=8/9 时间=526.85s
+2026-07-22 15:20:26 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:20:26 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=9/9 时间=532.04s
+2026-07-22 15:20:32 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=9/9 时间=532.04s
+2026-07-22 15:20:33 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:20:34 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:20:35 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:20:35 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:20:54 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:20:54 - src.controllers.segment_controller - DEBUG - 提取帧开始: B idx=1/9 时间=638.03s
+2026-07-22 15:20:59 - src.controllers.segment_controller - DEBUG - 提取帧成功: B idx=1/9 时间=638.03s
+2026-07-22 15:20:59 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:20:59 - src.controllers.segment_controller - DEBUG - 提取帧开始: B idx=2/9 时间=650.07s
+2026-07-22 15:21:03 - src.controllers.segment_controller - DEBUG - 提取帧成功: B idx=2/9 时间=650.07s
+2026-07-22 15:21:03 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:21:03 - src.controllers.segment_controller - DEBUG - 提取帧开始: B idx=3/9 时间=682.22s
+2026-07-22 15:21:09 - src.controllers.segment_controller - DEBUG - 提取帧成功: B idx=3/9 时间=682.22s
+2026-07-22 15:21:09 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:21:09 - src.controllers.segment_controller - DEBUG - 提取帧开始: B idx=4/9 时间=683.33s
+2026-07-22 15:21:11 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:21:11 - src.controllers.segment_controller - DEBUG - 提取帧开始: B idx=1/12 时间=612.99s
+2026-07-22 15:21:17 - src.controllers.segment_controller - DEBUG - 提取帧成功: B idx=1/12 时间=612.99s
+2026-07-22 15:21:17 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:21:17 - src.controllers.segment_controller - DEBUG - 提取帧开始: B idx=2/12 时间=646.20s
+2026-07-22 15:21:21 - src.controllers.segment_controller - DEBUG - 提取帧成功: B idx=2/12 时间=646.20s
+2026-07-22 15:21:21 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:21:21 - src.controllers.segment_controller - DEBUG - 提取帧开始: B idx=3/12 时间=648.49s
+2026-07-22 15:21:24 - src.controllers.segment_controller - DEBUG - 提取帧成功: B idx=3/12 时间=648.49s
+2026-07-22 15:21:24 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:21:24 - src.controllers.segment_controller - DEBUG - 提取帧开始: B idx=4/12 时间=651.07s
+2026-07-22 15:21:28 - src.controllers.segment_controller - DEBUG - 提取帧成功: B idx=4/12 时间=651.07s
+2026-07-22 15:21:28 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:21:28 - src.controllers.segment_controller - DEBUG - 提取帧开始: B idx=5/12 时间=653.79s
+2026-07-22 15:21:31 - src.controllers.segment_controller - DEBUG - 提取帧成功: B idx=5/12 时间=653.79s
+2026-07-22 15:21:32 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:21:32 - src.controllers.segment_controller - DEBUG - 提取帧开始: B idx=6/12 时间=669.52s
+2026-07-22 15:21:35 - ui.views.segment_view - DEBUG - 点击图片: pos=1, key=(1, 1), 当前选中=set()
+2026-07-22 15:21:35 - ui.views.segment_view - DEBUG - 添加选中: (1, 1)
+2026-07-22 15:21:35 - ui.views.segment_view - DEBUG - 选中后: {(1, 1)}
+2026-07-22 15:21:35 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(1, 1)}
+2026-07-22 15:21:35 - src.controllers.segment_controller - DEBUG - 提取帧成功: B idx=6/12 时间=669.52s
+2026-07-22 15:21:35 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(1, 1)}
+2026-07-22 15:21:35 - src.controllers.segment_controller - DEBUG - 提取帧开始: B idx=7/12 时间=687.94s
+2026-07-22 15:21:38 - src.controllers.segment_controller - INFO - 收藏截图已保存到NAS: Z:/无码\16分钟MP4_covers\fav_B_646.20.jpg
+2026-07-22 15:21:38 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(1, 1)}
+2026-07-22 15:21:39 - src.controllers.segment_controller - DEBUG - 提取帧成功: B idx=7/12 时间=687.94s
+2026-07-22 15:21:39 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:21:39 - src.controllers.segment_controller - DEBUG - 提取帧开始: B idx=8/12 时间=699.86s
+2026-07-22 15:21:44 - src.controllers.segment_controller - DEBUG - 提取帧成功: B idx=8/12 时间=699.86s
+2026-07-22 15:21:44 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:21:45 - src.controllers.segment_controller - DEBUG - 提取帧开始: B idx=9/12 时间=715.46s
+2026-07-22 15:21:50 - src.controllers.segment_controller - DEBUG - 提取帧成功: B idx=9/12 时间=715.46s
+2026-07-22 15:21:51 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:21:51 - src.controllers.segment_controller - DEBUG - 提取帧开始: B idx=10/12 时间=737.82s
+2026-07-22 15:21:51 - src.controllers.segment_controller - INFO - 已删除NAS收藏截图: Z:/无码\16分钟MP4_covers\fav_E_853.99.jpg
+2026-07-22 15:21:51 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:21:56 - src.controllers.segment_controller - DEBUG - 提取帧成功: B idx=10/12 时间=737.82s
+2026-07-22 15:21:56 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:21:56 - src.controllers.segment_controller - DEBUG - 提取帧开始: B idx=11/12 时间=749.38s
+2026-07-22 15:21:59 - src.controllers.segment_controller - DEBUG - 提取帧成功: B idx=11/12 时间=749.38s
+2026-07-22 15:21:59 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:21:59 - src.controllers.segment_controller - DEBUG - 提取帧开始: B idx=12/12 时间=761.44s
+2026-07-22 15:22:05 - src.controllers.segment_controller - DEBUG - 提取帧成功: B idx=12/12 时间=761.44s
+2026-07-22 15:22:05 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:22:05 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:22:06 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:22:09 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:22:11 - src.controllers.segment_controller - INFO - 从数据库加载排除区间: [[0, 363]]
+2026-07-22 15:22:11 - src.controllers.segment_controller - INFO - 重新划分分区，共 3 个
+2026-07-22 15:22:12 - src.controllers.segment_controller - DEBUG - 提取帧开始: C idx=1/12 时间=827.35s
+2026-07-22 15:22:20 - src.controllers.segment_controller - DEBUG - 提取帧成功: C idx=1/12 时间=827.35s
+2026-07-22 15:22:20 - src.controllers.segment_controller - DEBUG - 提取帧开始: C idx=2/12 时间=846.96s
+2026-07-22 15:22:27 - src.controllers.segment_controller - DEBUG - 提取帧成功: C idx=2/12 时间=846.96s
+2026-07-22 15:22:28 - src.controllers.segment_controller - DEBUG - 提取帧开始: C idx=3/12 时间=849.73s
+2026-07-22 15:22:33 - src.controllers.segment_controller - DEBUG - 提取帧成功: C idx=3/12 时间=849.73s
+2026-07-22 15:22:33 - src.controllers.segment_controller - DEBUG - 提取帧开始: C idx=4/12 时间=872.27s
+2026-07-22 15:22:38 - src.controllers.segment_controller - DEBUG - 提取帧成功: C idx=4/12 时间=872.27s
+2026-07-22 15:22:38 - src.controllers.segment_controller - DEBUG - 提取帧开始: C idx=5/12 时间=884.58s
+2026-07-22 15:22:43 - src.controllers.segment_controller - DEBUG - 提取帧成功: C idx=5/12 时间=884.58s
+2026-07-22 15:22:44 - src.controllers.segment_controller - DEBUG - 提取帧开始: C idx=6/12 时间=896.35s
+2026-07-22 15:22:50 - src.controllers.segment_controller - DEBUG - 提取帧成功: C idx=6/12 时间=896.35s
+2026-07-22 15:22:50 - src.controllers.segment_controller - DEBUG - 提取帧开始: C idx=7/12 时间=898.95s
+2026-07-22 15:22:53 - src.controllers.segment_controller - DEBUG - 提取帧成功: C idx=7/12 时间=898.95s
+2026-07-22 15:22:53 - src.controllers.segment_controller - DEBUG - 提取帧开始: C idx=8/12 时间=912.56s
+2026-07-22 15:22:56 - src.controllers.segment_controller - DEBUG - 提取帧成功: C idx=8/12 时间=912.56s
+2026-07-22 15:22:56 - src.controllers.segment_controller - DEBUG - 提取帧开始: C idx=9/12 时间=934.11s
+2026-07-22 15:23:02 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/国货\20210428浦东机场出发-1_covers\fav_A_8.47.jpg
+2026-07-22 15:23:02 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/国货\20210428浦东机场出发-1_covers\fav_C_14.61.jpg
+2026-07-22 15:23:02 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:23:02 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=1/12 时间=3.73s
+2026-07-22 15:23:05 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=1/12 时间=3.73s
+2026-07-22 15:23:05 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:23:05 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=2/12 时间=4.64s
+2026-07-22 15:23:08 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=2/12 时间=4.64s
+2026-07-22 15:23:08 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:23:09 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=3/12 时间=5.82s
+2026-07-22 15:23:14 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=3/12 时间=5.82s
+2026-07-22 15:23:14 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:23:14 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=4/12 时间=7.37s
+2026-07-22 15:23:19 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=4/12 时间=7.37s
+2026-07-22 15:23:19 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:23:20 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=5/12 时间=8.99s
+2026-07-22 15:23:25 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=5/12 时间=8.99s
+2026-07-22 15:23:25 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:23:26 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=6/12 时间=9.48s
+2026-07-22 15:23:31 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=6/12 时间=9.48s
+2026-07-22 15:23:31 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:23:32 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=7/12 时间=13.35s
+2026-07-22 15:23:37 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=7/12 时间=13.35s
+2026-07-22 15:23:37 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:23:37 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=8/12 时间=14.53s
+2026-07-22 15:23:43 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=8/12 时间=14.53s
+2026-07-22 15:23:43 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:23:43 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=9/12 时间=15.45s
+2026-07-22 15:23:48 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=9/12 时间=15.45s
+2026-07-22 15:23:48 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:23:49 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=10/12 时间=15.53s
+2026-07-22 15:23:54 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=10/12 时间=15.53s
+2026-07-22 15:23:54 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:23:54 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=11/12 时间=15.67s
+2026-07-22 15:24:00 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=11/12 时间=15.67s
+2026-07-22 15:24:00 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:24:00 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=12/12 时间=16.10s
+2026-07-22 15:24:05 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=12/12 时间=16.10s
+2026-07-22 15:24:06 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:24:06 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:24:07 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:24:08 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:24:35 - ui.views.segment_view - DEBUG - 点击图片: pos=4, key=(0, 4), 当前选中=set()
+2026-07-22 15:24:35 - ui.views.segment_view - DEBUG - 添加选中: (0, 4)
+2026-07-22 15:24:35 - ui.views.segment_view - DEBUG - 选中后: {(0, 4)}
+2026-07-22 15:24:35 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 4)}
+2026-07-22 15:24:36 - ui.views.segment_view - DEBUG - 点击图片: pos=6, key=(0, 6), 当前选中={(0, 4)}
+2026-07-22 15:24:36 - ui.views.segment_view - DEBUG - 添加选中: (0, 6)
+2026-07-22 15:24:36 - ui.views.segment_view - DEBUG - 选中后: {(0, 4), (0, 6)}
+2026-07-22 15:24:36 - ui.views.segment_view - DEBUG - 选中计数更新: 2 张, selected_indices={(0, 4), (0, 6)}
+2026-07-22 15:24:38 - src.controllers.segment_controller - INFO - 收藏截图已保存到NAS: Z:/国货\20210428浦东机场出发-1_covers\fav_A_8.99.jpg
+2026-07-22 15:24:39 - src.controllers.segment_controller - INFO - 收藏截图已保存到NAS: Z:/国货\20210428浦东机场出发-1_covers\fav_A_13.35.jpg
+2026-07-22 15:24:39 - ui.views.segment_view - DEBUG - 选中计数更新: 2 张, selected_indices={(0, 4), (0, 6)}
+2026-07-22 15:24:52 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:25:02 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:25:03 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=1/25 时间=6.87s
+2026-07-22 15:25:05 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=1/25 时间=6.87s
+2026-07-22 15:25:05 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:25:05 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=2/25 时间=7.13s
+2026-07-22 15:25:08 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=2/25 时间=7.13s
+2026-07-22 15:25:08 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:25:08 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=3/25 时间=7.57s
+2026-07-22 15:25:11 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=3/25 时间=7.57s
+2026-07-22 15:25:11 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:25:11 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=4/25 时间=8.16s
+2026-07-22 15:25:14 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=4/25 时间=8.16s
+2026-07-22 15:25:14 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:25:14 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=5/25 时间=8.65s
+2026-07-22 15:25:14 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:25:14 - qasync._QEventLoop - ERROR - Exception in callback Task.task_wakeup()
+handle: <Handle Task.task_wakeup()>
+Traceback (most recent call last):
+  File "C:\Users\CATIC\AppData\Local\Programs\Python\Python313\Lib\asyncio\events.py", line 89, in _run
+    self._context.run(self._callback, *self._args)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: Cannot enter into task <Task pending name='Task-213' coro=<BaseSubprocessTransport._connect_pipes() running at C:\Users\CATIC\AppData\Local\Programs\Python\Python313\Lib\asyncio\base_subprocess.py:192> wait_for=<Future finished result=None>> while another task <Task pending name='Task-214' coro=<SegmentView._load_video() running at C:\Personal\CoverPicker\ui\views\segment_view.py:814>> is being executed.
+2026-07-22 15:25:18 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:25:18 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=1/25 时间=224.73s
+2026-07-22 15:25:22 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=1/25 时间=224.73s
+2026-07-22 15:25:22 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:25:22 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=2/25 时间=300.40s
+2026-07-22 15:25:26 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=2/25 时间=300.40s
+2026-07-22 15:25:26 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:25:26 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=3/25 时间=375.41s
+2026-07-22 15:25:29 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=3/25 时间=375.41s
+2026-07-22 15:25:29 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:25:29 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=4/25 时间=407.67s
+2026-07-22 15:25:35 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=4/25 时间=407.67s
+2026-07-22 15:25:35 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:25:35 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=5/25 时间=461.40s
+2026-07-22 15:25:41 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=5/25 时间=461.40s
+2026-07-22 15:25:41 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:25:41 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=6/25 时间=483.14s
+2026-07-22 15:25:46 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=6/25 时间=483.14s
+2026-07-22 15:25:46 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:25:47 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=7/25 时间=494.13s
+2026-07-22 15:25:52 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=7/25 时间=494.13s
+2026-07-22 15:25:53 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:25:53 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=8/25 时间=525.22s
+2026-07-22 15:25:58 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=8/25 时间=525.22s
+2026-07-22 15:25:58 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:25:59 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=9/25 时间=541.63s
+2026-07-22 15:26:03 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=9/25 时间=541.63s
+2026-07-22 15:26:03 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:26:04 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=10/25 时间=560.38s
+2026-07-22 15:26:09 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=10/25 时间=560.38s
+2026-07-22 15:26:09 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:26:10 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=11/25 时间=600.55s
+2026-07-22 15:26:15 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=11/25 时间=600.55s
+2026-07-22 15:26:16 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:26:16 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=12/25 时间=647.55s
+2026-07-22 15:26:21 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=12/25 时间=647.55s
+2026-07-22 15:26:22 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:26:22 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=13/25 时间=693.71s
+2026-07-22 15:26:22 - qasync._QEventLoop - ERROR - Task was destroyed but it is pending!
+task: <Task pending name='Task-213' coro=<BaseSubprocessTransport._connect_pipes() done, defined at C:\Users\CATIC\AppData\Local\Programs\Python\Python313\Lib\asyncio\base_subprocess.py:180> wait_for=<Future finished result=None>>
+2026-07-22 15:26:28 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=13/25 时间=693.71s
+2026-07-22 15:26:28 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:26:29 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=14/25 时间=720.09s
+2026-07-22 15:26:34 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=14/25 时间=720.09s
+2026-07-22 15:26:34 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:26:35 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=15/25 时间=736.08s
+2026-07-22 15:26:40 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=15/25 时间=736.08s
+2026-07-22 15:26:40 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:26:41 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=16/25 时间=753.26s
+2026-07-22 15:26:46 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=16/25 时间=753.26s
+2026-07-22 15:26:47 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:26:48 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=17/25 时间=809.83s
+2026-07-22 15:26:53 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=17/25 时间=809.83s
+2026-07-22 15:26:54 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:26:55 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=18/25 时间=826.66s
+2026-07-22 15:27:01 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=18/25 时间=826.66s
+2026-07-22 15:27:01 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:27:02 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=19/25 时间=834.83s
+2026-07-22 15:27:07 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=19/25 时间=834.83s
+2026-07-22 15:27:08 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:27:09 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=20/25 时间=844.12s
+2026-07-22 15:27:14 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=20/25 时间=844.12s
+2026-07-22 15:27:15 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:27:15 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=21/25 时间=896.71s
+2026-07-22 15:27:21 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=21/25 时间=896.71s
+2026-07-22 15:27:22 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:27:22 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=22/25 时间=900.08s
+2026-07-22 15:27:28 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=22/25 时间=900.08s
+2026-07-22 15:27:29 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:27:29 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=23/25 时间=978.74s
+2026-07-22 15:27:35 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=23/25 时间=978.74s
+2026-07-22 15:27:36 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:27:37 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=24/25 时间=1027.91s
+2026-07-22 15:27:40 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=24/25 时间=1027.91s
+2026-07-22 15:27:40 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:27:40 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=25/25 时间=1055.06s
+2026-07-22 15:27:46 - src.controllers.segment_controller - DEBUG - 提取帧成功: A idx=25/25 时间=1055.06s
+2026-07-22 15:27:47 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:27:48 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:27:50 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:27:51 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:31:23 - ui.views.segment_view - DEBUG - 点击图片: pos=2, key=(0, 2), 当前选中=set()
+2026-07-22 15:31:23 - ui.views.segment_view - DEBUG - 添加选中: (0, 2)
+2026-07-22 15:31:23 - ui.views.segment_view - DEBUG - 选中后: {(0, 2)}
+2026-07-22 15:31:23 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 2)}
+2026-07-22 15:31:36 - src.config_manager - INFO - 配置文件已保存: C:\Users\CATIC\.coverpicker\config.json
+2026-07-22 15:31:36 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 2)}
+2026-07-22 15:31:39 - ui.views.segment_view - DEBUG - 点击图片: pos=2, key=(0, 2), 当前选中=set()
+2026-07-22 15:31:39 - ui.views.segment_view - DEBUG - 添加选中: (0, 2)
+2026-07-22 15:31:39 - ui.views.segment_view - DEBUG - 选中后: {(0, 2)}
+2026-07-22 15:31:39 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 2)}
+2026-07-22 15:31:40 - ui.views.segment_view - DEBUG - 点击图片: pos=2, key=(0, 2), 当前选中={(0, 2)}
+2026-07-22 15:31:40 - ui.views.segment_view - DEBUG - 移除选中: (0, 2)
+2026-07-22 15:31:40 - ui.views.segment_view - DEBUG - 选中后: set()
+2026-07-22 15:31:41 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:31:42 - ui.views.segment_view - DEBUG - 点击图片: pos=13, key=(0, 13), 当前选中=set()
+2026-07-22 15:31:42 - ui.views.segment_view - DEBUG - 添加选中: (0, 13)
+2026-07-22 15:31:42 - ui.views.segment_view - DEBUG - 选中后: {(0, 13)}
+2026-07-22 15:31:42 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 13)}
+2026-07-22 15:31:45 - ui.views.segment_view - DEBUG - 点击图片: pos=10, key=(0, 10), 当前选中={(0, 13)}
+2026-07-22 15:31:45 - ui.views.segment_view - DEBUG - 添加选中: (0, 10)
+2026-07-22 15:31:45 - ui.views.segment_view - DEBUG - 选中后: {(0, 13), (0, 10)}
+2026-07-22 15:31:45 - ui.views.segment_view - DEBUG - 选中计数更新: 2 张, selected_indices={(0, 13), (0, 10)}
+2026-07-22 15:31:51 - src.config_manager - INFO - 配置文件已保存: C:\Users\CATIC\.coverpicker\config.json
+2026-07-22 15:31:51 - ui.views.segment_view - DEBUG - 选中计数更新: 2 张, selected_indices={(0, 13), (0, 10)}
+2026-07-22 15:32:02 - ui.views.segment_view - DEBUG - 点击图片: pos=13, key=(0, 13), 当前选中=set()
+2026-07-22 15:32:02 - ui.views.segment_view - DEBUG - 添加选中: (0, 13)
+2026-07-22 15:32:02 - ui.views.segment_view - DEBUG - 选中后: {(0, 13)}
+2026-07-22 15:32:03 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 13)}
+2026-07-22 15:32:04 - ui.views.segment_view - DEBUG - 点击图片: pos=18, key=(0, 18), 当前选中={(0, 13)}
+2026-07-22 15:32:04 - ui.views.segment_view - DEBUG - 添加选中: (0, 18)
+2026-07-22 15:32:04 - ui.views.segment_view - DEBUG - 选中后: {(0, 18), (0, 13)}
+2026-07-22 15:32:04 - ui.views.segment_view - DEBUG - 选中计数更新: 2 张, selected_indices={(0, 18), (0, 13)}
+2026-07-22 15:32:05 - ui.views.segment_view - DEBUG - 点击图片: pos=13, key=(0, 13), 当前选中={(0, 18), (0, 13)}
+2026-07-22 15:32:05 - ui.views.segment_view - DEBUG - 移除选中: (0, 13)
+2026-07-22 15:32:05 - ui.views.segment_view - DEBUG - 选中后: {(0, 18)}
+2026-07-22 15:32:06 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 18)}
+2026-07-22 15:32:56 - src.config_manager - INFO - 配置文件已保存: C:\Users\CATIC\.coverpicker\config.json
+2026-07-22 15:33:09 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 18)}
+2026-07-22 15:33:09 - src.controllers.segment_controller - DEBUG - 提取帧开始: A idx=1/9 时间=215.49s
+2026-07-22 15:33:12 - qasync._QEventLoop - ERROR - Exception in callback Task.task_wakeup()
+handle: <Handle Task.task_wakeup()>
+Traceback (most recent call last):
+  File "C:\Users\CATIC\AppData\Local\Programs\Python\Python313\Lib\asyncio\events.py", line 89, in _run
+    self._context.run(self._callback, *self._args)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: Cannot enter into task <Task pending name='Task-322' coro=<Process._read_stream() running at C:\Users\CATIC\AppData\Local\Programs\Python\Python313\Lib\asyncio\subprocess.py:181> wait_for=<Future finished result=None> cb=[gather.<locals>._done_callback() at C:\Users\CATIC\AppData\Local\Programs\Python\Python313\Lib\asyncio\tasks.py:822]> while another task <Task pending name='Task-316' coro=<PreviewDialog.export_clip.<locals>.do_export() running at C:\Personal\CoverPicker\ui\views\preview_dialog.py:520>> is being executed.
+2026-07-22 15:33:12 - qasync._QEventLoop - ERROR - Exception in callback Task.task_wakeup()
+handle: <Handle Task.task_wakeup()>
+Traceback (most recent call last):
+  File "C:\Users\CATIC\AppData\Local\Programs\Python\Python313\Lib\asyncio\events.py", line 89, in _run
+    self._context.run(self._callback, *self._args)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: Cannot enter into task <Task pending name='Task-321' coro=<Process._read_stream() running at C:\Users\CATIC\AppData\Local\Programs\Python\Python313\Lib\asyncio\subprocess.py:181> wait_for=<Future finished result=None> cb=[gather.<locals>._done_callback() at C:\Users\CATIC\AppData\Local\Programs\Python\Python313\Lib\asyncio\tasks.py:822]> while another task <Task pending name='Task-316' coro=<PreviewDialog.export_clip.<locals>.do_export() running at C:\Personal\CoverPicker\ui\views\preview_dialog.py:520>> is being executed.
+2026-07-22 15:37:03 - src.config_manager - INFO - 配置文件已保存: C:\Users\CATIC\.coverpicker\config.json
+2026-07-22 15:37:51 - src.controllers.segment_controller - INFO - 自动备份成功: C:/CoverPicker-Backup/BaiduSyncdisk\coverpicker_backup_20260722_153751.db
+2026-07-22 15:37:51 - root - INFO - 应用退出
+2026-07-22 15:37:51 - qasync._QEventLoop - ERROR - Task was destroyed but it is pending!
+task: <Task pending name='Task-317' coro=<SegmentController.load_segment() done, defined at C:\Personal\CoverPicker\src\controllers\segment_controller.py:244> wait_for=<Task cancelling name='Task-318' coro=<SegmentController._load_segment() running at C:\Personal\CoverPicker\src\controllers\segment_controller.py:423> wait_for=<_GatheringFuture pending cb=[Task.task_wakeup()]> cb=[Task.task_wakeup(), Task.task_wakeup()]>>
+2026-07-22 15:37:51 - qasync._QEventLoop - ERROR - Task was destroyed but it is pending!
+task: <Task cancelling name='Task-318' coro=<SegmentController._load_segment() done, defined at C:\Personal\CoverPicker\src\controllers\segment_controller.py:348> wait_for=<_GatheringFuture pending cb=[Task.task_wakeup()]> cb=[Task.task_wakeup(), Task.task_wakeup()]>
+2026-07-22 15:37:51 - qasync._QEventLoop - ERROR - Task was destroyed but it is pending!
+task: <Task pending name='Task-324' coro=<SegmentController.load_segment() done, defined at C:\Personal\CoverPicker\src\controllers\segment_controller.py:244> wait_for=<Task cancelling name='Task-318' coro=<SegmentController._load_segment() done, defined at C:\Personal\CoverPicker\src\controllers\segment_controller.py:348> wait_for=<_GatheringFuture pending cb=[Task.task_wakeup()]> cb=[Task.task_wakeup(), Task.task_wakeup()]>>
+2026-07-22 15:41:33 - root - INFO - 日志系统初始化完成，日志文件: C:\Personal\CoverPicker\log\CoverPicker.log
+2026-07-22 15:41:33 - root - INFO - ============================================================
+2026-07-22 15:41:33 - root - INFO - CoverPicker 启动
+2026-07-22 15:41:33 - root - INFO - ============================================================
+2026-07-22 15:41:33 - src.crash_handler - INFO - 崩溃报告处理器已安装，报告目录: C:\Personal\CoverPicker\log\crashes
+2026-07-22 15:41:33 - src.config_manager - INFO - 配置文件已加载: C:\Users\CATIC\.coverpicker\config.json
+2026-07-22 15:41:33 - src.controllers.segment_controller - INFO - FFmpeg 并发数设为 8
+2026-07-22 15:41:34 - root - INFO - 主窗口已显示
+2026-07-22 15:41:45 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_A_813.20.jpg
+2026-07-22 15:41:45 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:41:52 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:41:56 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:42:00 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:42:03 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:42:06 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:42:10 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:42:13 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:42:17 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:42:21 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:42:21 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:42:21 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:42:21 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:42:23 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:42:26 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:42:28 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:42:32 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:42:35 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:42:39 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:42:42 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:42:45 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:42:49 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:42:52 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:42:55 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:42:59 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:43:03 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:43:06 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:43:10 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:43:13 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:43:17 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:43:17 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:43:18 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:43:36 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:43:40 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:43:41 - src.controllers.segment_controller - DEBUG - 提取帧被取消: C @ 3936.57s
+2026-07-22 15:43:41 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:43:44 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:43:48 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:43:51 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:43:55 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:44:00 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:44:05 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:44:09 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:44:12 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:44:14 - src.controllers.segment_controller - DEBUG - 提取帧被取消: C @ 5056.83s
+2026-07-22 15:44:15 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:44:18 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:44:21 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:44:25 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:44:28 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:44:32 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:44:35 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:44:39 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:44:42 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:44:44 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:44:45 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:44:45 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:44:46 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:45:01 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:45:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2215.89.jpg
+2026-07-22 15:45:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2248.55.jpg
+2026-07-22 15:45:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2306.25.jpg
+2026-07-22 15:45:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2309.50.jpg
+2026-07-22 15:45:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2460.66.jpg
+2026-07-22 15:45:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2476.67.jpg
+2026-07-22 15:45:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2512.53.jpg
+2026-07-22 15:45:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2762.15.jpg
+2026-07-22 15:45:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2780.07.jpg
+2026-07-22 15:45:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2798.64.jpg
+2026-07-22 15:45:03 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2812.91.jpg
+2026-07-22 15:45:04 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_2843.59.jpg
+2026-07-22 15:45:04 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3036.60.jpg
+2026-07-22 15:45:04 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3070.04.jpg
+2026-07-22 15:45:04 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3090.81.jpg
+2026-07-22 15:45:04 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3211.43.jpg
+2026-07-22 15:45:04 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3245.10.jpg
+2026-07-22 15:45:04 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3297.38.jpg
+2026-07-22 15:45:04 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3310.86.jpg
+2026-07-22 15:45:04 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3387.75.jpg
+2026-07-22 15:45:04 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3391.11.jpg
+2026-07-22 15:45:04 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3392.11.jpg
+2026-07-22 15:45:04 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3416.02.jpg
+2026-07-22 15:45:04 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3522.87.jpg
+2026-07-22 15:45:04 - src.controllers.segment_controller - WARNING - 收藏截图未找到: fav_B_3529.65.jpg
+2026-07-22 15:45:04 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:45:07 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:45:11 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:45:14 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:45:18 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:45:22 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:45:25 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:45:27 - src.controllers.segment_controller - DEBUG - 提取帧被取消: A @ 1900.20s
+2026-07-22 15:45:27 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:45:31 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:45:35 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:45:38 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:45:42 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:45:46 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:45:50 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:45:51 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:45:52 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:45:52 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:45:52 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:45:53 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:45:53 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:45:53 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:45:54 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:45:54 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:45:55 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:45:55 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:45:55 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:45:56 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:45:56 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:45:57 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:45:57 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:45:57 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:45:58 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:45:59 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:45:59 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:46:00 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:46:01 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:46:01 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:46:02 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:46:04 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:46:04 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:46:05 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:46:10 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:46:10 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:46:11 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:46:11 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-22 15:46:12 - ui.views.segment_view - DEBUG - 点击图片: pos=1, key=(0, 1), 当前选中=set()
+2026-07-22 15:46:12 - ui.views.segment_view - DEBUG - 添加选中: (0, 1)
+2026-07-22 15:46:12 - ui.views.segment_view - DEBUG - 选中后: {(0, 1)}
+2026-07-22 15:46:13 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 1)}
+2026-07-22 15:46:18 - src.config_manager - INFO - 配置文件已保存: C:\Users\CATIC\.coverpicker\config.json
+2026-07-22 15:46:18 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 1)}
+2026-07-22 15:46:37 - ui.views.segment_view - DEBUG - 点击图片: pos=0, key=(0, 0), 当前选中=set()
+2026-07-22 15:46:37 - ui.views.segment_view - DEBUG - 添加选中: (0, 0)
+2026-07-22 15:46:37 - ui.views.segment_view - DEBUG - 选中后: {(0, 0)}
+2026-07-22 15:46:37 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 0)}
+2026-07-22 15:46:38 - ui.views.segment_view - DEBUG - 点击图片: pos=1, key=(0, 1), 当前选中={(0, 0)}
+2026-07-22 15:46:38 - ui.views.segment_view - DEBUG - 添加选中: (0, 1)
+2026-07-22 15:46:38 - ui.views.segment_view - DEBUG - 选中后: {(0, 1), (0, 0)}
+2026-07-22 15:46:38 - ui.views.segment_view - DEBUG - 选中计数更新: 2 张, selected_indices={(0, 1), (0, 0)}
+2026-07-22 15:46:40 - ui.views.segment_view - DEBUG - 选中计数更新: 2 张, selected_indices={(0, 1), (0, 0)}
+2026-07-22 15:46:47 - ui.views.segment_view - DEBUG - 点击图片: pos=1, key=(0, 1), 当前选中=set()
+2026-07-22 15:46:47 - ui.views.segment_view - DEBUG - 添加选中: (0, 1)
+2026-07-22 15:46:47 - ui.views.segment_view - DEBUG - 选中后: {(0, 1)}
+2026-07-22 15:46:47 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 1)}
+2026-07-22 15:46:49 - src.controllers.segment_controller - INFO - 收藏截图已保存到NAS: Z:/国货\[满江红].Full.River.Red.2023.WEB-DL.4K.HEVC.AAC-CMCTV_covers\fav_A_1879.91.jpg
+2026-07-22 15:46:49 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 1)}
+2026-07-22 15:47:12 - ui.views.segment_view - DEBUG - 点击图片: pos=1, key=(0, 1), 当前选中=set()
+2026-07-22 15:47:12 - ui.views.segment_view - DEBUG - 添加选中: (0, 1)
+2026-07-22 15:47:12 - ui.views.segment_view - DEBUG - 选中后: {(0, 1)}
+2026-07-22 15:47:12 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 1)}
+2026-07-22 15:47:54 - src.controllers.segment_controller - INFO - 收藏截图已保存到NAS: Z:/国货\[满江红].Full.River.Red.2023.WEB-DL.4K.HEVC.AAC-CMCTV_covers\fav_A_1883.54.jpg
+2026-07-22 15:47:54 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 1)}
+2026-07-22 15:47:54 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 1)}
+2026-07-22 15:47:56 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 1)}
+2026-07-22 15:47:59 - ui.views.segment_view - DEBUG - 点击图片: pos=4, key=(0, 4), 当前选中={(0, 1)}
+2026-07-22 15:47:59 - ui.views.segment_view - DEBUG - 添加选中: (0, 4)
+2026-07-22 15:47:59 - ui.views.segment_view - DEBUG - 选中后: {(0, 1), (0, 4)}
+2026-07-22 15:48:00 - ui.views.segment_view - DEBUG - 选中计数更新: 2 张, selected_indices={(0, 1), (0, 4)}
+2026-07-22 15:48:04 - ui.views.segment_view - DEBUG - 点击图片: pos=1, key=(0, 1), 当前选中={(0, 1), (0, 4)}
+2026-07-22 15:48:04 - ui.views.segment_view - DEBUG - 移除选中: (0, 1)
+2026-07-22 15:48:04 - ui.views.segment_view - DEBUG - 选中后: {(0, 4)}
+2026-07-22 15:48:04 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 4)}
+2026-07-22 15:48:08 - ui.views.segment_view - DEBUG - 点击图片: pos=1, key=(0, 1), 当前选中={(0, 4)}
+2026-07-22 15:48:08 - ui.views.segment_view - DEBUG - 添加选中: (0, 1)
+2026-07-22 15:48:08 - ui.views.segment_view - DEBUG - 选中后: {(0, 1), (0, 4)}
+2026-07-22 15:48:09 - ui.views.segment_view - DEBUG - 选中计数更新: 2 张, selected_indices={(0, 1), (0, 4)}
+2026-07-22 15:48:13 - ui.views.segment_view - DEBUG - 选中计数更新: 2 张, selected_indices={(0, 1), (0, 4)}
+2026-07-22 16:00:54 - ui.views.segment_view - DEBUG - 点击图片: pos=4, key=(0, 4), 当前选中=set()
+2026-07-22 16:00:54 - ui.views.segment_view - DEBUG - 添加选中: (0, 4)
+2026-07-22 16:00:54 - ui.views.segment_view - DEBUG - 选中后: {(0, 4)}
+2026-07-22 16:00:54 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 4)}
+2026-07-22 16:00:57 - src.controllers.segment_controller - INFO - 收藏截图已保存到NAS: Z:/国货\[满江红].Full.River.Red.2023.WEB-DL.4K.HEVC.AAC-CMCTV_covers\fav_A_4032.98.jpg
+2026-07-22 16:00:57 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 4)}
+2026-07-22 16:09:18 - src.controllers.segment_controller - INFO - 自动备份成功: C:/CoverPicker-Backup/BaiduSyncdisk\coverpicker_backup_20260722_160918.db
+2026-07-22 16:09:18 - root - INFO - 应用退出

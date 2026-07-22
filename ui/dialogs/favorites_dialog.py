@@ -408,14 +408,23 @@ class FavoritesDialog(QDialog):
             QMessageBox.information(self, "提示", "请先选中要导出的截图。")
             return
 
+        # 使用记忆的上次导出目录
+        if self.parent_view and hasattr(self.parent_view, 'config'):
+            default_dir = self.parent_view.config.get_last_export_dir() or os.path.expanduser("~")
+        else:
+            default_dir = os.path.expanduser("~")
+
         export_dir = QFileDialog.getExistingDirectory(
             self,
             "选择导出目录",
-            os.path.expanduser("~"),
+            default_dir,
             QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
         )
         if not export_dir:
             return
+        # 保存本次选择的目录
+        if self.parent_view and hasattr(self.parent_view, 'config'):
+            self.parent_view.config.set_last_export_dir(export_dir)
 
         selected_favs = []
         for global_idx in self.selected_indices:

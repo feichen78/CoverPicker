@@ -1,10 +1,10 @@
 # ui/widgets/image_labels.py
-# 时间戳右上角亮蓝色，修复 Expanding 错误，包含 FavImageLabel
+# 修复：添加 QRect 导入，解决 NameError 崩溃
 
 import os
 import logging
 from PySide6.QtWidgets import QLabel, QApplication, QSizePolicy
-from PySide6.QtCore import Qt, Signal, QTimer
+from PySide6.QtCore import Qt, Signal, QTimer, QRect
 from PySide6.QtGui import QPixmap, QPainter, QColor, QFont, QPen, QBrush
 
 logger = logging.getLogger(__name__)
@@ -89,15 +89,33 @@ class ClickableLabel(QLabel):
         painter.setPen(QColor(255, 255, 255))
         painter.drawText(rect.left() + 4, rect.top() + 14, str(self.index_num))
 
-        # 时间戳（右上角，亮蓝色）
+        # ===== 时间戳（右上角，黑底白字矩形块，格式 h:mm:ss） =====
         hours = int(self.timestamp // 3600)
         minutes = int((self.timestamp % 3600) // 60)
         seconds = int(self.timestamp % 60)
-        time_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+        time_str = f"{hours}:{minutes:02d}:{seconds:02d}"  # 小时不补零
+
         painter.setFont(QFont("Arial", 9, QFont.Bold))
-        painter.setPen(QColor(0, 191, 255))  # 亮蓝色
-        time_width = painter.fontMetrics().horizontalAdvance(time_str)
-        painter.drawText(rect.right() - time_width - 6, rect.top() + 16, time_str)
+        fm = painter.fontMetrics()
+        text_rect = fm.boundingRect(time_str)
+
+        # 矩形块边距
+        padding = 3
+        bg_rect = QRect(
+            rect.right() - text_rect.width() - 6 - padding,
+            rect.top() + 2,
+            text_rect.width() + 2 * padding,
+            text_rect.height() + 2 * padding
+        )
+        # 绘制黑色背景
+        painter.fillRect(bg_rect, QColor(0, 0, 0))
+        # 绘制白色文字
+        painter.setPen(QColor(255, 255, 255))
+        painter.drawText(
+            rect.right() - text_rect.width() - 6,
+            rect.top() + 4 + text_rect.height(),
+            time_str
+        )
 
         # 锁定（左上角）
         if self.is_locked:
@@ -105,11 +123,12 @@ class ClickableLabel(QLabel):
             painter.setFont(QFont("Arial", 8))
             painter.drawText(rect.left() + 4, rect.top() + 30, "🔒")
 
-        # 收藏（右上角）
+        # 收藏（左上角，红色桃心）
         if self.is_favorite:
-            painter.setPen(QColor(255, 200, 0))
+            painter.setPen(QColor(255, 0, 0))
             painter.setFont(QFont("Arial", 10))
-            painter.drawText(rect.right() - 24, rect.top() + 14, "⭐")
+            y_offset = 46 if self.is_locked else 30
+            painter.drawText(rect.left() + 4, rect.top() + y_offset, "❤️")
 
         # 已导出（右下角绿点）
         if self.is_exported:

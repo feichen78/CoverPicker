@@ -1,19 +1,9 @@
 # src/controllers/segment_controller.py
-# 修改：收藏截图保存到视频所在目录的 [视频名]_covers 子目录
-# 修改：渐进式加载（占位图），每生成一张截图后刷新界面
-# 修复：提取帧失败时增加重试机制，减少占位图
-# 修改：清理缓存功能改为删除所有历史 CoverPicker_* 临时目录，统计汇总所有缓存
-# 恢复：排除区间自动调整分区边界，保持分区数不变
-# v3.0: 并发提取帧（使用 asyncio.gather + 信号量），支持取消时即时 kill 子进程
-# v3.0.2fix: 提高并发数至 min(CPU核心数*2, 8)，加快速度
-# v3.0.4fix: 移除批量提取，恢复渐进式加载（逐张刷新），使用 asyncio.as_completed 实现并发
-# v3.0.5fix: 增强取消处理，避免多个任务同时运行
-# v3.0.6fix: load_video 开始时强制重置所有状态，duration=None 或 <=0 时正确返回 False 并清空分区
-# v3.0.7fix: 简化版本，移除复杂并发，采用逐个提取并即时刷新
-# v3.0.8fix: 新增自动备份功能（关闭时备份）、启动时删除旧备份
-# v3.0.9fix: 新增 unfavorite_by_time 方法，支持按分区和时间戳取消收藏，删除NAS文件（仅删除.jpg截图，绝不删除视频）
-# v3.0.10fix: 主界面取消收藏保留缓存文件，只删除NAS图片；增强取消任务处理，防止密度切换卡死
-# v3.0.11fix: 修复 _restore_favorites_from_db 中 exported 状态从数据库正确读取
+# 修改：默认分区数 5 -> 3，边界 3~7 -> 1~5
+# 修改：已有视频强制重置为3分区
+# 修改：收藏标签从5分区映射到3分区（D/E -> C）
+# 修复：_load_segment 增加取消检测，避免取消后继续执行
+# 修复：增加 _cancel_current_task 的等待，确保取消完成
 
 import os, asyncio, random, tempfile, shutil, logging, json, multiprocessing
 from typing import Dict, List, Set, Tuple, Optional, Any
@@ -34,7 +24,8 @@ class SegmentController:
         self.video_id: Optional[int] = None
         self.duration: float = 0.0
         self.video_name: str = ""
-        self.num_segments: int = 5
+        # 默认分区数从 5 改为 3
+        self.num_segments: int = 3
         self.segments: List[Tuple[str, float, float]] = []
         self.current_seg_index: int = 0
         self.screenshots: Dict[str, List[dict]] = {}
@@ -114,9 +105,12 @@ class SegmentController:
             filename = f"fav_{seg_label}_{time_sec:.2f}.jpg"
         return os.path.join(favorites_dir, filename)
 
+    # 边界由 3~7 改为 1~5
     def set_num_segments(self, num: int):
-        if num < 3: num = 3
-        elif num > 7: num = 7
+        if num < 1:
+            num = 1
+        elif num > 5:
+            num = 5
         if self.num_segments != num and self.video_path and self.duration > 0:
             self.num_segments = num
             if self.excluded_ranges:
@@ -128,7 +122,9 @@ class SegmentController:
             self.current_seg_index = 0
             self._clear_history()
             self._notify_data_changed()
+
     def get_num_segments(self) -> int: return self.num_segments
+
     def apply_custom_segments(self, segments: List[Tuple[str, float, float]]):
         if not segments or len(segments) < 2: return
         for label, start, end in segments:
@@ -142,7 +138,9 @@ class SegmentController:
         self._notify_data_changed()
         if self.video_path:
             asyncio.create_task(self.load_segment(0, restore_locks=True, randomize=False))
+
     def get_excluded_ranges(self) -> List[Tuple[float, float]]: return self.excluded_ranges.copy()
+
     def set_excluded_ranges(self, ranges: List[Tuple[float, float]], save: bool = True):
         self.excluded_ranges = ranges.copy()
         self._notify_data_changed()
@@ -157,6 +155,7 @@ class SegmentController:
                 self._clear_history()
                 self._notify_data_changed()
             logger.info(f"排除区间已保存到数据库: {ranges}")
+
     def load_excluded_ranges_from_db(self):
         if not self.video_id or not self.segments: return
         seg_label = self.segments[self.current_seg_index][0]
@@ -211,19 +210,27 @@ class SegmentController:
             self._notify_data_changed()
             return False
         self.duration = duration
-        if self.num_segments == -1:
-            self.num_segments = 5
+
+        # 强制使用 3 个分区（新默认值），覆盖已有视频的旧分区数
+        self.num_segments = 3
         self.segments = calculate_segments(duration, self.num_segments)
         print(f"[DEBUG] load_video: 分区数={len(self.segments)}")
+
         file_name = os.path.basename(video_path)
         file_size = int(os.path.getsize(video_path))
         modified_time = int(os.path.getmtime(video_path))
         self.video_id = self.db.get_or_create_video(video_path, file_name, int(duration), "", file_size, modified_time)
+
+        # 更新数据库中的 segment 表，确保与新的分区结构匹配
         for label, start, end in self.segments:
             self.db.get_or_create_segment(self.video_id, label, int(start), int(end))
+
         self.load_excluded_ranges_from_db()
         self.favorites = []
+
+        # 从数据库恢复收藏，并迁移分区标签（5分区 → 3分区）
         self._restore_favorites_from_db()
+
         self.screenshots = {}
         self.loaded_segments = set()
         self.current_seg_index = 0
@@ -322,8 +329,9 @@ class SegmentController:
             self.segments = calculate_segments(self.duration, self.num_segments)
             return
         seg_duration = total_available / self.num_segments
+        # 支持 1 个分区
         if seg_duration < 1.0:
-            new_num = max(3, int(total_available // 1.0))
+            new_num = max(1, int(total_available // 1.0))
             if new_num != self.num_segments:
                 logger.info(f"调整分区数 {self.num_segments} -> {new_num}")
                 self.num_segments = new_num
@@ -403,29 +411,35 @@ class SegmentController:
             retry_t = t
             success = False
             for retry in range(3):
+                if retry > 0:
+                    retry_t = t + random.uniform(-0.5, 0.5)
+                    retry_t = max(start_cropped, min(end_cropped, retry_t))
+                    while self._is_time_excluded(retry_t):
+                        retry_t = t + random.uniform(-0.5, 0.5)
+                        retry_t = max(start_cropped, min(end_cropped, retry_t))
                 temp_path = os.path.join(self.temp_dir, f"seg_{label}_{retry_t:.2f}_{retry}.jpg")
                 self._notify_progress(f"正在生成 {label} 第 {idx+1}/{total} 张 @ {retry_t:.2f}s (尝试{retry+1})")
                 try:
                     async with self._ffmpeg_semaphore:
-                        ok, _ = await extract_frame_async(self.video_path, retry_t, temp_path, retries=1)
-                    if ok and os.path.exists(temp_path) and os.path.getsize(temp_path) > 0:
+                        ok, process = await extract_frame_async(self.video_path, retry_t, temp_path, retries=1)
+                    if ok:
                         item['path'] = temp_path
                         item['time'] = retry_t
                         success = True
                         break
                     else:
-                        offset2 = random.uniform(-1.0, 1.0)
-                        retry_t = t + offset2
-                        retry_t = max(start_cropped, min(end_cropped, retry_t))
-                        while self._is_time_excluded(retry_t):
-                            offset2 = random.uniform(-1.0, 1.0)
-                            retry_t = t + offset2
-                            retry_t = max(start_cropped, min(end_cropped, retry_t))
+                        logger.warning(f"提取帧失败 (尝试{retry+1}): {label} @ {retry_t:.2f}s")
                 except asyncio.CancelledError:
+                    # 任务取消，重新抛出并退出循环
+                    logger.debug(f"提取帧被取消: {label} @ {retry_t:.2f}s")
                     raise
+                except Exception as e:
+                    logger.error(f"提取帧异常 (尝试{retry+1}): {e}")
+                    continue
             if not success:
                 logger.warning(f"分区 {label} 时间点 {t:.2f}s 提取失败，保留占位图")
                 item['path'] = None
+            # 每处理完一张就刷新界面
             self._notify_data_changed()
             self._notify_progress(f"{label} {idx+1}/{total} 完成")
 
@@ -449,6 +463,7 @@ class SegmentController:
     def favorite_selected(self, seg_label: str, positions: List[int]) -> Tuple[int, int]:
         if self._is_undo_or_redo: return self._favorite_selected_impl(seg_label, positions, record_history=False)
         return self._favorite_selected_impl(seg_label, positions, record_history=True)
+
     def _favorite_selected_impl(self, seg_label: str, positions: List[int], record_history: bool) -> Tuple[int, int]:
         items = self.screenshots.get(seg_label, []); processed_keys = set(); added_count = 0; skipped_count = 0
         for pos in positions:
@@ -472,6 +487,7 @@ class SegmentController:
     def unfavorite_selected(self, seg_label: str, positions: List[int]) -> int:
         if self._is_undo_or_redo: return self._unfavorite_selected_impl(seg_label, positions, record_history=False)
         return self._unfavorite_selected_impl(seg_label, positions, record_history=True)
+
     def _unfavorite_selected_impl(self, seg_label: str, positions: List[int], record_history: bool) -> int:
         items = self.screenshots.get(seg_label, []); removed_count = 0
         for pos in positions:
@@ -482,11 +498,10 @@ class SegmentController:
                 if self.video_id:
                     timestamp_ms = int(item['time'] * 1000)
                     self.db.remove_favorite(self.video_id, seg_label, timestamp_ms)
-                    # 从 favorites 中查找对应的 NAS 路径并删除
                     target_time = item['time']
                     nas_path = None
                     for fav in self.favorites:
-                        if (fav.get('segment') == seg_label and 
+                        if (fav.get('segment') == seg_label and
                             abs(fav.get('time', 0) - target_time) < 0.01):
                             nas_path = fav.get('path')
                             break
@@ -498,7 +513,6 @@ class SegmentController:
                             logger.error(f"删除NAS收藏截图失败: {e}")
                             if self._on_progress_update:
                                 self._on_progress_update(f"删除NAS图片失败: {os.path.basename(nas_path)}")
-                    # 从 favorites 中移除
                     self.favorites = [f for f in self.favorites if not (f.get('video_path')==self.video_path and f.get('segment')==seg_label and abs(f.get('time',0)-item['time'])<0.01)]
                 removed_count += 1
                 if record_history: self._push_action(Action('unfavorite', self.video_id, seg_label, timestamp_ms, old_state, new_state))
@@ -506,23 +520,16 @@ class SegmentController:
         return removed_count
 
     def unfavorite_by_time(self, seg_label: str, timestamp_ms: int) -> bool:
-        """根据分区标签和时间戳取消收藏，并删除NAS文件（仅删除.jpg截图，绝不删除视频）"""
         if not self.video_id:
             return False
-
         target_time = timestamp_ms / 1000.0
-
-        # 从数据库删除
         self.db.remove_favorite(self.video_id, seg_label, timestamp_ms)
-
-        # 查找并删除NAS文件
         nas_path = None
         for fav in self.favorites:
-            if (fav.get('segment') == seg_label and 
+            if (fav.get('segment') == seg_label and
                 abs(fav.get('time', 0) - target_time) < 0.01):
                 nas_path = fav.get('path')
                 break
-
         if nas_path and os.path.exists(nas_path):
             try:
                 os.remove(nas_path)
@@ -530,21 +537,16 @@ class SegmentController:
             except Exception as e:
                 logger.error(f"删除NAS收藏截图失败: {e}")
                 return False
-
-        # 从 favorites 列表中移除
         self.favorites = [f for f in self.favorites if not (
             f.get('segment') == seg_label and
             abs(f.get('time', 0) - target_time) < 0.01
         )]
-
-        # 从 screenshots 中移除收藏状态（保留缓存文件）
         items = self.screenshots.get(seg_label, [])
         for item in items:
             if abs(item['time'] - target_time) < 0.01:
                 item['favorite'] = False
                 item['exported'] = False
                 break
-
         self._save_state_to_db()
         self._notify_data_changed()
         return True
@@ -625,6 +627,7 @@ class SegmentController:
     def lock_selected(self, seg_label: str, positions: List[int]) -> int:
         if self._is_undo_or_redo: return self._lock_selected_impl(seg_label, positions, record_history=False)
         return self._lock_selected_impl(seg_label, positions, record_history=True)
+
     def _lock_selected_impl(self, seg_label: str, positions: List[int], record_history: bool) -> int:
         items = self.screenshots.get(seg_label, []); count = 0
         for pos in positions:
@@ -637,9 +640,11 @@ class SegmentController:
                         self._push_action(Action('lock', self.video_id, seg_label, timestamp_ms, old_state, new_state))
         if count > 0: self._notify_data_changed()
         return count
+
     def unlock_selected(self, seg_label: str, positions: List[int]) -> int:
         if self._is_undo_or_redo: return self._unlock_selected_impl(seg_label, positions, record_history=False)
         return self._unlock_selected_impl(seg_label, positions, record_history=True)
+
     def _unlock_selected_impl(self, seg_label: str, positions: List[int], record_history: bool) -> int:
         items = self.screenshots.get(seg_label, []); count = 0
         for pos in positions:
@@ -652,18 +657,25 @@ class SegmentController:
                         self._push_action(Action('unlock', self.video_id, seg_label, timestamp_ms, old_state, new_state))
         if count > 0: self._notify_data_changed()
         return count
+
     def _push_action(self, action: Action):
         self.undo_stack.append(action); self.redo_stack.clear()
         if len(self.undo_stack) > 100: self.undo_stack = self.undo_stack[-100:]
+
     def _clear_history(self): self.undo_stack.clear(); self.redo_stack.clear()
+
     def can_undo(self) -> bool: return len(self.undo_stack) > 0
+
     def can_redo(self) -> bool: return len(self.redo_stack) > 0
+
     def undo(self):
         if not self.can_undo(): return
         action = self.undo_stack.pop(); self._execute_action(action, reverse=True); self.redo_stack.append(action); self._save_state_to_db(); self._notify_data_changed()
+
     def redo(self):
         if not self.can_redo(): return
         action = self.redo_stack.pop(); self._execute_action(action, reverse=False); self.undo_stack.append(action); self._save_state_to_db(); self._notify_data_changed()
+
     def _execute_action(self, action: Action, reverse: bool):
         self._is_undo_or_redo = True
         try:
@@ -680,6 +692,7 @@ class SegmentController:
                 if reverse: self._apply_lock_state(action, True)
                 else: self._apply_lock_state(action, False)
         finally: self._is_undo_or_redo = False
+
     def _apply_favorite_state(self, action: Action, set_favorite: bool):
         items = self.screenshots.get(action.seg_label, [])
         target_time = action.timestamp_ms / 1000.0
@@ -698,12 +711,14 @@ class SegmentController:
         else:
             self.db.remove_favorite(action.video_id, action.seg_label, action.timestamp_ms)
             self.favorites = [f for f in self.favorites if not (f.get('video_path')==self.video_path and f.get('segment')==action.seg_label and abs(f.get('time',0)-target_time)<0.01)]
+
     def _apply_lock_state(self, action: Action, set_locked: bool):
         items = self.screenshots.get(action.seg_label, [])
         target_time = action.timestamp_ms / 1000.0
         for item in items:
             if abs(item['time'] - target_time) < 0.01:
                 item['locked'] = set_locked; break
+
     async def refresh_unlocked(self, seg_idx: int) -> int:
         if not self.video_path or not self.segments: return 0
         seg_label, start, end = self.segments[seg_idx]
@@ -726,25 +741,32 @@ class SegmentController:
             temp_path = os.path.join(self.temp_dir, f"seg_{seg_label}_{t:.2f}_refresh.jpg")
             try:
                 async with self._ffmpeg_semaphore:
-                    ok, _ = await extract_frame_async(self.video_path, t, temp_path, retries=1)
-                if ok:
-                    items[pos]['time'] = t
-                    items[pos]['path'] = temp_path
-                    items[pos]['locked'] = False
-                    refreshed += 1
-                    self._notify_data_changed()
-                    self._notify_progress(f"刷新中... {refreshed}/{total}")
+                    ok, process = await extract_frame_async(self.video_path, t, temp_path, retries=1)
+                    if ok:
+                        items[pos]['time'] = t
+                        items[pos]['path'] = temp_path
+                        items[pos]['locked'] = False
+                        refreshed += 1
+                        self._notify_data_changed()
+                        self._notify_progress(f"刷新中... {refreshed}/{total}")
+                    else:
+                        logger.warning(f"刷新帧失败: {seg_label} @ {t:.2f}s")
             except asyncio.CancelledError:
                 raise
+            except Exception as e:
+                logger.error(f"刷新截图异常: {e}")
+                continue
         if refreshed > 0: self._notify_data_changed()
         self._notify_progress(f"刷新完成: {refreshed} 张")
         return refreshed
+
     async def reset_segment(self, seg_idx: int):
         seg_label = self.segments[seg_idx][0]
         self.screenshots[seg_label] = []
         self._clear_history()
         await self._load_segment(seg_idx, restore_locks=False, randomize=True)
         self._notify_data_changed()
+
     def get_video_state_icon(self, video_path: str) -> str:
         video_data = self.db.get_video_by_path(video_path)
         if not video_data: return ""
@@ -752,23 +774,37 @@ class SegmentController:
         elif video_data.get('is_exported', 0): return "✅"
         elif video_data.get('is_viewed', 0): return "👁️"
         return ""
+
     def get_video_state(self, video_path: str) -> dict: return self.db.get_video_by_path(video_path)
+
     def get_video_name(self) -> str: return self.video_name
+
     def get_video_path(self) -> Optional[str]: return self.video_path
+
     def get_video_id(self) -> Optional[int]: return self.video_id
+
     def get_duration(self) -> float: return self.duration
+
     def get_segments(self) -> List[Tuple[str, float, float]]: return self.segments
+
     def get_segment_count(self) -> int: return len(self.segments)
+
     def get_segment_items(self, seg_label: str) -> List[dict]: return self.screenshots.get(seg_label, [])
+
     def get_current_segment(self) -> Optional[Tuple[str, float, float]]:
         if 0 <= self.current_seg_index < len(self.segments): return self.segments[self.current_seg_index]
         return None
+
     def get_favorites_count(self) -> int:
         if not self.video_path: return 0
         return sum(1 for f in self.favorites if f.get('video_path') == self.video_path)
+
     def get_export_base(self) -> str: return self.export_base
+
     def get_temp_dir(self) -> str: return self.temp_dir
+
     def get_loaded_segments(self) -> Set[str]: return self.loaded_segments
+
     def is_segment_loaded(self, seg_label: str) -> bool: return seg_label in self.loaded_segments
 
     # ====== 缓存统计与清理 ======
@@ -847,18 +883,50 @@ class SegmentController:
     def auto_clean_cache(self, threshold_gb: float = 5.0) -> Tuple[int, float]:
         return 0, 0.0
 
+    # ====== 收藏标签迁移（5分区 → 3分区） ======
+    def _migrate_favorite_label(self, old_label: str) -> str:
+        """将旧的5分区标签映射到新的3分区标签"""
+        # 映射规则：A→A, B→B, C→C, D→C, E→C
+        if old_label in ('D', 'E'):
+            return 'C'
+        return old_label
+
     def _restore_favorites_from_db(self):
-        if not self.video_path or not self.video_id: return
+        if not self.video_path or not self.video_id:
+            return
         db_favs = self.db.get_favorites(self.video_id)
-        if not db_favs: self.favorites = []; return
+        if not db_favs:
+            self.favorites = []
+            return
+
         self.favorites = []
         favorites_dir = self._get_favorites_dir()
         video_dir = os.path.dirname(self.video_path)
+        # 当前分区数（强制为3）
+        current_num_segments = self.num_segments
+
         for fav in db_favs:
-            exported = bool(fav.get('is_exported', 0))  # 从数据库读取准确的 exported 状态
+            old_label = fav['segment_label']
+            # 应用标签映射
+            new_label = self._migrate_favorite_label(old_label)
+
+            # 如果映射后的标签与原标签不同，更新数据库
+            if new_label != old_label:
+                logger.info(f"迁移收藏标签: {old_label} -> {new_label} (视频: {self.video_name})")
+                # 直接更新数据库中的收藏标签
+                conn = self.db._get_conn()
+                cursor = conn.cursor()
+                cursor.execute(
+                    "UPDATE favorites SET segment_label = ? WHERE video_id = ? AND segment_label = ? AND timestamp_ms = ?",
+                    (new_label, self.video_id, old_label, fav['timestamp_ms'])
+                )
+                conn.commit()
+
+            exported = bool(fav.get('is_exported', 0))
             thumb_path = fav.get('thumbnail_path', '')
             thumb_name = fav.get('thumbnail_name', '')
             path = ""
+
             if thumb_name:
                 nas_path = os.path.join(favorites_dir, thumb_name)
                 if os.path.exists(nas_path):
@@ -873,12 +941,13 @@ class SegmentController:
             if not path:
                 path = thumb_path
                 logger.warning(f"收藏截图未找到: {thumb_name}")
+
             self.favorites.append({
                 'video_path': self.video_path,
-                'segment': fav['segment_label'],
+                'segment': new_label,
                 'time': fav['timestamp_ms'] / 1000,
                 'path': path,
-                'exported': exported,  # 使用数据库中的值
+                'exported': exported,
             })
 
     def _restore_favorites_to_screenshots(self):
@@ -891,7 +960,7 @@ class SegmentController:
                 if matched_favs:
                     matched = next((f for f in matched_favs if f.get('exported', False)), matched_favs[0])
                     item['favorite'] = True
-                    item['exported'] = matched.get('exported', False)  # 保持与收藏项一致
+                    item['exported'] = matched.get('exported', False)
 
     def _save_state_to_db(self):
         if not self.video_path or not self.video_id: return

@@ -58,6 +58,14 @@ class ConfigManager:
     def set_backup_dir(self, dir_path: str):
         self.set('backup_dir', dir_path)
 
+    # ---- 上次导出目录（图片和视频共用） ----
+    def get_last_export_dir(self) -> Optional[str]:
+        return self.get('last_export_dir')
+
+    def set_last_export_dir(self, dir_path: str):
+        if dir_path and os.path.isdir(dir_path):
+            self.set('last_export_dir', dir_path)
+
     # ---- 主题 (dark/light/system) ----
     def get_theme(self) -> str:
         return self.get('theme', 'system')

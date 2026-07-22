@@ -476,14 +476,27 @@ class PreviewDialog(QDialog):
             QMessageBox.warning(self, "警告", f"片段太短（{end - start:.1f}s），请选择至少 0.5 秒")
             return
 
+        # 使用记忆的上次导出目录（图片和视频共用）
+        default_dir = os.path.expanduser("~")
+        if hasattr(self, 'main_controller') and self.main_controller:
+            config = getattr(self.main_controller, '_config', None)
+            if config and hasattr(config, 'get_last_export_dir'):
+                default_dir = config.get_last_export_dir() or default_dir
+
         export_dir = QFileDialog.getExistingDirectory(
             self,
             "选择导出目录",
-            os.path.expanduser("~"),
+            default_dir,
             QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
         )
         if not export_dir:
             return
+
+        # 保存本次选择的目录
+        if hasattr(self, 'main_controller') and self.main_controller:
+            config = getattr(self.main_controller, '_config', None)
+            if config and hasattr(config, 'set_last_export_dir'):
+                config.set_last_export_dir(export_dir)
 
         reply = QMessageBox.question(
             self,
