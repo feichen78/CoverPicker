@@ -1,8 +1,5 @@
 # src/controllers/segment_controller.py
-# 修改：默认分区数 5 -> 3，边界 3~7 -> 1~5
-# 修改：已有视频强制重置为3分区
-# 移除：_migrate_favorite_label 分区标签迁移函数（未经用户授权擅自添加）
-# 移除：_restore_favorites_from_db 中的标签迁移逻辑
+# 增加更详细日志，定位 _load_segment 卡住的位置
 
 import os, asyncio, random, tempfile, shutil, logging, json, multiprocessing
 from typing import Dict, List, Set, Tuple, Optional, Any
@@ -56,6 +53,7 @@ class SegmentController:
     def _notify_data_changed(self):
         if self._on_data_changed: self._on_data_changed()
     def _notify_progress(self, message: str):
+        print(f"[DEBUG] _notify_progress: {message}")  # 添加日志
         if self._on_progress_update: self._on_progress_update(message)
 
     def get_backup_dir(self) -> Optional[str]:
@@ -67,23 +65,38 @@ class SegmentController:
         if not backup_dir or not os.path.exists(backup_dir):
             return 0
         today = datetime.now().strftime("%Y%m%d")
-        deleted = 0
+        backup_files = []
         try:
             for f in os.listdir(backup_dir):
                 if f.startswith("coverpicker_backup_") and f.endswith(".db"):
-                    parts = f.split("_")
-                    if len(parts) >= 4:
-                        date_str = parts[2]
-                        if date_str != today:
-                            file_path = os.path.join(backup_dir, f)
-                            try:
-                                os.remove(file_path)
-                                deleted += 1
-                                logger.info(f"已删除旧备份: {f}")
-                            except Exception as e:
-                                logger.error(f"删除旧备份失败 {f}: {e}")
+                    file_path = os.path.join(backup_dir, f)
+                    stat = os.stat(file_path)
+                    date_str = f.split("_")[2] if len(f.split("_")) >= 4 else ""
+                    backup_files.append({
+                        'path': file_path,
+                        'name': f,
+                        'date_str': date_str,
+                        'mtime': stat.st_mtime
+                    })
         except Exception as e:
             logger.error(f"扫描备份目录失败: {e}")
+            return 0
+
+        if not backup_files:
+            return 0
+
+        backup_files.sort(key=lambda x: x['mtime'], reverse=True)
+        newest_file = backup_files[0]
+
+        deleted = 0
+        for bf in backup_files:
+            if bf['date_str'] != today and bf['path'] != newest_file['path']:
+                try:
+                    os.remove(bf['path'])
+                    deleted += 1
+                    logger.info(f"已删除旧备份: {bf['name']}")
+                except Exception as e:
+                    logger.error(f"删除旧备份失败 {bf['name']}: {e}")
         return deleted
 
     def _get_favorites_dir(self) -> str:
@@ -139,6 +152,15 @@ class SegmentController:
     def get_excluded_ranges(self) -> List[Tuple[float, float]]: return self.excluded_ranges.copy()
 
     def set_excluded_ranges(self, ranges: List[Tuple[float, float]], save: bool = True):
+        import traceback
+        print(f"[DEBUG] set_excluded_ranges 被调用: ranges={ranges}, save={save}, current_seg_index={self.current_seg_index}")
+        if self.segments and self.current_seg_index < len(self.segments):
+            print(f"[DEBUG]   当前分区标签: {self.segments[self.current_seg_index][0]}")
+        else:
+            print("[DEBUG]   当前分区标签: 无效")
+        print("[DEBUG]   调用栈:")
+        traceback.print_stack()
+
         self.excluded_ranges = ranges.copy()
         self._notify_data_changed()
         if save and self.video_id and self.video_path and self.segments:
@@ -252,9 +274,18 @@ class SegmentController:
         self.loaded_segments = set()
         self._notify_data_changed()
         self.current_seg_index = seg_idx
+        print(f"[DEBUG] load_segment: 设置 current_seg_index = {seg_idx}，即将加载排除区间")
         self.load_excluded_ranges_from_db()
+        print(f"[DEBUG] load_segment: load_excluded_ranges_from_db 完成，current_seg_index = {self.current_seg_index}, len(segments)={len(self.segments)}")
+        # 创建任务前再次确认 seg_idx 有效
+        if seg_idx >= len(self.segments):
+            print(f"[DEBUG] load_segment: seg_idx={seg_idx} 超出新分区数，回退到 0")
+            seg_idx = 0
+        print(f"[DEBUG] load_segment: 创建 _load_segment 任务，seg_idx={seg_idx}")
         self._load_task = asyncio.create_task(self._load_segment(seg_idx, restore_locks, randomize))
+        print(f"[DEBUG] load_segment: 任务已创建，等待完成...")
         await self._load_task
+        print(f"[DEBUG] load_segment: 任务完成")
         self._load_task = None
         self._notify_data_changed()
 
@@ -342,9 +373,12 @@ class SegmentController:
 
     async def _load_segment(self, seg_idx: int, restore_locks: bool = True, randomize: bool = False):
         print(f"[DEBUG] ========== _load_segment 开始: seg_idx={seg_idx} ==========")
+        print(f"[DEBUG] _load_segment: self.video_path={self.video_path}, self.segments={self.segments}")
         if not self.video_path or not self.segments:
+            print(f"[DEBUG] _load_segment 返回: 无视频或无分区")
             return
         if seg_idx < 0 or seg_idx >= len(self.segments):
+            print(f"[DEBUG] _load_segment 无效索引: seg_idx={seg_idx}, len(segments)={len(self.segments)}")
             return
         label, start, end = self.segments[seg_idx]
         seg_key = label
@@ -357,27 +391,35 @@ class SegmentController:
         count = self.density
         old_items = self.screenshots.get(seg_key, [])
 
+        print(f"[DEBUG] _load_segment: label={label}, start={start}, end={end}, offset={offset}, start_cropped={start_cropped}, end_cropped={end_cropped}")
+
         new_times = []
         attempts = 0
         max_attempts = 1000 * count
+        print(f"[DEBUG] _load_segment: 开始生成时间点，count={count}, max_attempts={max_attempts}")
         while len(new_times) < count and attempts < max_attempts:
             t = random.uniform(start_cropped, end_cropped)
             if not self._is_time_excluded(t):
                 new_times.append(t)
             attempts += 1
+        print(f"[DEBUG] _load_segment: 生成时间点完成，len(new_times)={len(new_times)}, attempts={attempts}")
         if len(new_times) == 0:
+            print(f"[DEBUG] {label} 无可生成截图")
             self.screenshots[seg_key] = []
             self.loaded_segments.add(label)
             self._notify_progress(f"{label} 无可生成截图")
             self._notify_data_changed()
             return
+
         new_times.sort()
+        print(f"[DEBUG] _load_segment: new_times = {new_times}")
         new_items = []
         for t in new_times:
             new_items.append({'time': t, 'path': None, 'locked': False, 'favorite': False, 'exported': False})
         self.screenshots[seg_key] = new_items
         self.loaded_segments.add(label)
         self._notify_data_changed()
+        print(f"[DEBUG] _load_segment: screenshots 已设置，准备提取帧，共 {len(new_items)} 张")
 
         old_items_sorted = sorted(old_items, key=lambda x: x['time'])
         old_times = [item['time'] for item in old_items_sorted]
@@ -396,8 +438,10 @@ class SegmentController:
                 reused_count += 1
 
         total = len(new_times)
+        print(f"[DEBUG] _load_segment: 开始帧提取循环，total={total}")
         for idx, item in enumerate(new_items):
             if item['path'] is not None:
+                print(f"[DEBUG] _load_segment: 复用已有图片 idx={idx}, path={item['path']}")
                 continue
             t = item['time']
             retry_t = t
@@ -410,6 +454,7 @@ class SegmentController:
                         retry_t = t + random.uniform(-0.5, 0.5)
                         retry_t = max(start_cropped, min(end_cropped, retry_t))
                 temp_path = os.path.join(self.temp_dir, f"seg_{label}_{retry_t:.2f}_{retry}.jpg")
+                print(f"[DEBUG] _load_segment: 提取帧 idx={idx}, retry={retry}, time={retry_t}, path={temp_path}")
                 self._notify_progress(f"正在生成 {label} 第 {idx+1}/{total} 张 @ {retry_t:.2f}s (尝试{retry+1})")
                 try:
                     async with self._ffmpeg_semaphore:
@@ -418,6 +463,7 @@ class SegmentController:
                         item['path'] = temp_path
                         item['time'] = retry_t
                         success = True
+                        print(f"[DEBUG] _load_segment: 提取成功 idx={idx}")
                         break
                     else:
                         logger.warning(f"提取帧失败 (尝试{retry+1}): {label} @ {retry_t:.2f}s")
@@ -431,6 +477,7 @@ class SegmentController:
                 item['path'] = None
             self._notify_data_changed()
             self._notify_progress(f"{label} {idx+1}/{total} 完成")
+            print(f"[DEBUG] _load_segment: 完成 idx={idx}")
 
         self._restore_favorites_to_screenshots()
         self._notify_progress(f"{label} 分段加载完成 ({len(new_items)} 张, 复用 {reused_count} 张)")
@@ -872,7 +919,6 @@ class SegmentController:
         return 0, 0.0
 
     def _restore_favorites_from_db(self):
-        """从数据库恢复收藏，直接使用原始 segment_label，不做任何迁移"""
         if not self.video_path or not self.video_id:
             return
         db_favs = self.db.get_favorites(self.video_id)
@@ -885,9 +931,7 @@ class SegmentController:
         video_dir = os.path.dirname(self.video_path)
 
         for fav in db_favs:
-            # 直接使用数据库中的原始 segment_label，不做迁移
             seg_label = fav['segment_label']
-
             exported = bool(fav.get('is_exported', 0))
             thumb_path = fav.get('thumbnail_path', '')
             thumb_name = fav.get('thumbnail_name', '')

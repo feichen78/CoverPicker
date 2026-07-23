@@ -1,7 +1,8 @@
 # ui/views/zoom_dialog.py
-# 修复：单击选中、双击预览信号参数不匹配问题
+# 完整文件，可直接覆盖
+# 修复：延迟加载候选帧，避免与主任务冲突
 
-import os, asyncio, shutil, random
+import os, asyncio, shutil
 from typing import List, Tuple, Optional
 from functools import partial
 from PySide6.QtWidgets import *
@@ -35,7 +36,8 @@ class ZoomDialog(QDialog):
         self.resize(900, 700)
 
         self.setup_ui()
-        self.load_candidates()
+        # 延迟加载候选帧，避免与主任务冲突
+        QTimer.singleShot(50, self.load_candidates)
 
     def setup_ui(self):
         main_layout = QVBoxLayout(self)
@@ -128,14 +130,26 @@ class ZoomDialog(QDialog):
         self.setEnabled(False)
         asyncio.create_task(self._load_candidates_async())
 
+    def _get_time_offsets(self) -> List[float]:
+        """根据层级返回固定的9个时间偏移量（相对于中心时间）"""
+        if self.level == 1:
+            return [-4.0, -3.0, -2.0, -1.0, 0.0, 1.0, 2.0, 3.0, 4.0]
+        elif self.level == 2:
+            return [-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0]
+        elif self.level == 3:
+            return [-1.0, -0.75, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75, 1.0]
+        else:  # level == 4
+            return [-0.4, -0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3, 0.4]
+
     async def _load_candidates_async(self):
         try:
-            ranges = {1: 4.0, 2: 2.0, 3: 1.0, 4: 0.5}
-            half_range = ranges.get(self.level, 4.0)
-            start = max(0, self.center_time - half_range)
-            end = min(self.controller.duration, self.center_time + half_range)
-            times = [random.uniform(start, end) for _ in range(9)]
-            times.sort()
+            offsets = self._get_time_offsets()
+            times = []
+            duration = self.controller.duration
+            for offset in offsets:
+                t = self.center_time + offset
+                t = max(0.0, min(duration, t))
+                times.append(t)
 
             self.candidate_frames = []
             total = len(times)
@@ -193,7 +207,6 @@ class ZoomDialog(QDialog):
             if pos in self.selected_indices:
                 label.set_selected(True)
 
-            # 修复：使用 partial 绑定，函数签名接受额外参数
             label.clicked.connect(partial(self.on_label_click, pos))
             label.double_clicked.connect(partial(self._preview_single, pos))
 
@@ -204,7 +217,6 @@ class ZoomDialog(QDialog):
         self._update_buttons()
         self._update_select_all_state()
 
-    # 修复：增加 idx=None 参数以接收信号传递的额外参数
     def _preview_single(self, pos: int, idx=None):
         if pos >= len(self.candidate_frames):
             return
@@ -218,12 +230,13 @@ class ZoomDialog(QDialog):
         dlg = ZoomPreviewDialog(pixmap, item['time'], self)
         dlg.exec()
 
-    # 修复：增加 idx=None 参数以接收信号传递的额外参数
     def on_label_click(self, pos: int, idx=None):
+        print(f"[DEBUG] ZoomDialog.on_label_click: pos={pos}, before toggle selected_indices={self.selected_indices}")
         if pos in self.selected_indices:
             self.selected_indices.remove(pos)
         else:
             self.selected_indices.add(pos)
+        print(f"[DEBUG] ZoomDialog.on_label_click: after toggle selected_indices={self.selected_indices}")
         self._refresh_grid()
 
     def _update_selected_count(self):
@@ -234,7 +247,7 @@ class ZoomDialog(QDialog):
         self.select_all_btn.setEnabled(len(self.candidate_frames) > 0)
         self.fav_btn.setEnabled(has_selected)
         self.export_btn.setEnabled(has_selected)
-        self.replace_btn.setEnabled(len(self.selected_indices) == 1)
+        self.replace_btn.setEnabled(True)
 
     def _update_select_all_state(self):
         count = len(self.candidate_frames)
@@ -254,6 +267,7 @@ class ZoomDialog(QDialog):
             self.selected_indices = set(range(count))
         else:
             self.selected_indices.clear()
+        print(f"[DEBUG] ZoomDialog.toggle_select_all: selected_indices={self.selected_indices}")
         self._refresh_grid()
 
     def favorite_selected(self):
@@ -331,8 +345,9 @@ class ZoomDialog(QDialog):
             QMessageBox.warning(self, "警告", "导出失败，请检查文件是否存在。")
 
     def replace_selected(self):
+        print(f"[DEBUG] ZoomDialog.replace_selected called, selected_indices={self.selected_indices}, len={len(self.selected_indices)}")
         if len(self.selected_indices) != 1:
-            QMessageBox.information(self, "提示", "请只选中一张截图进行替换。")
+            QMessageBox.warning(self, "提示", "替换原图仅针对1张截图，请只选中一张。")
             return
 
         pos = next(iter(self.selected_indices))

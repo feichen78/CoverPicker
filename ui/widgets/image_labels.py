@@ -1,11 +1,11 @@
 # ui/widgets/image_labels.py
-# 收藏窗口图片不缩放，显示原始尺寸
-# 增加 allow_background 参数，收藏窗口关闭背景
+# 完整文件，可直接覆盖
+# 增加 FavImageLabel.set_exported 调试，确保 exported 正确传递
 
 import os
 import logging
 from PySide6.QtWidgets import QLabel, QApplication, QSizePolicy
-from PySide6.QtCore import Qt, Signal, QTimer, QRect
+from PySide6.QtCore import Qt, Signal, QTimer, QRect, QSize
 from PySide6.QtGui import QPixmap, QPainter, QColor, QFont, QPen, QBrush
 
 logger = logging.getLogger(__name__)
@@ -45,7 +45,10 @@ class ClickableLabel(QLabel):
         self.update()
 
     def set_exported(self, exported):
-        self.is_exported = exported
+        # 强制转换为布尔值并打印调试
+        exported_bool = bool(exported)
+        print(f"[DEBUG] ClickableLabel.set_exported: index={self.index_num}, exported={exported_bool}")
+        self.is_exported = exported_bool
         self.update()
 
     def set_loading(self, loading):
@@ -133,6 +136,7 @@ class ClickableLabel(QLabel):
             y_offset = 46 if self.is_locked else 30
             painter.drawText(rect.left() + 4, rect.top() + y_offset, "❤️")
 
+        # 绿点：仅当 is_exported 为 True 时绘制
         if self.is_exported:
             painter.setBrush(QColor(0, 200, 0))
             painter.setPen(Qt.NoPen)
@@ -160,3 +164,24 @@ class FavImageLabel(ClickableLabel):
     """收藏窗口专用标签 —— 无背景，不缩放，原始尺寸"""
     def __init__(self, pixmap, timestamp, index_num, parent=None):
         super().__init__(pixmap, timestamp, index_num, parent, allow_background=False, allow_scale=False)
+        self._fixed_size = QSize()
+        # 确保初始 exported 为 False
+        self.is_exported = False
+
+    def setFixedSize(self, w, h):
+        super().setFixedSize(w, h)
+        self._fixed_size = QSize(w, h)
+
+    def sizeHint(self):
+        if self._fixed_size.isValid():
+            return self._fixed_size
+        if self.original_pixmap and not self.original_pixmap.isNull():
+            return self.original_pixmap.size()
+        return QSize(100, 80)
+
+    def set_exported(self, exported):
+        # 强制转换为布尔值并打印调试
+        exported_bool = bool(exported)
+        print(f"[DEBUG] FavImageLabel.set_exported: index={self.index_num}, exported={exported_bool}")
+        self.is_exported = exported_bool
+        self.update()
