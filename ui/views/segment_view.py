@@ -1,6 +1,7 @@
 # ui/views/segment_view.py
 # 修复：favorite_selected/unfavorite_selected/lock_selected/unlock_selected 操作后调用 _refresh_grid 刷新选中状态
 # 确保收藏/取消收藏/锁定/解锁后蓝点正确消失
+# v2.5.1 修复：增加 info_path 控件高度和垂直扩展策略，确保长路径完整显示
 
 import os, asyncio, logging, traceback
 from typing import List, Set, Tuple
@@ -19,6 +20,7 @@ from ui.views.exclude_dialog import ExcludeDialog
 from ui.widgets import ClickableLabel
 from ui.dialogs.favorites_dialog import FavoritesDialog
 logging.basicConfig(level=logging.DEBUG); logger = logging.getLogger(__name__)
+
 class QFlowLayout(QLayout):
     def __init__(self, parent=None, margin=0, h_spacing=3, v_spacing=3):
         super().__init__(parent); self._items = []; self._h_spacing = h_spacing; self._v_spacing = v_spacing
@@ -48,6 +50,7 @@ class QFlowLayout(QLayout):
             if not test_only: item.setGeometry(QRect(QPoint(x,y), item.sizeHint()))
             x = next_x; line_height = max(line_height, item.sizeHint().height())
         return y + line_height - rect.y()
+
 class SegmentView(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -87,6 +90,7 @@ class SegmentView(QWidget):
         self.scan_timer.timeout.connect(self._scan_all_watch_dirs)
         self.scan_timer.start(60000)
         print("[DEBUG] SegmentView __init__ 完成")
+
     def setup_ui(self):
         main_layout = QHBoxLayout(self); main_layout.setContentsMargins(0,0,0,0); main_layout.setSpacing(0)
         left_panel = QWidget(); left_panel.setFixedWidth(220)
@@ -117,19 +121,28 @@ class SegmentView(QWidget):
         self.video_list.itemDoubleClicked.connect(self.on_video_selected); self.video_list.itemSelectionChanged.connect(self._update_batch_delete_btn_state)
         self._refresh_video_list()
         left_layout.addWidget(self.video_list, 1)  # 加长
-        # 视频信息组（增加最小高度至 190，路径控件最小高度 45，确保换行）
+
+        # 视频信息组（修复：增加最小高度，确保长路径完整显示）
         info_group = QFrame(); info_group.setFrameShape(QFrame.StyledPanel); info_group.setStyleSheet("background:#f8f8f8;border-radius:4px;")
-        info_group.setMinimumHeight(190)
+        info_group.setMinimumHeight(200)  # 从 190 增加到 200
         info_group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
         info_layout = QVBoxLayout(info_group); info_layout.setSpacing(2)
-        # 统一字体：标题12pt粗体，其他11pt常规
+        # 统一字体：标题12pt粗体，其他10pt常规（减小字体让长路径更容易显示）
         self.info_name = QLabel("未选择"); self.info_name.setObjectName("info_name"); font_name=QFont("Arial",12,QFont.Bold); self.info_name.setFont(font_name)
         self.info_duration = QLabel("时长: --"); self.info_size = QLabel("大小: --")
         self.info_path = QLabel("路径: --")
         self.info_path.setWordWrap(True)
-        self.info_path.setMinimumHeight(45)
-        self.info_path.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
-        font_info = QFont("Arial",11); self.info_duration.setFont(font_info); self.info_size.setFont(font_info); self.info_path.setFont(font_info)
+        # 修复：增加最小高度，确保长路径可以完整显示多行
+        self.info_path.setMinimumHeight(80)  # 从 45 增加到 80
+        self.info_path.setMaximumHeight(150)  # 限制最大高度，防止过度拉伸
+        self.info_path.setAlignment(Qt.AlignTop)  # 文字从顶部开始
+        # 使用 MinimumExpanding 让控件可以垂直扩展以容纳更多行
+        self.info_path.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
+        # 使用稍小的字体，让更多文字可见
+        font_info = QFont("Arial", 10)  # 从 11 改为 10
+        self.info_duration.setFont(font_info)
+        self.info_size.setFont(font_info)
+        self.info_path.setFont(font_info)
         self.info_path.setStyleSheet("color:#666;")
         info_layout.addWidget(self.info_name)
         info_layout.addWidget(self.info_duration)
