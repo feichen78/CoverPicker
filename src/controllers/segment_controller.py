@@ -36,7 +36,7 @@ class SegmentController:
         self.loaded_segments: Set[str] = set()
         self.density: int = 9
         self.skip_ratio: float = 0.15
-        self.excluded_ranges: List[Tuple[float, float]] = []  # 视频级别的全局排除区间
+        self.excluded_ranges: List[Tuple[float, float]] = []
         self.temp_dir = os.path.join(tempfile.gettempdir(), "CoverPicker_cache")
         os.makedirs(self.temp_dir, exist_ok=True)
         self.export_base: str = os.path.join(os.getcwd(), "StillPic")
@@ -170,9 +170,7 @@ class SegmentController:
     def get_excluded_ranges(self) -> List[Tuple[float, float]]:
         return self.excluded_ranges.copy()
 
-    # ========== 视频级别的排除区间操作 ==========
     def set_excluded_ranges(self, ranges: List[Tuple[float, float]], save: bool = True):
-        """设置视频的全局排除区间"""
         import traceback
         print(f"[DEBUG] set_excluded_ranges 被调用: ranges={ranges}, save={save}")
 
@@ -180,11 +178,9 @@ class SegmentController:
         self._notify_data_changed()
 
         if save and self.video_id:
-            # 保存到 videos 表（全局）
             self.db.set_video_excluded_ranges(self.video_id, ranges)
             logger.info(f"视频排除区间已保存到数据库: {ranges}")
 
-            # 重新计算分区
             if self.num_segments != -1:
                 self._recalculate_segments_with_exclusions()
                 self.screenshots = {}
@@ -194,19 +190,16 @@ class SegmentController:
                 self._notify_data_changed()
 
     def load_excluded_ranges_from_db(self):
-        """从数据库加载视频的全局排除区间"""
         if not self.video_id:
             print("[DEBUG] load_excluded_ranges_from_db: video_id 为空")
             return
 
-        # 从 videos 表读取全局排除区间
         ranges = self.db.get_video_excluded_ranges(self.video_id)
         print(f"[DEBUG] load_excluded_ranges_from_db: 从数据库读取到排除区间: {ranges}")
 
         if ranges:
             self.excluded_ranges = ranges
             logger.info(f"从数据库加载排除区间: {self.excluded_ranges}")
-            # 如果分区需要重新计算，在 load_segment 中会调用 _recalculate_segments_with_exclusions
         else:
             self.excluded_ranges = []
 
@@ -353,13 +346,10 @@ class SegmentController:
         for label, start, end in self.segments:
             self.db.get_or_create_segment(self.video_id, label, int(start), int(end))
 
-        # 加载视频级别的全局排除区间
         self.load_excluded_ranges_from_db()
 
-        # 如果加载到了排除区间，需要重新计算分区
         if self.excluded_ranges and self.num_segments != -1:
             self._recalculate_segments_with_exclusions()
-            # 更新 segments 表
             for label, start, end in self.segments:
                 self.db.get_or_create_segment(self.video_id, label, int(start), int(end))
 
@@ -394,26 +384,20 @@ class SegmentController:
 
         await self._cancel_current_task()
 
-        # 清空旧数据
         self.screenshots = {}
         self.loaded_segments = set()
         self._notify_data_changed()
 
-        # 设置当前索引
         self.current_seg_index = seg_idx
         print(f"[DEBUG] load_segment: 设置 current_seg_index = {seg_idx}")
 
-        # 加载视频级别的全局排除区间（不会重置索引）
         self.load_excluded_ranges_from_db()
         print(f"[DEBUG] load_segment: load_excluded_ranges_from_db 完成，current_seg_index = {self.current_seg_index}")
 
-        # 如果加载到了排除区间，需要重新计算分区
         if self.excluded_ranges and self.num_segments != -1:
             self._recalculate_segments_with_exclusions()
-            # 更新 segments 表
             for label, start, end in self.segments:
                 self.db.get_or_create_segment(self.video_id, label, int(start), int(end))
-            # 如果 seg_idx 越界了，回退到 0
             if seg_idx >= len(self.segments):
                 print(f"[DEBUG] load_segment: 分区数变化，seg_idx={seg_idx} 越界，回退到 0")
                 seg_idx = 0
@@ -553,14 +537,8 @@ class SegmentController:
         print(f"[DEBUG] ========== _load_segment 完成: {label} ==========")
 
     def _save_favorite_to_nas(self, seg_label: str, time_sec: float, source_path: str) -> Tuple[str, bool]:
-        """
-        保存收藏截图到NAS目录
-        返回: (保存路径, 是否成功保存到NAS)
-        如果NAS保存失败，回退到临时目录，并通过返回值告知调用方
-        """
         dest_path = self._get_favorite_path(seg_label, time_sec)
         try:
-            # 确保目标目录存在
             dest_dir = os.path.dirname(dest_path)
             os.makedirs(dest_dir, exist_ok=True)
             shutil.copy2(source_path, dest_path)
@@ -627,7 +605,6 @@ class SegmentController:
             self._save_state_to_db()
             self._notify_data_changed()
 
-        # 如果有NAS保存失败的情况，通过进度回调提示用户
         if nas_failed_count > 0:
             self._notify_progress(f"⚠️ 有 {nas_failed_count} 张收藏截图保存到临时目录（NAS不可写），请检查NAS权限。")
 
@@ -1059,13 +1036,6 @@ class SegmentController:
         self._notify_data_changed()
 
     def get_video_state_icon(self, video_path: str) -> str:
-        """
-        获取视频状态图标
-        优先级：✅ > ⭐ > 👁️（符合 PRODUCT.md 7.1）
-        ✅：已导出（优先级最高）
-        ⭐：有收藏
-        👁️：已浏览
-        """
         video_data = self.db.get_video_by_path(video_path)
         if not video_data:
             return ""
@@ -1284,10 +1254,8 @@ class SegmentController:
         if not self.video_path or not self.video_id:
             return
 
-        # 保存视频级别的排除区间（已在 set_excluded_ranges 中保存，此处确保一致性）
         self.db.set_video_excluded_ranges(self.video_id, self.excluded_ranges)
 
-        # 保存分区状态
         for seg_label, items in self.screenshots.items():
             has_starred = any(item.get('favorite', False) for item in items)
             has_exported = any(item.get('exported', False) for item in items)
@@ -1297,7 +1265,6 @@ class SegmentController:
                                         has_starred=has_starred,
                                         has_exported=has_exported)
 
-        # 更新视频整体状态
         is_starred = any(item.get('favorite', False) for seg_label, items in self.screenshots.items() for item in items)
         is_exported_from_screenshots = any(item.get('exported', False) for seg_label, items in self.screenshots.items() for item in items)
         is_exported_from_favorites = any(f.get('exported', False) for f in self.favorites if f.get('video_path') == self.video_path)
@@ -1305,7 +1272,6 @@ class SegmentController:
         is_viewed = bool(self.loaded_segments)
         self.db.update_video_state(self.video_id, is_viewed=is_viewed, is_starred=is_starred, is_exported=is_exported)
 
-        # 确保收藏记录完整
         existing_favs = self.db.get_favorites(self.video_id)
         existing_set = set()
         for fav in existing_favs:

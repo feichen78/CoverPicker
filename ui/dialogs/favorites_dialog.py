@@ -1,6 +1,7 @@
 # ui/dialogs/favorites_dialog.py
 # 完整文件，可直接覆盖
 # 修复：多选时 zoom_btn 不禁用，让 zoom_selected 负责提示
+# 修复：取消收藏时直接删除NAS文件（兜底逻辑）
 
 import os
 import logging
@@ -52,7 +53,6 @@ class FavoritesDialog(QDialog):
         self.setup_ui()
         self._first_show = True
 
-        # 调试：打印修复后的数据
         print("[DEBUG] FavoritesDialog __init__: 修复后数据:")
         for i, fav in enumerate(self.current_favorites):
             print(f"  fav[{i}]: seg={fav.get('segment')}, exported={fav.get('exported')}")
@@ -245,7 +245,6 @@ class FavoritesDialog(QDialog):
         print(f"[DEBUG] thumb_size={self.thumb_width}x{self.thumb_height}")
 
         total_height = 0
-        # 记录重建后的选中索引映射
         new_selected_indices: Set[int] = set()
 
         for seg_label in sorted_segments:
@@ -307,7 +306,6 @@ class FavoritesDialog(QDialog):
                 label.set_favorite(True)
                 label.set_exported(exported_bool)
                 label.setFixedSize(self.thumb_width, self.thumb_height)
-                # 检查该标识是否在之前的选中列表中
                 if (seg_label, time_sec) in selected_ids:
                     label.set_selected(True)
                     new_selected_indices.add(global_idx)
@@ -328,7 +326,6 @@ class FavoritesDialog(QDialog):
             grid_height = rows * (self.thumb_height + spacing_h) + 4
             total_height += grid_height + 6
 
-        # 恢复选中状态
         self.selected_indices = new_selected_indices
         print(f"[DEBUG] Restored selected_indices: {self.selected_indices}")
 
@@ -352,7 +349,6 @@ class FavoritesDialog(QDialog):
         self.fav_btn.setEnabled(has_selected)
         self.unfav_btn.setEnabled(has_selected)
         self.export_btn.setEnabled(has_selected)
-        # 修复：细选按钮始终可用，由 zoom_selected 检查并提示
         self.zoom_btn.setEnabled(True)
 
         count = len(self.current_favorites)
@@ -488,6 +484,16 @@ class FavoritesDialog(QDialog):
 
         removed_count = 0
         for fav in selected_favs:
+            # ===== 修复：直接删除文件（兜底逻辑）=====
+            path = fav.get('path')
+            if path and os.path.exists(path):
+                try:
+                    os.remove(path)
+                    logger.info(f"取消收藏: 已删除文件 {path}")
+                except Exception as e:
+                    logger.error(f"取消收藏: 删除文件失败 {path}: {e}")
+            # ===== 修复结束 =====
+
             seg_label = fav.get('segment')
             timestamp_ms = int(fav.get('time', 0) * 1000)
             if self.controller.unfavorite_by_time(seg_label, timestamp_ms):
@@ -510,16 +516,13 @@ class FavoritesDialog(QDialog):
             QMessageBox.information(self, "提示", "请先选中要导出的截图。")
             return
 
-        # 使用独立的图片导出目录记忆键
         default_dir = os.path.expanduser("~")
         if self.parent_view and hasattr(self.parent_view, 'config'):
             config = self.parent_view.config
-            # 先尝试获取图片专用目录
             last_image_dir = config.get('last_image_export_dir', None)
             if last_image_dir and os.path.exists(last_image_dir):
                 default_dir = last_image_dir
             else:
-                # 回退到旧的 last_export_dir（兼容）
                 last_export = config.get_last_export_dir()
                 if last_export and os.path.exists(last_export):
                     default_dir = last_export
@@ -533,7 +536,6 @@ class FavoritesDialog(QDialog):
         if not export_dir:
             return
 
-        # 保存图片专用目录
         if self.parent_view and hasattr(self.parent_view, 'config'):
             self.parent_view.config.set('last_image_export_dir', export_dir)
 
@@ -603,7 +605,6 @@ class FavoritesDialog(QDialog):
             QMessageBox.warning(self, "警告", "未找到对应的收藏数据。")
             return
 
-        # 尝试获取分段位置，如果找不到则使用 0
         seg_idx = 0
         pos_in_segment = 0
         if self.controller:

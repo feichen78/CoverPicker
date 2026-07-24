@@ -348,3 +348,5 @@ powershell
 Get-ChildItem -Path . -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
 
 __pycache__ 只有在 Python 版本更换或包结构发生重大变化时才需要删除。python clean_cache.py
+
+(Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned) ; (& c:\Personal\CoverPicker\.venv\Scripts\Activate.ps1)

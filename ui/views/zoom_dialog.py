@@ -1,6 +1,7 @@
 # ui/views/zoom_dialog.py
 # 完整文件，可直接覆盖
 # 修复：延迟加载候选帧，避免与主任务冲突
+# 修复：导出后通知主界面刷新视频列表图标（✅状态）
 
 import os, asyncio, shutil
 from typing import List, Tuple, Optional
@@ -338,7 +339,9 @@ class ZoomDialog(QDialog):
 
         if exported > 0:
             self.controller._save_state_to_db()
+            # ===== 修复：通知主界面刷新视频列表图标 =====
             self.controller._notify_data_changed()
+            # ===== 修复结束 =====
             self._refresh_grid()
             QMessageBox.information(self, "导出完成", f"成功导出 {exported} 张截图到:\n{export_dir}")
         else:
@@ -384,7 +387,7 @@ class ZoomDialog(QDialog):
             success = self.controller.replace_screenshot(self.seg_label, self.pos, item['time'], item['path'], self.center_time)
             if success:
                 self.controller._save_state_to_db()
-                self.controller._notify_data_changed()
+                self.controller._notify_data_changed()  # 替换也会影响数据，触发刷新
                 QMessageBox.information(self, "完成", "替换成功！")
                 self.accept()
             else:

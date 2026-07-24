@@ -14508,3 +14508,120 @@ task: <Task pending name='Task-154' coro=<SegmentController.load_segment() runni
 2026-07-23 22:58:54 - src.database - INFO - 视频 33 排除区间已更新: []
 2026-07-23 22:58:54 - src.controllers.segment_controller - INFO - 自动备份成功: C:/CoverPicker-Backup/BaiduSyncdisk\coverpicker_backup_20260723_225854.db
 2026-07-23 22:58:54 - root - INFO - 应用退出
+2026-07-24 08:23:32 - root - INFO - 日志系统初始化完成，日志文件: C:\Personal\CoverPicker\log\CoverPicker.log
+2026-07-24 08:23:32 - root - INFO - ============================================================
+2026-07-24 08:23:32 - root - INFO - CoverPicker 启动
+2026-07-24 08:23:32 - root - INFO - ============================================================
+2026-07-24 08:23:32 - src.crash_handler - INFO - 崩溃报告处理器已安装，报告目录: C:\Personal\CoverPicker\log\crashes
+2026-07-24 08:23:32 - src.config_manager - INFO - 配置文件已加载: C:\Users\CATIC\.coverpicker\config.json
+2026-07-24 08:23:32 - src.database - INFO - 数据库迁移: videos 表添加 excluded_ranges 列
+2026-07-24 08:23:32 - src.controllers.segment_controller - INFO - FFmpeg 并发数设为 8
+2026-07-24 08:23:32 - src.controllers.segment_controller - INFO - 已删除旧备份: coverpicker_backup_20260723_225826.db
+2026-07-24 08:23:32 - src.controllers.segment_controller - INFO - 已删除旧备份: coverpicker_backup_20260723_222637.db
+2026-07-24 08:23:32 - src.controllers.segment_controller - INFO - 已删除旧备份: coverpicker_backup_20260723_220156.db
+2026-07-24 08:23:32 - src.controllers.segment_controller - INFO - 已删除旧备份: coverpicker_backup_20260723_215758.db
+2026-07-24 08:23:32 - src.controllers.segment_controller - INFO - 已删除旧备份: coverpicker_backup_20260723_153612.db
+2026-07-24 08:23:32 - src.controllers.segment_controller - INFO - 已删除旧备份: coverpicker_backup_20260723_153235.db
+2026-07-24 08:23:32 - src.controllers.segment_controller - INFO - 已删除旧备份: coverpicker_backup_20260723_152452.db
+2026-07-24 08:23:32 - src.controllers.segment_controller - INFO - 已删除旧备份: coverpicker_backup_20260723_144054.db
+2026-07-24 08:23:32 - src.controllers.segment_controller - INFO - 已删除旧备份: coverpicker_backup_20260723_140310.db
+2026-07-24 08:23:32 - src.controllers.segment_controller - INFO - 已删除旧备份: coverpicker_backup_20260723_135932.db
+2026-07-24 08:23:32 - src.controllers.segment_controller - INFO - 已删除旧备份: coverpicker_backup_20260723_135548.db
+2026-07-24 08:23:32 - src.controllers.segment_controller - INFO - 已删除旧备份: coverpicker_backup_20260723_135218.db
+2026-07-24 08:23:32 - src.controllers.segment_controller - INFO - 已删除旧备份: coverpicker_backup_20260723_133327.db
+2026-07-24 08:23:32 - src.controllers.segment_controller - INFO - 已删除旧备份: coverpicker_backup_20260723_132426.db
+2026-07-24 08:23:32 - src.controllers.segment_controller - INFO - 已删除旧备份: coverpicker_backup_20260723_130741.db
+2026-07-24 08:23:32 - src.controllers.segment_controller - INFO - 已删除旧备份: coverpicker_backup_20260723_124821.db
+2026-07-24 08:23:32 - src.controllers.segment_controller - INFO - 已删除旧备份: coverpicker_backup_20260723_122835.db
+2026-07-24 08:23:32 - src.controllers.segment_controller - INFO - 已删除旧备份: coverpicker_backup_20260723_111955.db
+2026-07-24 08:23:32 - src.controllers.segment_controller - INFO - 已删除旧备份: coverpicker_backup_20260723_111740.db
+2026-07-24 08:23:32 - src.controllers.segment_controller - INFO - 已删除旧备份: coverpicker_backup_20260723_111210.db
+2026-07-24 08:23:32 - src.controllers.segment_controller - INFO - 已删除旧备份: coverpicker_backup_20260723_105404.db
+2026-07-24 08:23:32 - src.controllers.segment_controller - INFO - 已删除旧备份: coverpicker_backup_20260723_104219.db
+2026-07-24 08:23:32 - src.controllers.segment_controller - INFO - 已删除旧备份: coverpicker_backup_20260723_103426.db
+2026-07-24 08:23:32 - src.controllers.segment_controller - INFO - 已删除旧备份: coverpicker_backup_20260723_101918.db
+2026-07-24 08:23:32 - ui.views.segment_view - INFO - 启动时删除了 24 个旧备份文件
+2026-07-24 08:23:33 - root - INFO - 主窗口已显示
+2026-07-24 08:24:11 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_A_280.27.jpg
+2026-07-24 08:24:11 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_A_322.29.jpg
+2026-07-24 08:24:11 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_A_443.43.jpg
+2026-07-24 08:24:11 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_A_948.84.jpg
+2026-07-24 08:24:11 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_D_3517.72.jpg
+2026-07-24 08:24:11 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_D_3518.55.jpg
+2026-07-24 08:24:11 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_D_3525.34.jpg
+2026-07-24 08:24:11 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_D_3613.52.jpg
+2026-07-24 08:24:11 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_D_3675.77.jpg
+2026-07-24 08:24:11 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_D_3692.21.jpg
+2026-07-24 08:24:11 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_D_3746.67.jpg
+2026-07-24 08:24:11 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_D_3746.80.jpg
+2026-07-24 08:24:11 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_D_3780.87.jpg
+2026-07-24 08:24:11 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_D_3873.75.jpg
+2026-07-24 08:24:11 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_D_3954.42.jpg
+2026-07-24 08:24:11 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_D_4023.06.jpg
+2026-07-24 08:24:11 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-24 08:24:15 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-24 08:24:17 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-24 08:24:18 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-24 08:24:20 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-24 08:24:22 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-24 08:24:23 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-24 08:24:26 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-24 08:24:27 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-24 08:24:28 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-24 08:24:28 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-24 08:24:28 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-24 08:24:28 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-24 08:30:09 - src.database - INFO - 视频 33 排除区间已更新: []
+2026-07-24 08:30:09 - src.controllers.segment_controller - INFO - 自动备份成功: C:/CoverPicker-Backup/BaiduSyncdisk\coverpicker_backup_20260724_083009.db
+2026-07-24 08:30:09 - root - INFO - 应用退出
+2026-07-24 08:35:51 - root - INFO - 日志系统初始化完成，日志文件: C:\Personal\CoverPicker\log\CoverPicker.log
+2026-07-24 08:35:51 - root - INFO - ============================================================
+2026-07-24 08:35:51 - root - INFO - CoverPicker 启动
+2026-07-24 08:35:51 - root - INFO - ============================================================
+2026-07-24 08:35:51 - src.crash_handler - INFO - 崩溃报告处理器已安装，报告目录: C:\Personal\CoverPicker\log\crashes
+2026-07-24 08:35:51 - src.config_manager - INFO - 配置文件已加载: C:\Users\CATIC\.coverpicker\config.json
+2026-07-24 08:35:51 - src.controllers.segment_controller - INFO - FFmpeg 并发数设为 8
+2026-07-24 08:35:51 - src.controllers.segment_controller - INFO - 已删除旧备份: coverpicker_backup_20260723_225854.db
+2026-07-24 08:35:51 - ui.views.segment_view - INFO - 启动时删除了 1 个旧备份文件
+2026-07-24 08:35:52 - root - INFO - 主窗口已显示
+2026-07-24 08:37:01 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_A_280.27.jpg
+2026-07-24 08:37:01 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_A_322.29.jpg
+2026-07-24 08:37:01 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_A_443.43.jpg
+2026-07-24 08:37:01 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_A_948.84.jpg
+2026-07-24 08:37:01 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_D_3517.72.jpg
+2026-07-24 08:37:01 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_D_3518.55.jpg
+2026-07-24 08:37:01 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_D_3525.34.jpg
+2026-07-24 08:37:01 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_D_3613.52.jpg
+2026-07-24 08:37:01 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_D_3675.77.jpg
+2026-07-24 08:37:01 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_D_3692.21.jpg
+2026-07-24 08:37:01 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_D_3746.67.jpg
+2026-07-24 08:37:01 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_D_3746.80.jpg
+2026-07-24 08:37:01 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_D_3780.87.jpg
+2026-07-24 08:37:01 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_D_3873.75.jpg
+2026-07-24 08:37:01 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_D_3954.42.jpg
+2026-07-24 08:37:01 - src.controllers.segment_controller - DEBUG - 在NAS收藏目录找到: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_D_4023.06.jpg
+2026-07-24 08:37:01 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-24 08:37:07 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-24 08:37:07 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-24 08:37:08 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-24 08:37:08 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-24 08:37:09 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-24 08:37:11 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-24 08:37:11 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-24 08:37:12 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-24 08:37:13 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-24 08:37:13 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-24 08:37:13 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-24 08:37:14 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-24 08:37:28 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-24 08:37:32 - ui.views.segment_view - DEBUG - 点击图片: pos=4, key=(0, 4), 当前选中=set()
+2026-07-24 08:37:32 - ui.views.segment_view - DEBUG - 添加选中: (0, 4)
+2026-07-24 08:37:32 - ui.views.segment_view - DEBUG - 选中后: {(0, 4)}
+2026-07-24 08:37:32 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 4)}
+2026-07-24 08:37:35 - src.controllers.segment_controller - INFO - 收藏截图已保存到NAS: Z:/有码\Top034.怦然心动.Flipped.2010.Bluray.1080p.x265.AAC(5.1).GREENOTEA_covers\fav_A_730.53.jpg
+2026-07-24 08:37:35 - src.database - INFO - 视频 33 排除区间已更新: []
+2026-07-24 08:37:36 - ui.views.segment_view - DEBUG - 选中计数更新: 1 张, selected_indices={(0, 4)}
+2026-07-24 08:37:36 - ui.views.segment_view - DEBUG - 选中计数更新: 0 张, selected_indices=set()
+2026-07-24 08:49:36 - src.database - INFO - 视频 33 排除区间已更新: []
+2026-07-24 08:49:36 - src.controllers.segment_controller - INFO - 自动备份成功: C:/CoverPicker-Backup/BaiduSyncdisk\coverpicker_backup_20260724_084936.db
+2026-07-24 08:49:36 - root - INFO - 应用退出
