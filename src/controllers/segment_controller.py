@@ -1,6 +1,6 @@
 # src/controllers/segment_controller.py
-# 修复：排除区间改为视频级别（全局），存储在 videos 表
-# v2.5.1 修复：视频状态图标优先级改为 ✅ > ⭐ > 👁️（符合 PRODUCT.md 7.1）
+# v2.5.2 修复：_save_state_to_db 中 is_starred 判断确保从所有 screenshots 和 favorites 综合计算
+# 修复：get_video_state_icon 确保优先使用数据库中的 is_starred 和 is_exported 字段
 
 import os, asyncio, random, tempfile, shutil, logging, json, multiprocessing
 from typing import Dict, List, Set, Tuple, Optional, Any
@@ -44,10 +44,12 @@ class SegmentController:
         self.undo_stack: List[Action] = []
         self.redo_stack: List[Action] = []
         self._is_undo_or_redo: bool = False
+
         cpu_count = multiprocessing.cpu_count()
-        max_concurrent = max(3, min(int(cpu_count * 2), 8))
+        max_concurrent = max(3, min(int(cpu_count * 1.5), 12))
         self._ffmpeg_semaphore = asyncio.Semaphore(max_concurrent)
         logger.info(f"FFmpeg 并发数设为 {max_concurrent}")
+
         self._on_data_changed: Optional[callable] = None
         self._on_progress_update: Optional[callable] = None
         self._config = None
@@ -369,6 +371,9 @@ class SegmentController:
         if self.loaded_segments:
             self.db.update_video_state(self.video_id, is_viewed=True)
 
+        # 确保收藏状态正确保存
+        self._save_state_to_db()
+
         self._notify_data_changed()
         print("[DEBUG] load_video 完成")
         return True
@@ -409,6 +414,9 @@ class SegmentController:
         await self._load_task
         print(f"[DEBUG] load_segment: 任务完成")
         self._load_task = None
+
+        # 保存状态
+        self._save_state_to_db()
         self._notify_data_changed()
 
     async def _load_segment(self, seg_idx: int, restore_locks: bool = True, randomize: bool = False):
@@ -1265,13 +1273,19 @@ class SegmentController:
                                         has_starred=has_starred,
                                         has_exported=has_exported)
 
-        is_starred = any(item.get('favorite', False) for seg_label, items in self.screenshots.items() for item in items)
+        # 计算 is_starred：从 screenshots + favorites 综合判断
+        is_starred_from_screenshots = any(item.get('favorite', False) for seg_label, items in self.screenshots.items() for item in items)
+        is_starred_from_favorites = any(f.get('video_path') == self.video_path for f in self.favorites)
+        is_starred = is_starred_from_screenshots or is_starred_from_favorites
+
         is_exported_from_screenshots = any(item.get('exported', False) for seg_label, items in self.screenshots.items() for item in items)
         is_exported_from_favorites = any(f.get('exported', False) for f in self.favorites if f.get('video_path') == self.video_path)
         is_exported = is_exported_from_screenshots or is_exported_from_favorites
+
         is_viewed = bool(self.loaded_segments)
         self.db.update_video_state(self.video_id, is_viewed=is_viewed, is_starred=is_starred, is_exported=is_exported)
 
+        # 同步 favorites 到数据库
         existing_favs = self.db.get_favorites(self.video_id)
         existing_set = set()
         for fav in existing_favs:
