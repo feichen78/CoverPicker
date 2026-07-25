@@ -1,6 +1,6 @@
 # src/video_scanner.py
 # 恢复稳定版本 —— 移除质量/尺寸参数，保留 -skip_frame nokey 加速
-# v3.0: 新增异步帧提取 extract_frame_async，支持取消时 kill 子进程
+# v3.0.1: 新增 get_video_resolution 函数，用于导入时获取视频分辨率
 
 import os
 import json
@@ -81,6 +81,41 @@ def get_video_duration(video_path: str, retries: int = 1) -> Optional[float]:
         except Exception:
             return None
     return None
+
+
+def get_video_resolution(video_path: str) -> str:
+    """
+    获取视频分辨率，返回 "宽x高" 格式的字符串
+    如果获取失败返回空字符串
+    """
+    if not os.path.exists(video_path):
+        return ""
+
+    # 使用 ffprobe 获取视频流的宽度和高度
+    cmd = [
+        "ffprobe", "-v", "error",
+        "-select_streams", "v:0",
+        "-show_entries", "stream=width,height",
+        "-of", "default=noprint_wrappers=1:nokey=1",
+        video_path
+    ]
+    try:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True,
+            encoding='utf-8', errors='ignore',
+            timeout=30, creationflags=CREATE_NO_WINDOW
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            lines = result.stdout.strip().split('\n')
+            if len(lines) >= 2:
+                width = lines[0].strip()
+                height = lines[1].strip()
+                if width and height and width.isdigit() and height.isdigit():
+                    return f"{width}x{height}"
+    except Exception as e:
+        logger.debug(f"获取分辨率失败 {video_path}: {e}")
+
+    return ""
 
 
 def get_video_info(video_path: str) -> Optional[dict]:
@@ -180,7 +215,6 @@ async def extract_frame_async(video_path: str, timestamp: float, output_path: st
                     logger.error(f"提取帧失败: {video_path} @ {timestamp}s, stderr: {stderr.decode(errors='ignore')}")
                     return False, process
         except asyncio.CancelledError:
-            # 取消时立即 kill 子进程
             if process and process.returncode is None:
                 process.kill()
                 await process.wait()

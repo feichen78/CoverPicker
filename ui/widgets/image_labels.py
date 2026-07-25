@@ -1,6 +1,6 @@
 # ui/widgets/image_labels.py
-# 完整文件，可直接覆盖
-# 增加 FavImageLabel.set_exported 调试，确保 exported 正确传递
+# v3.0.1: 修复 mouseDoubleClickEvent 中 C++ 对象已被删除导致的崩溃
+#         完全移除 super().mouseDoubleClickEvent 调用，直接发射信号
 
 import os
 import logging
@@ -45,10 +45,7 @@ class ClickableLabel(QLabel):
         self.update()
 
     def set_exported(self, exported):
-        # 强制转换为布尔值并打印调试
-        exported_bool = bool(exported)
-        print(f"[DEBUG] ClickableLabel.set_exported: index={self.index_num}, exported={exported_bool}")
-        self.is_exported = exported_bool
+        self.is_exported = bool(exported)
         self.update()
 
     def set_loading(self, loading):
@@ -84,7 +81,6 @@ class ClickableLabel(QLabel):
                 y = img_rect.y() + (img_rect.height() - scaled.height()) // 2
                 painter.drawPixmap(x, y, scaled)
             else:
-                # 不缩放：直接绘制原始尺寸，居中显示
                 pix = self.original_pixmap
                 x = img_rect.x() + (img_rect.width() - pix.width()) // 2
                 y = img_rect.y() + (img_rect.height() - pix.height()) // 2
@@ -136,7 +132,6 @@ class ClickableLabel(QLabel):
             y_offset = 46 if self.is_locked else 30
             painter.drawText(rect.left() + 4, rect.top() + y_offset, "❤️")
 
-        # 绿点：仅当 is_exported 为 True 时绘制
         if self.is_exported:
             painter.setBrush(QColor(0, 200, 0))
             painter.setPen(Qt.NoPen)
@@ -156,8 +151,15 @@ class ClickableLabel(QLabel):
 
     def mouseDoubleClickEvent(self, event):
         if event.button() == Qt.LeftButton:
+            try:
+                if self.original_pixmap is None or self.original_pixmap.isNull():
+                    event.ignore()
+                    return
+            except RuntimeError:
+                event.ignore()
+                return
             self.double_clicked.emit(self.index_num - 1)
-        super().mouseDoubleClickEvent(event)
+        # 不调用 super().mouseDoubleClickEvent(event)，完全绕过父类
 
 
 class FavImageLabel(ClickableLabel):
@@ -165,7 +167,6 @@ class FavImageLabel(ClickableLabel):
     def __init__(self, pixmap, timestamp, index_num, parent=None):
         super().__init__(pixmap, timestamp, index_num, parent, allow_background=False, allow_scale=False)
         self._fixed_size = QSize()
-        # 确保初始 exported 为 False
         self.is_exported = False
 
     def setFixedSize(self, w, h):
@@ -180,8 +181,5 @@ class FavImageLabel(ClickableLabel):
         return QSize(100, 80)
 
     def set_exported(self, exported):
-        # 强制转换为布尔值并打印调试
-        exported_bool = bool(exported)
-        print(f"[DEBUG] FavImageLabel.set_exported: index={self.index_num}, exported={exported_bool}")
-        self.is_exported = exported_bool
+        self.is_exported = bool(exported)
         self.update()

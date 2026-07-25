@@ -1,14 +1,37 @@
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QScrollArea, QLabel
-from PySide6.QtCore import Qt, QPoint, QTimer
-from PySide6.QtGui import QPixmap, QMouseEvent, QWheelEvent, QKeyEvent
+# ui/views/zoom_preview.py
+# v3.0.1: 
+# - 窗口尺寸策略调整为屏幕尺寸80%，最小1000x750，最大1600x1200
+# - 初始缩放适应窗口（在 showEvent 中计算，确保布局已完成）
+# - 移除 fit_scale 的 1.5 限制，允许完全适应窗口
+# - 键盘方向键控制滚动条平移（←/→ 水平±20px，↑/↓ 垂直±20px）
+
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QScrollArea, QLabel, QApplication
+from PySide6.QtCore import Qt, QPoint, QTimer, QRect, QEvent
+from PySide6.QtGui import QPixmap, QMouseEvent, QWheelEvent, QKeyEvent, QShowEvent
+
 
 class ZoomPreviewDialog(QDialog):
     def __init__(self, pixmap: QPixmap, time_sec: float, parent=None):
         super().__init__(parent)
         self.setWindowTitle(f"预览 - {time_sec:.1f}s")
         self.setModal(True)
-        self.resize(800, 600)
-        self.setMinimumSize(400, 300)
+
+        screen = QApplication.primaryScreen()
+        if screen:
+            screen_rect = screen.availableGeometry()
+            screen_w = screen_rect.width()
+            screen_h = screen_rect.height()
+        else:
+            screen_w = 1920
+            screen_h = 1080
+
+        target_w = int(screen_w * 0.8)
+        target_h = int(screen_h * 0.8)
+        target_w = max(1000, min(1600, target_w))
+        target_h = max(750, min(1200, target_h))
+
+        self.resize(target_w, target_h)
+        self.setMinimumSize(800, 600)
 
         self.original_pixmap = pixmap
         self.scale_factor = 1.0
@@ -16,6 +39,7 @@ class ZoomPreviewDialog(QDialog):
         self.min_scale = 0.1
         self.max_scale = 5.0
         self.pan_start = QPoint()
+        self._initialized = False
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -33,7 +57,7 @@ class ZoomPreviewDialog(QDialog):
 
         layout.addWidget(self.scroll_area)
 
-        self.status_label = QLabel(f"缩放: {self.scale_factor:.1f}x  |  滚轮缩放  |  拖动平移")
+        self.status_label = QLabel("滚轮缩放 | 拖动平移 | 方向键平移")
         self.status_label.setAlignment(Qt.AlignCenter)
         self.status_label.setStyleSheet("padding: 4px; background: #f0f0f0;")
         layout.addWidget(self.status_label)
@@ -46,11 +70,38 @@ class ZoomPreviewDialog(QDialog):
 
         self.setFocusPolicy(Qt.StrongFocus)
         self.update_image()
-        # 延迟居中滚动，确保布局完成
-        QTimer.singleShot(50, self._center_scroll)
+
+    def showEvent(self, event: QShowEvent):
+        super().showEvent(event)
+        if not self._initialized and not self.original_pixmap.isNull():
+            QTimer.singleShot(50, self._apply_initial_scale_and_update)
+            self._initialized = True
+
+    def _apply_initial_scale_and_update(self):
+        if self.original_pixmap.isNull():
+            return
+
+        viewport_size = self.scroll_area.viewport().size()
+        vw = viewport_size.width()
+        vh = viewport_size.height()
+
+        if vw <= 10 or vh <= 10:
+            vw = self.width() - 20
+            vh = self.height() - 80
+
+        img_w = self.original_pixmap.width()
+        img_h = self.original_pixmap.height()
+
+        if img_w <= 0 or img_h <= 0:
+            return
+
+        fit_scale = min(vw / img_w, vh / img_h)
+        fit_scale = max(fit_scale, self.min_scale)
+
+        self.scale_factor = fit_scale
+        self.update_image()
 
     def _center_scroll(self):
-        """将滚动条设置为中间位置，使图片居中显示"""
         h_bar = self.scroll_area.horizontalScrollBar()
         v_bar = self.scroll_area.verticalScrollBar()
         if h_bar and h_bar.maximum() > h_bar.minimum():
@@ -65,7 +116,6 @@ class ZoomPreviewDialog(QDialog):
         orig_h = self.original_pixmap.height()
         new_w = int(orig_w * self.scale_factor)
         new_h = int(orig_h * self.scale_factor)
-        # 增大最大尺寸限制，避免过早截断
         max_dim = 10000
         if new_w > max_dim or new_h > max_dim:
             ratio = min(max_dim / new_w, max_dim / new_h)
@@ -78,8 +128,7 @@ class ZoomPreviewDialog(QDialog):
         scaled = self.original_pixmap.scaled(new_w, new_h, Qt.KeepAspectRatio, Qt.SmoothTransformation)
         self.image_label.setPixmap(scaled)
         self.image_label.resize(scaled.size())
-        self.status_label.setText(f"缩放: {self.scale_factor:.1f}x  |  滚轮缩放  |  拖动平移")
-        # 更新后延迟居中
+        self.status_label.setText(f"缩放: {self.scale_factor:.1f}x | 滚轮缩放 | 拖动平移 | 方向键平移")
         QTimer.singleShot(20, self._center_scroll)
 
     def image_wheel(self, event: QWheelEvent):
@@ -109,7 +158,31 @@ class ZoomPreviewDialog(QDialog):
         self.scroll_area.setCursor(Qt.ArrowCursor)
 
     def keyPressEvent(self, event: QKeyEvent):
-        if event.key() == Qt.Key_Escape:
+        key = event.key()
+        step = 20
+
+        if key == Qt.Key_Escape:
             self.close()
-        else:
-            super().keyPressEvent(event)
+            return
+
+        h_bar = self.scroll_area.horizontalScrollBar()
+        v_bar = self.scroll_area.verticalScrollBar()
+
+        if key == Qt.Key_Left:
+            h_bar.setValue(h_bar.value() - step)
+            event.accept()
+            return
+        elif key == Qt.Key_Right:
+            h_bar.setValue(h_bar.value() + step)
+            event.accept()
+            return
+        elif key == Qt.Key_Up:
+            v_bar.setValue(v_bar.value() - step)
+            event.accept()
+            return
+        elif key == Qt.Key_Down:
+            v_bar.setValue(v_bar.value() + step)
+            event.accept()
+            return
+
+        super().keyPressEvent(event)

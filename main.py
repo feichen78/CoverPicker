@@ -1,6 +1,6 @@
 # main.py
 # CoverPicker 主入口
-# 新增自动恢复最新备份功能
+# v3.0.1: 修复退出时 qasync 事件循环关闭导致的报错
 
 import sys
 import os
@@ -21,6 +21,7 @@ import qasync
 from src.logger_setup import setup_logger
 from src.crash_handler import CrashHandler
 from src.config_manager import ConfigManager
+from src.version import VERSION
 from ui.views.segment_view import SegmentView
 
 
@@ -75,7 +76,7 @@ def auto_restore_backup(logger):
 def main():
     logger = setup_logger("CoverPicker")
     logger.info("=" * 60)
-    logger.info("CoverPicker 启动")
+    logger.info(f"CoverPicker v{VERSION} 启动")
     logger.info("=" * 60)
 
     # 自动恢复最新备份
@@ -92,19 +93,32 @@ def main():
     asyncio.set_event_loop(loop)
 
     window = SegmentView()
-    window.setWindowTitle("CoverPicker - 视频截图工具")
+    window.setWindowTitle(f"CoverPicker - v{VERSION}")
     window.resize(1200, 800)
     window.show()
 
-    logger.info("主窗口已显示")
+    logger.info(f"主窗口已显示 (v{VERSION})")
 
     def on_exit():
         logger.info("应用退出")
         crash_handler.uninstall()
+
     app.aboutToQuit.connect(on_exit)
 
-    with loop:
-        sys.exit(loop.run_forever())
+    # 安全退出：先让事件循环运行，退出时正确处理
+    try:
+        loop.run_forever()
+    except (SystemExit, KeyboardInterrupt):
+        # 正常退出信号，不做额外处理
+        pass
+    finally:
+        # 清理事件循环
+        try:
+            loop.close()
+        except Exception as e:
+            logger.debug(f"关闭事件循环时忽略异常: {e}")
+        # 确保应用退出
+        sys.exit(0)
 
 
 if __name__ == "__main__":
