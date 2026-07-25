@@ -350,3 +350,17 @@ Get-ChildItem -Path . -Recurse -Directory -Filter "__pycache__" | Remove-Item -R
 __pycache__ 只有在 Python 版本更换或包结构发生重大变化时才需要删除。python clean_cache.py
 
 (Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned) ; (& c:\Personal\CoverPicker\.venv\Scripts\Activate.ps1)
+
+上下文窗口限制
+DeepSeek 上下文窗口为 1,000,000 tokens 单次输出如果超过 8000 tokens，系统可能触发截断或分段。
+纯文本（中文）	    1个中文字符约1.5~2 tokens
+纯文本（英文/代码）	代码和英文token效率更高
+图片	受限较多	每张图片约 256~1024 tokens（取决于分辨率）
+文件（代码文件）	每个300~500行代码约1万~2万tokens
+完整代码文件		每个300~500行代码约1万~2万tokens
+
+实际建议
+图片尽量压缩或只发关键截图（不要发整个屏幕的大图）。
+
+
+
