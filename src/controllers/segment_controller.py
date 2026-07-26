@@ -1,12 +1,13 @@
 # src/controllers/segment_controller.py
-# v3.0.1: 导入视频时获取分辨率并存入数据库
+# 修复：排除区间改为视频级别（全局），存储在 videos 表
+# v2.5.1 修复：视频状态图标优先级改为 ✅ > ⭐ > 👁️（符合 PRODUCT.md 7.1）
 
 import os, asyncio, random, tempfile, shutil, logging, json, multiprocessing
 from typing import Dict, List, Set, Tuple, Optional, Any
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 from src.database import Database
-from src.video_scanner import get_video_duration, get_video_resolution, calculate_segments, extract_frame_async
+from src.video_scanner import get_video_duration, calculate_segments, extract_frame_async
 
 logger = logging.getLogger(__name__)
 
@@ -21,13 +22,12 @@ class Action:
 
 class SegmentController:
     def __init__(self):
-        logger.debug("SegmentController __init__ 开始")
+        print("[DEBUG] SegmentController __init__ 开始")
         self.db = Database()
         self.video_path: Optional[str] = None
         self.video_id: Optional[int] = None
         self.duration: float = 0.0
         self.video_name: str = ""
-        self.video_resolution: str = ""
         self.num_segments: int = 3
         self.segments: List[Tuple[str, float, float]] = []
         self.current_seg_index: int = 0
@@ -51,7 +51,7 @@ class SegmentController:
         self._on_data_changed: Optional[callable] = None
         self._on_progress_update: Optional[callable] = None
         self._config = None
-        logger.debug("SegmentController __init__ 完成")
+        print("[DEBUG] SegmentController __init__ 完成")
 
     def set_config(self, config):
         self._config = config
@@ -67,7 +67,7 @@ class SegmentController:
             self._on_data_changed()
 
     def _notify_progress(self, message: str):
-        logger.debug(f"_notify_progress: {message}")
+        print(f"[DEBUG] _notify_progress: {message}")
         if self._on_progress_update:
             self._on_progress_update(message)
 
@@ -171,12 +171,16 @@ class SegmentController:
         return self.excluded_ranges.copy()
 
     def set_excluded_ranges(self, ranges: List[Tuple[float, float]], save: bool = True):
-        logger.debug(f"set_excluded_ranges 被调用: ranges={ranges}, save={save}")
+        import traceback
+        print(f"[DEBUG] set_excluded_ranges 被调用: ranges={ranges}, save={save}")
+
         self.excluded_ranges = ranges.copy()
         self._notify_data_changed()
+
         if save and self.video_id:
             self.db.set_video_excluded_ranges(self.video_id, ranges)
             logger.info(f"视频排除区间已保存到数据库: {ranges}")
+
             if self.num_segments != -1:
                 self._recalculate_segments_with_exclusions()
                 self.screenshots = {}
@@ -187,10 +191,12 @@ class SegmentController:
 
     def load_excluded_ranges_from_db(self):
         if not self.video_id:
-            logger.debug("load_excluded_ranges_from_db: video_id 为空")
+            print("[DEBUG] load_excluded_ranges_from_db: video_id 为空")
             return
+
         ranges = self.db.get_video_excluded_ranges(self.video_id)
-        logger.debug(f"load_excluded_ranges_from_db: 从数据库读取到排除区间: {ranges}")
+        print(f"[DEBUG] load_excluded_ranges_from_db: 从数据库读取到排除区间: {ranges}")
+
         if ranges:
             self.excluded_ranges = ranges
             logger.info(f"从数据库加载排除区间: {self.excluded_ranges}")
@@ -244,22 +250,27 @@ class SegmentController:
             return
         if self.num_segments == -1:
             return
+
         merged = self._merge_excluded_ranges()
         available = self._get_available_intervals(merged)
+
         if not available:
             self.segments = []
             self._notify_data_changed()
             logger.warning("整个视频被排除区间覆盖")
             return
+
         total_available = sum(end - start for start, end in available)
         if total_available <= 0.1:
             self.segments = []
             self._notify_data_changed()
             logger.warning("可用时长过短")
             return
+
         if abs(total_available - self.duration) < 0.1:
             self.segments = calculate_segments(self.duration, self.num_segments)
             return
+
         seg_duration = total_available / self.num_segments
         if seg_duration < 1.0:
             new_num = max(1, int(total_available // 1.0))
@@ -267,6 +278,7 @@ class SegmentController:
                 logger.info(f"调整分区数 {self.num_segments} -> {new_num}")
                 self.num_segments = new_num
             seg_duration = total_available / self.num_segments
+
         new_segments = []
         for i in range(self.num_segments):
             start_avail = i * seg_duration
@@ -275,6 +287,7 @@ class SegmentController:
             end_orig = self._map_available_to_original(end_avail, available)
             label = chr(ord('A') + i)
             new_segments.append((label, max(0, start_orig), min(self.duration, end_orig)))
+
         self.segments = new_segments
         self._notify_data_changed()
         logger.info(f"重新划分分区，共 {len(self.segments)} 个")
@@ -293,14 +306,13 @@ class SegmentController:
             await asyncio.sleep(0.05)
 
     async def load_video(self, video_path: str) -> bool:
-        logger.debug(f"load_video 被调用: {video_path}")
+        print(f"[DEBUG] load_video 被调用: {video_path}")
         await self._cancel_current_task()
 
         self.video_path = None
         self.video_id = None
         self.duration = 0.0
         self.video_name = ""
-        self.video_resolution = ""
         self.segments = []
         self.screenshots = {}
         self.loaded_segments = set()
@@ -315,7 +327,7 @@ class SegmentController:
 
         duration = get_video_duration(video_path)
         if duration is None or duration <= 0:
-            logger.debug("load_video: 无法获取时长，返回 False")
+            print("[DEBUG] load_video: 无法获取时长，返回 False")
             self.duration = 0.0
             self.segments = []
             self._notify_data_changed()
@@ -324,19 +336,12 @@ class SegmentController:
         self.duration = duration
         self.num_segments = 3
         self.segments = calculate_segments(duration, self.num_segments)
-        logger.debug(f"load_video: 分区数={len(self.segments)}")
-
-        # 获取分辨率
-        resolution = get_video_resolution(video_path)
-        self.video_resolution = resolution
-        logger.debug(f"load_video: 分辨率={resolution}")
+        print(f"[DEBUG] load_video: 分区数={len(self.segments)}")
 
         file_name = os.path.basename(video_path)
         file_size = int(os.path.getsize(video_path))
         modified_time = int(os.path.getmtime(video_path))
-        self.video_id = self.db.get_or_create_video(
-            video_path, file_name, int(duration), resolution, file_size, modified_time
-        )
+        self.video_id = self.db.get_or_create_video(video_path, file_name, int(duration), "", file_size, modified_time)
 
         for label, start, end in self.segments:
             self.db.get_or_create_segment(self.video_id, label, int(start), int(end))
@@ -365,16 +370,16 @@ class SegmentController:
             self.db.update_video_state(self.video_id, is_viewed=True)
 
         self._notify_data_changed()
-        logger.debug("load_video 完成")
+        print("[DEBUG] load_video 完成")
         return True
 
     async def load_segment(self, seg_idx: int, restore_locks: bool = True, randomize: bool = False):
-        logger.debug(f"========== load_segment 被调用: seg_idx={seg_idx} ==========")
+        print(f"[DEBUG] ========== load_segment 被调用: seg_idx={seg_idx} ==========")
         if not self.video_path or not self.segments:
-            logger.debug("load_segment 返回: 无视频或无分区")
+            print(f"[DEBUG] load_segment 返回: 无视频或无分区")
             return
         if seg_idx < 0 or seg_idx >= len(self.segments):
-            logger.debug(f"load_segment: seg_idx={seg_idx} 越界，len(segments)={len(self.segments)}")
+            print(f"[DEBUG] load_segment: seg_idx={seg_idx} 越界，len(segments)={len(self.segments)}")
             return
 
         await self._cancel_current_task()
@@ -384,36 +389,36 @@ class SegmentController:
         self._notify_data_changed()
 
         self.current_seg_index = seg_idx
-        logger.debug(f"load_segment: 设置 current_seg_index = {seg_idx}")
+        print(f"[DEBUG] load_segment: 设置 current_seg_index = {seg_idx}")
 
         self.load_excluded_ranges_from_db()
-        logger.debug(f"load_segment: load_excluded_ranges_from_db 完成，current_seg_index = {self.current_seg_index}")
+        print(f"[DEBUG] load_segment: load_excluded_ranges_from_db 完成，current_seg_index = {self.current_seg_index}")
 
         if self.excluded_ranges and self.num_segments != -1:
             self._recalculate_segments_with_exclusions()
             for label, start, end in self.segments:
                 self.db.get_or_create_segment(self.video_id, label, int(start), int(end))
             if seg_idx >= len(self.segments):
-                logger.debug(f"load_segment: 分区数变化，seg_idx={seg_idx} 越界，回退到 0")
+                print(f"[DEBUG] load_segment: 分区数变化，seg_idx={seg_idx} 越界，回退到 0")
                 seg_idx = 0
                 self.current_seg_index = 0
 
-        logger.debug(f"load_segment: 创建 _load_segment 任务，seg_idx={seg_idx}")
+        print(f"[DEBUG] load_segment: 创建 _load_segment 任务，seg_idx={seg_idx}")
         self._load_task = asyncio.create_task(self._load_segment(seg_idx, restore_locks, randomize))
-        logger.debug("load_segment: 任务已创建，等待完成...")
+        print(f"[DEBUG] load_segment: 任务已创建，等待完成...")
         await self._load_task
-        logger.debug("load_segment: 任务完成")
+        print(f"[DEBUG] load_segment: 任务完成")
         self._load_task = None
         self._notify_data_changed()
 
     async def _load_segment(self, seg_idx: int, restore_locks: bool = True, randomize: bool = False):
-        logger.debug(f"========== _load_segment 开始: seg_idx={seg_idx} ==========")
-        logger.debug(f"_load_segment: self.video_path={self.video_path}, self.segments={self.segments}")
+        print(f"[DEBUG] ========== _load_segment 开始: seg_idx={seg_idx} ==========")
+        print(f"[DEBUG] _load_segment: self.video_path={self.video_path}, self.segments={self.segments}")
         if not self.video_path or not self.segments:
-            logger.debug("_load_segment 返回: 无视频或无分区")
+            print(f"[DEBUG] _load_segment 返回: 无视频或无分区")
             return
         if seg_idx < 0 or seg_idx >= len(self.segments):
-            logger.debug(f"_load_segment 无效索引: seg_idx={seg_idx}, len(segments)={len(self.segments)}")
+            print(f"[DEBUG] _load_segment 无效索引: seg_idx={seg_idx}, len(segments)={len(self.segments)}")
             return
 
         label, start, end = self.segments[seg_idx]
@@ -428,21 +433,21 @@ class SegmentController:
         count = self.density
         old_items = self.screenshots.get(seg_key, [])
 
-        logger.debug(f"_load_segment: label={label}, start={start}, end={end}, offset={offset}, start_cropped={start_cropped}, end_cropped={end_cropped}")
+        print(f"[DEBUG] _load_segment: label={label}, start={start}, end={end}, offset={offset}, start_cropped={start_cropped}, end_cropped={end_cropped}")
 
         new_times = []
         attempts = 0
         max_attempts = 1000 * count
-        logger.debug(f"_load_segment: 开始生成时间点，count={count}, max_attempts={max_attempts}")
+        print(f"[DEBUG] _load_segment: 开始生成时间点，count={count}, max_attempts={max_attempts}")
         while len(new_times) < count and attempts < max_attempts:
             t = random.uniform(start_cropped, end_cropped)
             if not self._is_time_excluded(t):
                 new_times.append(t)
             attempts += 1
 
-        logger.debug(f"_load_segment: 生成时间点完成，len(new_times)={len(new_times)}, attempts={attempts}")
+        print(f"[DEBUG] _load_segment: 生成时间点完成，len(new_times)={len(new_times)}, attempts={attempts}")
         if len(new_times) == 0:
-            logger.debug(f"{label} 无可生成截图")
+            print(f"[DEBUG] {label} 无可生成截图")
             self.screenshots[seg_key] = []
             self.loaded_segments.add(label)
             self._notify_progress(f"{label} 无可生成截图")
@@ -450,7 +455,7 @@ class SegmentController:
             return
 
         new_times.sort()
-        logger.debug(f"_load_segment: new_times = {new_times}")
+        print(f"[DEBUG] _load_segment: new_times = {new_times}")
 
         new_items = []
         for t in new_times:
@@ -459,7 +464,7 @@ class SegmentController:
         self.screenshots[seg_key] = new_items
         self.loaded_segments.add(label)
         self._notify_data_changed()
-        logger.debug(f"_load_segment: screenshots 已设置，准备提取帧，共 {len(new_items)} 张")
+        print(f"[DEBUG] _load_segment: screenshots 已设置，准备提取帧，共 {len(new_items)} 张")
 
         old_items_sorted = sorted(old_items, key=lambda x: x['time'])
         old_times = [item['time'] for item in old_items_sorted]
@@ -479,11 +484,11 @@ class SegmentController:
                 reused_count += 1
 
         total = len(new_times)
-        logger.debug(f"_load_segment: 开始帧提取循环，total={total}")
+        print(f"[DEBUG] _load_segment: 开始帧提取循环，total={total}")
 
         for idx, item in enumerate(new_items):
             if item['path'] is not None:
-                logger.debug(f"_load_segment: 复用已有图片 idx={idx}, path={item['path']}")
+                print(f"[DEBUG] _load_segment: 复用已有图片 idx={idx}, path={item['path']}")
                 continue
 
             t = item['time']
@@ -498,7 +503,7 @@ class SegmentController:
                         retry_t = max(start_cropped, min(end_cropped, retry_t))
 
                 temp_path = os.path.join(self.temp_dir, f"seg_{label}_{retry_t:.2f}_{retry}.jpg")
-                logger.debug(f"_load_segment: 提取帧 idx={idx}, retry={retry}, time={retry_t}, path={temp_path}")
+                print(f"[DEBUG] _load_segment: 提取帧 idx={idx}, retry={retry}, time={retry_t}, path={temp_path}")
                 self._notify_progress(f"正在生成 {label} 第 {idx+1}/{total} 张 @ {retry_t:.2f}s (尝试{retry+1})")
 
                 try:
@@ -508,7 +513,7 @@ class SegmentController:
                         item['path'] = temp_path
                         item['time'] = retry_t
                         success = True
-                        logger.debug(f"_load_segment: 提取成功 idx={idx}")
+                        print(f"[DEBUG] _load_segment: 提取成功 idx={idx}")
                         break
                     else:
                         logger.warning(f"提取帧失败 (尝试{retry+1}): {label} @ {retry_t:.2f}s")
@@ -524,12 +529,12 @@ class SegmentController:
 
             self._notify_data_changed()
             self._notify_progress(f"{label} {idx+1}/{total} 完成")
-            logger.debug(f"_load_segment: 完成 idx={idx}")
+            print(f"[DEBUG] _load_segment: 完成 idx={idx}")
 
         self._restore_favorites_to_screenshots()
         self._notify_progress(f"{label} 分段加载完成 ({len(new_items)} 张, 复用 {reused_count} 张)")
         self._notify_data_changed()
-        logger.debug(f"========== _load_segment 完成: {label} ==========")
+        print(f"[DEBUG] ========== _load_segment 完成: {label} ==========")
 
     def _save_favorite_to_nas(self, seg_label: str, time_sec: float, source_path: str) -> Tuple[str, bool]:
         dest_path = self._get_favorite_path(seg_label, time_sec)
@@ -785,7 +790,7 @@ class SegmentController:
         return True
 
     def replace_favorite_screenshot(self, seg_label: str, old_time: float, new_time: float, new_path: str) -> bool:
-        logger.debug(f"replace_favorite_screenshot: seg_label={seg_label}, old_time={old_time:.2f}, new_time={new_time:.2f}")
+        print(f"[DEBUG] replace_favorite_screenshot: seg_label={seg_label}, old_time={old_time:.2f}, new_time={new_time:.2f}")
 
         fav_item = None
         fav_index = -1
@@ -796,7 +801,7 @@ class SegmentController:
                 break
 
         if fav_item is None:
-            logger.debug("replace_favorite_screenshot: 未找到收藏项")
+            print(f"[DEBUG] replace_favorite_screenshot: 未找到收藏项")
             return False
 
         nas_path, _ = self._save_favorite_to_nas(seg_label, new_time, new_path)
@@ -810,7 +815,7 @@ class SegmentController:
         if self.video_id:
             self.db.remove_favorite(self.video_id, seg_label, old_timestamp_ms)
             self.db.add_favorite(self.video_id, seg_label, new_timestamp_ms, nas_path, os.path.basename(nas_path), is_exported=exported)
-            logger.debug("数据库已更新: 替换收藏截图")
+            logger.info(f"[DEBUG] 数据库已更新: 替换收藏截图")
 
         items = self.screenshots.get(seg_label, [])
         for item in items:
@@ -821,7 +826,7 @@ class SegmentController:
                 break
 
         self._notify_data_changed()
-        logger.debug("replace_favorite_screenshot: 替换成功")
+        print(f"[DEBUG] replace_favorite_screenshot: 替换成功")
         return True
 
     def lock_selected(self, seg_label: str, positions: List[int]) -> int:
@@ -974,10 +979,6 @@ class SegmentController:
         if not self.video_path or not self.segments:
             return 0
 
-        if seg_idx < 0 or seg_idx >= len(self.segments):
-            logger.warning(f"refresh_unlocked: seg_idx={seg_idx} 越界，len(segments)={len(self.segments)}")
-            return 0
-
         seg_label, start, end = self.segments[seg_idx]
         offset = (end - start) * self.skip_ratio
         start_cropped = start + offset
@@ -1028,13 +1029,6 @@ class SegmentController:
         return refreshed
 
     async def reset_segment(self, seg_idx: int):
-        if not self.segments:
-            logger.warning("reset_segment: segments 为空")
-            return
-        if seg_idx < 0 or seg_idx >= len(self.segments):
-            logger.warning(f"reset_segment: seg_idx={seg_idx} 越界，len(segments)={len(self.segments)}")
-            return
-
         seg_label = self.segments[seg_idx][0]
         self.screenshots[seg_label] = []
         self._clear_history()
@@ -1067,9 +1061,6 @@ class SegmentController:
 
     def get_duration(self) -> float:
         return self.duration
-
-    def get_video_resolution(self) -> str:
-        return self.video_resolution
 
     def get_segments(self) -> List[Tuple[str, float, float]]:
         return self.segments
@@ -1179,7 +1170,6 @@ class SegmentController:
             self.video_id = None
             self.duration = 0.0
             self.video_name = ""
-            self.video_resolution = ""
             self.segments = []
             self.screenshots = {}
             self.loaded_segments = set()
