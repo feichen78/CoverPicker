@@ -3,6 +3,7 @@
 # v3.2: GIF导出 + 片段夹/GIF夹 + 目录记忆
 # v3.2.3: 使用 Signal 跨线程通知主线程（官方推荐方式）
 # v3.2.4: 增加调试日志，确认执行路径
+# v3.2.6: 将调试 print 改为 logger.debug (O1)
 
 import os
 import asyncio
@@ -77,7 +78,6 @@ class GIFExportDialog(QDialog):
 
 class PreviewDialog(QDialog):
     export_clip_requested = Signal(str)
-    # GIF导出完成信号（跨线程通信）
     gif_export_finished = Signal(bool, str, str)
 
     def __init__(self, parent=None):
@@ -105,7 +105,6 @@ class PreviewDialog(QDialog):
 
         self.split_points: List[float] = []
 
-        # 连接GIF导出完成信号到槽函数
         self.gif_export_finished.connect(self._on_gif_export_finished)
 
         self.setup_ui()
@@ -709,7 +708,7 @@ class PreviewDialog(QDialog):
         self.export_gif_btn.setEnabled(False)
         self.export_gif_btn.setText("⏳ 生成中...")
         self.progress_label.setText("正在生成 GIF...")
-        print("[GIF调试] 开始导出，按钮已禁用，进度标签已设置")
+        logger.debug("[GIF调试] 开始导出，按钮已禁用，进度标签已设置")
 
         def run_ffmpeg():
             try:
@@ -722,38 +721,38 @@ class PreviewDialog(QDialog):
                     timeout=180,
                     creationflags=0x08000000 if os.name == 'nt' else 0
                 )
-                print(f"[GIF调试] FFmpeg 完成, returncode={result.returncode}")
+                logger.debug(f"[GIF调试] FFmpeg 完成, returncode={result.returncode}")
                 return result.returncode == 0, result.stderr
             except subprocess.TimeoutExpired:
-                print("[GIF调试] FFmpeg 超时")
+                logger.debug("[GIF调试] FFmpeg 超时")
                 return False, "FFmpeg 超时"
             except Exception as e:
-                print(f"[GIF调试] FFmpeg 异常: {e}")
+                logger.debug(f"[GIF调试] FFmpeg 异常: {e}")
                 return False, str(e)
 
         import threading
 
         def do_export():
             success, error = run_ffmpeg()
-            print(f"[GIF调试] do_export: success={success}, error={error[:100] if error else 'None'}")
-            print("[GIF调试] 准备发射 gif_export_finished 信号")
+            logger.debug(f"[GIF调试] do_export: success={success}, error={error[:100] if error else 'None'}")
+            logger.debug("[GIF调试] 准备发射 gif_export_finished 信号")
             self.gif_export_finished.emit(success, error, save_path)
-            print("[GIF调试] 信号已发射")
+            logger.debug("[GIF调试] 信号已发射")
 
         threading.Thread(target=do_export, daemon=True).start()
 
     def _on_gif_export_finished(self, success: bool, error: str, save_path: str):
-        print(f"[GIF调试] _on_gif_export_finished 被调用, success={success}")
+        logger.debug(f"[GIF调试] _on_gif_export_finished 被调用, success={success}")
         self.export_gif_btn.setEnabled(True)
         self.export_gif_btn.setText("导出GIF")
         self.progress_label.setText("")
         if success:
             self.progress_label.setText(f"✅ GIF 已保存: {os.path.basename(save_path)}")
             QMessageBox.information(self, "导出完成", f"GIF 已保存到:\n{save_path}")
-            print("[GIF调试] 导出成功，提示框已显示")
+            logger.debug("[GIF调试] 导出成功，提示框已显示")
         else:
             QMessageBox.warning(self, "导出失败", f"GIF 导出失败:\n{error}")
-            print("[GIF调试] 导出失败")
+            logger.debug("[GIF调试] 导出失败")
 
     def add_split_point(self):
         if not self.video_path:

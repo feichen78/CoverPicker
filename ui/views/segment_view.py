@@ -5,6 +5,7 @@
 #        preview_image 传入 cols 参数，支持上下键按网格列数切换
 # v3.2.4: 修复监控目录文件移动后未触发更新 + 视频列表按第一级子目录分组排序
 # v3.2.5: 修复定时扫描与异步加载任务冲突导致的 RuntimeError
+# v3.2.6: O4 增加 refresh_unlocked 和 reset_all 的 seg_idx 越界检查
 
 import os
 import asyncio
@@ -595,17 +596,14 @@ class SegmentView(QWidget):
             QMessageBox.information(self, "完成", "已清空所有监控目录。")
 
     def _on_directory_changed(self, path: str):
-        """目录变化事件 - 使用防抖定时器合并短时间内多次变化"""
         logger.info(f"监控目录发生变化: {path}")
         self._watch_debounce_timer.start(500)
 
     def _on_watch_debounce_timeout(self):
-        """防抖超时后执行完整扫描"""
         logger.info("监控目录防抖超时，执行完整扫描")
         self._scan_all_watch_dirs()
 
     def _scan_and_import_directory(self, dir_path: str):
-        """保留但不再使用，由 _scan_all_watch_dirs 替代"""
         if not os.path.exists(dir_path):
             return
         self.progress_label_left.setText(f"🔄 扫描目录: {os.path.basename(dir_path)}...")
@@ -633,12 +631,10 @@ class SegmentView(QWidget):
             QTimer.singleShot(2000, lambda: self.progress_label_left.setText(""))
 
     def _scan_all_watch_dirs(self):
-        """完整扫描所有监控目录 - 包含新增和删除检测，避免与异步加载任务冲突"""
         dirs = self.config.get_watch_dirs()
         if not dirs:
             return
 
-        # 检测是否有正在进行的视频加载任务
         has_loading_task = (
             self.controller._load_task is not None and
             not self.controller._load_task.done()
@@ -647,7 +643,6 @@ class SegmentView(QWidget):
         if has_loading_task:
             self.progress_label_left.setText("⏳ 有视频正在加载，扫描延迟到加载完成后执行...")
             logger.info("有视频正在加载，本次扫描跳过删除操作，仅处理新增")
-            # 仅处理新增，不处理删除（避免与加载任务冲突）
             self._scan_add_only()
             return
 
@@ -708,7 +703,6 @@ class SegmentView(QWidget):
                 QTimer.singleShot(3000, lambda: self.progress_label_left.setText(""))
 
     def _scan_add_only(self):
-        """仅处理新增视频（当有加载任务时使用）"""
         dirs = self.config.get_watch_dirs()
         if not dirs:
             return
@@ -1142,11 +1136,6 @@ class SegmentView(QWidget):
         self._refresh_video_list()
 
     def _get_video_group_key(self, path: str) -> Tuple[int, str]:
-        """
-        获取视频的分组键，用于按监控根目录下第一级子目录分组排序
-        返回: (监控根目录索引, 第一级子目录名称)
-        索引为 -1 表示不属于任何监控目录（手动导入）
-        """
         watch_dirs = self.config.get_watch_dirs()
         norm_path = os.path.normpath(path)
 
@@ -1163,7 +1152,6 @@ class SegmentView(QWidget):
         return (-1, "__UNKNOWN__")
 
     def _refresh_video_list(self):
-        """刷新视频列表 - 按监控根目录下第一级子目录分组排序"""
         self.video_list.clear()
 
         sorted_videos = sorted(
@@ -1619,7 +1607,11 @@ class SegmentView(QWidget):
         self._refresh_grid()
 
     async def refresh_unlocked(self):
+        # O4: 检查 seg_idx 有效性
         seg_idx = self.controller.current_seg_index
+        if seg_idx < 0 or seg_idx >= len(self.controller.get_segments()):
+            self.progress_label_left.setText("分区已变化，请重新加载")
+            return
         refreshed = await self.controller.refresh_unlocked(seg_idx)
         if refreshed == 0:
             QMessageBox.information(self, "提示", "当前分段没有未锁定的截图。")
@@ -1628,7 +1620,11 @@ class SegmentView(QWidget):
             self._update_select_all_state()
 
     async def reset_all(self):
+        # O4: 检查 seg_idx 有效性
         seg_idx = self.controller.current_seg_index
+        if seg_idx < 0 or seg_idx >= len(self.controller.get_segments()):
+            self.progress_label_left.setText("分区已变化，请重新加载")
+            return
         await self.controller.reset_segment(seg_idx)
         self.selected_indices.clear()
         self._update_select_all_state()

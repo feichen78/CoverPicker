@@ -1,6 +1,7 @@
 # src/controllers/segment_controller.py
 # v3.0.1: 导入视频时获取分辨率并存入数据库
 # v3.2: 3.2.4 导出命名优化（添加视频文件名前缀）
+# v3.2.6: O4 增加 refresh_unlocked 和 reset_segment 的 seg_idx 越界检查
 
 import os, asyncio, random, tempfile, shutil, logging, json, multiprocessing
 from typing import Dict, List, Set, Tuple, Optional, Any
@@ -974,9 +975,9 @@ class SegmentController:
                 break
 
     async def refresh_unlocked(self, seg_idx: int) -> int:
+        # O4: 增加 seg_idx 有效性检查
         if not self.video_path or not self.segments:
             return 0
-
         if seg_idx < 0 or seg_idx >= len(self.segments):
             logger.warning(f"refresh_unlocked: seg_idx={seg_idx} 越界，len(segments)={len(self.segments)}")
             return 0
@@ -1031,6 +1032,7 @@ class SegmentController:
         return refreshed
 
     async def reset_segment(self, seg_idx: int):
+        # O4: 增加 seg_idx 有效性检查
         if not self.segments:
             logger.warning("reset_segment: segments 为空")
             return
