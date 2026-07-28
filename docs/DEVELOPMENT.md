@@ -350,3 +350,60 @@ Get-ChildItem -Path . -Recurse -Directory -Filter "__pycache__" | Remove-Item -R
 __pycache__ 只有在 Python 版本更换或包结构发生重大变化时才需要删除。python clean_cache.py
 
 (Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned) ; (& c:\Personal\CoverPicker\.venv\Scripts\Activate.ps1)
+
+如果这是您本地开发分支，推荐创建 v3.2 分支并推送，保留独立版本分支以便后续回溯。推荐命令步骤:
+
+# 1. 查看当前状态（确认工作区是否干净）
+git status
+
+# 2. 从当前 HEAD 创建一个新分支（保存您的 v3.2 工作）
+git checkout -b v3.2
+
+# 3. （如果 git status 显示有未提交的更改）添加并提交
+git add .
+git commit -m "v3.2: 数据安全 + GIF导出 + 截图快速切换 + 导出优化 + 监控增强"
+
+# 4. 推送到远程仓库（首次推送需要设置上游）
+git push -u origin v3.2
+
+从Git历史中移除这些文件
+
+# 1. 从 Git 索引中移除 GIF 文件夹（但保留本地文件）
+git rm -r --cached GIF/
+
+# 2. 将 GIF/ 添加到 .gitignore（防止以后再被误提交）
+echo "GIF/" >> .gitignore
+
+# 3. 提交这次移除
+git add .gitignore
+git commit -m "移除GIF文件夹（大文件不上传）"
+
+# 4. 强制推送（因为修改了历史）
+git push origin v3.2 --force
+
+从一台新电脑取回 v3.2 版本全部代码
+
+首次克隆
+
+# 克隆仓库（默认下载 main 分支）
+git clone https://github.com/feichen78/CoverPicker.git
+
+# 进入项目目录
+cd CoverPicker
+
+# 切换到 v3.2 分支
+git checkout v3.2
+
+# 如果需要，将 v3.2 设置为默认分支（可选）
+git branch --set-upstream-to=origin/v3.2
+
+如果已有仓库，只需拉取更新
+
+# 获取所有远程分支信息
+git fetch --all
+
+# 切换到 v3.2 分支
+git checkout v3.2
+
+# 拉取最新代码
+git pull origin v3.2
