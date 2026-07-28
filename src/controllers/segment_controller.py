@@ -1,5 +1,6 @@
 # src/controllers/segment_controller.py
 # v3.0.1: 导入视频时获取分辨率并存入数据库
+# v3.2: 3.2.4 导出命名优化（添加视频文件名前缀）
 
 import os, asyncio, random, tempfile, shutil, logging, json, multiprocessing
 from typing import Dict, List, Set, Tuple, Optional, Any
@@ -10,6 +11,7 @@ from src.video_scanner import get_video_duration, get_video_resolution, calculat
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class Action:
     type: str
@@ -18,6 +20,7 @@ class Action:
     timestamp_ms: int
     old_state: bool
     new_state: bool
+
 
 class SegmentController:
     def __init__(self):
@@ -326,7 +329,6 @@ class SegmentController:
         self.segments = calculate_segments(duration, self.num_segments)
         logger.debug(f"load_video: 分区数={len(self.segments)}")
 
-        # 获取分辨率
         resolution = get_video_resolution(video_path)
         self.video_resolution = resolution
         logger.debug(f"load_video: 分辨率={resolution}")
@@ -724,8 +726,9 @@ class SegmentController:
 
         exported = 0
         exported_list = []
+        base_name = os.path.splitext(os.path.basename(self.video_path))[0]
         for time_sec, src_path, pos in export_paths:
-            dest_name = f"cover_{time_sec:.2f}s.jpg"
+            dest_name = f"{base_name}_cover_{time_sec:.2f}s.jpg"
             dest_path = os.path.join(export_dir, dest_name)
             try:
                 shutil.copy2(src_path, dest_path)

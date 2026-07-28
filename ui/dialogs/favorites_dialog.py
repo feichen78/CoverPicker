@@ -1,7 +1,9 @@
 # ui/dialogs/favorites_dialog.py
-# 完整文件，可直接覆盖
+# 完整文件
 # 修复：多选时 zoom_btn 不禁用，让 zoom_selected 负责提示
 # 修复：取消收藏时直接删除NAS文件（兜底逻辑）
+# v3.2: 3.2.5 打开导出夹按钮 + 3.2.3调试（强制print）+ 上下键按列数切换
+#       + 空格键打开预览（多选时提示）
 
 import os
 import logging
@@ -34,18 +36,16 @@ class FavoritesDialog(QDialog):
         self.video_path = video_path
         self.export_base = export_base
 
-        # 修复旧数据错误绿点
         self._fix_old_exported(favorites)
 
         self.current_favorites = favorites.copy()
         self.selected_indices: Set[int] = set()
-        self.image_labels: List[tuple] = []  # 每个元素为 (label, seg_label, idx_in_segment)
+        self.image_labels: List[tuple] = []
 
-        # 动态缩略图尺寸
         self.thumb_width = 400
         self.thumb_height = 225
+        self._current_cols = 3
 
-        # 防抖定时器
         self._refresh_timer = QTimer()
         self._refresh_timer.setSingleShot(True)
         self._refresh_timer.timeout.connect(self._refresh_favorites)
@@ -53,12 +53,7 @@ class FavoritesDialog(QDialog):
         self.setup_ui()
         self._first_show = True
 
-        print("[DEBUG] FavoritesDialog __init__: 修复后数据:")
-        for i, fav in enumerate(self.current_favorites):
-            print(f"  fav[{i}]: seg={fav.get('segment')}, exported={fav.get('exported')}")
-
     def _fix_old_exported(self, favorites: List[dict]):
-        """修复旧收藏的错误绿点：将所有 exported=True 的记录重置为 False"""
         if not self.controller or not self.controller.video_id:
             return
 
@@ -69,7 +64,7 @@ class FavoritesDialog(QDialog):
                 time_sec = fav.get('time', 0)
                 timestamp_ms = int(time_sec * 1000)
                 try:
-                    conn = self.controller.db._conn
+                    conn = self.controller.db._get_conn()
                     conn.execute(
                         "UPDATE favorites SET is_exported = 0 WHERE video_id = ? AND segment_label = ? AND timestamp_ms = ?",
                         (self.controller.video_id, seg, timestamp_ms)
@@ -84,20 +79,15 @@ class FavoritesDialog(QDialog):
                     fixed_count += 1
                 except Exception as e:
                     logger.error(f"修复绿点失败: {e}")
-                    print(f"[ERROR] 修复绿点失败: {e}")
 
         if fixed_count > 0:
             self.controller._save_state_to_db()
-            print(f"[DEBUG] 修复了 {fixed_count} 个旧收藏的绿点标记")
-        else:
-            print("[DEBUG] 无需修复旧绿点")
 
     def setup_ui(self):
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(8)
 
-        # 标题行
         title_layout = QHBoxLayout()
         self.title_label = QLabel(f"⭐ 收藏截图 ({len(self.current_favorites)} 张)")
         self.title_label.setFont(QFont("Arial", 12, QFont.Bold))
@@ -115,7 +105,6 @@ class FavoritesDialog(QDialog):
         title_layout.addWidget(close_btn)
         main_layout.addLayout(title_layout)
 
-        # 滚动区域
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setFrameShape(QFrame.NoFrame)
@@ -131,7 +120,6 @@ class FavoritesDialog(QDialog):
         self.scroll.setWidget(self.container_widget)
         main_layout.addWidget(self.scroll, 1)
 
-        # 底部操作栏（移除替换原图按钮）
         bottom_bar = QHBoxLayout()
         bottom_bar.setSpacing(6)
         bottom_bar.addStretch()
@@ -155,6 +143,11 @@ class FavoritesDialog(QDialog):
         self.export_btn.setStyleSheet("background:#2196F3;color:white;font-weight:bold;")
         self.export_btn.clicked.connect(self.export_selected)
         bottom_bar.addWidget(self.export_btn)
+
+        self.open_folder_btn = QPushButton("📂 打开导出夹")
+        self.open_folder_btn.setStyleSheet("background:#607D8B;color:white;font-weight:bold;")
+        self.open_folder_btn.clicked.connect(self.open_export_folder)
+        bottom_bar.addWidget(self.open_folder_btn)
 
         self.zoom_btn = QPushButton("🔍 细选")
         self.zoom_btn.setStyleSheet("background:#4CAF50;color:white;font-weight:bold;")
@@ -183,17 +176,12 @@ class FavoritesDialog(QDialog):
         self._refresh_timer.start(200)
 
     def _refresh_favorites(self):
-        """重新构建收藏布局，使用 QGridLayout，强制左对齐，小间距，保留选中状态"""
-        print("[DEBUG] _refresh_favorites called")
-
-        # 保存当前选中项的标识 (seg_label, time)
         selected_ids: Set[Tuple[str, float]] = set()
         for idx in self.selected_indices:
             if idx < len(self.image_labels):
                 label, seg_label, _ = self.image_labels[idx]
                 selected_ids.add((seg_label, label.timestamp))
 
-        # 清空旧内容
         while self.container_layout.count():
             child = self.container_layout.takeAt(0)
             if child.widget():
@@ -226,7 +214,7 @@ class FavoritesDialog(QDialog):
 
         max_count = max(len(items) for items in groups.values())
         cols = max(1, min(5, max_count))
-        print(f"[DEBUG] max_count={max_count}, cols={cols}")
+        self._current_cols = cols
 
         viewport_width = self.scroll.viewport().width()
         avail_width = viewport_width - 20
@@ -234,7 +222,6 @@ class FavoritesDialog(QDialog):
             avail_width = self.width() - 40
         if avail_width <= 0:
             avail_width = 800
-        print(f"[DEBUG] avail_width={avail_width}")
 
         spacing_h = 2
         width_by_cols = (avail_width - (cols - 1) * spacing_h) / cols
@@ -242,7 +229,6 @@ class FavoritesDialog(QDialog):
         self.thumb_width = int(max(width_by_cols, width_by_5cols))
         self.thumb_width = max(80, min(self.thumb_width, 600))
         self.thumb_height = int(self.thumb_width * 225 / 400)
-        print(f"[DEBUG] thumb_size={self.thumb_width}x{self.thumb_height}")
 
         total_height = 0
         new_selected_indices: Set[int] = set()
@@ -275,7 +261,6 @@ class FavoritesDialog(QDialog):
                 time_sec = fav.get('time', 0)
                 exported = fav.get('exported', False)
                 exported_bool = bool(exported)
-                print(f"[DEBUG] fav idx={idx}, seg={seg_label}, exported_raw={exported}, exported_bool={exported_bool}")
 
                 if path and os.path.exists(path):
                     pixmap = QPixmap(path)
@@ -327,7 +312,6 @@ class FavoritesDialog(QDialog):
             total_height += grid_height + 6
 
         self.selected_indices = new_selected_indices
-        print(f"[DEBUG] Restored selected_indices: {self.selected_indices}")
 
         self.container_layout.addStretch()
         self._update_selected_count()
@@ -338,7 +322,6 @@ class FavoritesDialog(QDialog):
         self.container_widget.updateGeometry()
         self.scroll.update()
         self.scroll.viewport().update()
-        print(f"[DEBUG] _refresh_favorites finished, fixed height={final_height}")
 
     def _update_selected_count(self):
         count = len(self.selected_indices)
@@ -361,12 +344,10 @@ class FavoritesDialog(QDialog):
         self.select_all_btn.setChecked(all_selected)
 
     def on_image_click(self, global_idx: int, idx=None):
-        print(f"[DEBUG] on_image_click: before toggle, selected_indices={self.selected_indices}")
         if global_idx in self.selected_indices:
             self.selected_indices.remove(global_idx)
         else:
             self.selected_indices.add(global_idx)
-        print(f"[DEBUG] on_image_click: after toggle, selected_indices={self.selected_indices}")
         for i, (label, seg_label, item_idx) in enumerate(self.image_labels):
             label.set_selected(i in self.selected_indices)
         self._update_selected_count()
@@ -390,7 +371,26 @@ class FavoritesDialog(QDialog):
         pixmap = QPixmap(path)
         if pixmap.isNull():
             return
-        dlg = ZoomPreviewDialog(pixmap, fav.get('time', 0), self)
+       
+        image_list = []
+        for i, f in enumerate(self.current_favorites):
+            p = f.get('path')
+            path_exists = p and os.path.exists(p)
+            
+            if path_exists:
+                pm = QPixmap(p)
+                
+                if not pm.isNull():
+                    image_list.append((pm, f.get('time', 0)))
+
+        current_index = 0
+        target_time = fav.get('time', 0)
+        for i, (_, t) in enumerate(image_list):
+            if abs(t - target_time) < 0.01:
+                current_index = i
+                break
+
+        dlg = ZoomPreviewDialog(pixmap, fav.get('time', 0), self, image_list, current_index, self._current_cols)
         dlg.exec()
 
     def toggle_select_all(self):
@@ -401,7 +401,6 @@ class FavoritesDialog(QDialog):
             self.selected_indices = set(range(len(self.image_labels)))
         else:
             self.selected_indices.clear()
-        print(f"[DEBUG] toggle_select_all: selected_indices={self.selected_indices}")
         for i, (label, seg_label, item_idx) in enumerate(self.image_labels):
             label.set_selected(i in self.selected_indices)
         self._update_selected_count()
@@ -484,7 +483,6 @@ class FavoritesDialog(QDialog):
 
         removed_count = 0
         for fav in selected_favs:
-            # ===== 修复：直接删除文件（兜底逻辑）=====
             path = fav.get('path')
             if path and os.path.exists(path):
                 try:
@@ -492,7 +490,6 @@ class FavoritesDialog(QDialog):
                     logger.info(f"取消收藏: 已删除文件 {path}")
                 except Exception as e:
                     logger.error(f"取消收藏: 删除文件失败 {path}: {e}")
-            # ===== 修复结束 =====
 
             seg_label = fav.get('segment')
             timestamp_ms = int(fav.get('time', 0) * 1000)
@@ -558,7 +555,7 @@ class FavoritesDialog(QDialog):
             if not src_path or not os.path.exists(src_path):
                 continue
             time_sec = fav.get('time', 0)
-            dest_name = f"cover_{time_sec:.2f}s.jpg"
+            dest_name = f"{video_name}_cover_{time_sec:.2f}s.jpg"
             dest_path = os.path.join(export_dir, dest_name)
             try:
                 import shutil
@@ -585,8 +582,28 @@ class FavoritesDialog(QDialog):
         else:
             QMessageBox.warning(self, "警告", "导出失败，请检查文件是否存在。")
 
+    def open_export_folder(self):
+        if not self.controller or not self.controller.get_video_path():
+            QMessageBox.information(self, "提示", "未加载视频。")
+            return
+        video_path = self.controller.get_video_path()
+        video_name = os.path.splitext(os.path.basename(video_path))[0]
+        export_dir = os.path.join(self.controller.export_base, video_name)
+        if not os.path.exists(export_dir):
+            try:
+                os.makedirs(export_dir, exist_ok=True)
+            except Exception as e:
+                QMessageBox.warning(self, "无法创建目录", f"创建导出目录失败:\n{e}")
+                return
+        try:
+            os.startfile(export_dir)
+        except AttributeError:
+            import subprocess
+            subprocess.Popen(["open", export_dir])
+        except Exception as e:
+            QMessageBox.warning(self, "无法打开目录", f"打开目录失败:\n{e}")
+
     def zoom_selected(self):
-        print(f"[DEBUG] zoom_selected called, selected_indices={self.selected_indices}, len={len(self.selected_indices)}")
         if len(self.selected_indices) != 1:
             QMessageBox.warning(self, "提示", "细选只能针对单张截图，请只选中一张截图。")
             return
@@ -642,15 +659,36 @@ class FavoritesDialog(QDialog):
 
     def keyPressEvent(self, event: QKeyEvent):
         key = event.key()
-        if key == Qt.Key_A and event.modifiers() == Qt.ControlModifier:
+        mod = event.modifiers()
+
+        # Ctrl+A 全选
+        if key == Qt.Key_A and mod == Qt.ControlModifier:
             self.select_all_btn.setChecked(not self.select_all_btn.isChecked())
             self.toggle_select_all()
             return
+
+        # Delete 取消收藏
         if key == Qt.Key_Delete:
             self.unfavorite_selected()
             return
+
+        # ESC 关闭
         if key == Qt.Key_Escape:
             self.reject()
+            return
+
+        # 空格键：打开放大预览（仅当选中1张）
+        if key == Qt.Key_Space:
+            if len(self.selected_indices) != 1:
+                QMessageBox.information(self, "提示", "只能选中1张截图进行放大预览。")
+                return
+            # 获取唯一选中的索引
+            global_idx = next(iter(self.selected_indices))
+            # 调用双击预览方法
+            self.preview_image(global_idx)
+            event.accept()
+            return
+
         super().keyPressEvent(event)
 
     def closeEvent(self, event):

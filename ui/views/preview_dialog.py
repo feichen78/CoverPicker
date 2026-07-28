@@ -1,13 +1,20 @@
 # ui/views/preview_dialog.py
+# v3.0.2: 300ms 防抖 + 低质量预览帧 (640x360)
+# v3.2: GIF导出 + 片段夹/GIF夹 + 目录记忆
+# v3.2.3: 使用 Signal 跨线程通知主线程（官方推荐方式）
+# v3.2.4: 增加调试日志，确认执行路径
 
 import os
 import asyncio
 import logging
+import subprocess
 from typing import Optional, List
+from datetime import datetime
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
-    QSlider, QSizePolicy, QMessageBox, QWidget, QFileDialog
+    QSlider, QSizePolicy, QMessageBox, QWidget, QFileDialog,
+    QComboBox, QDialogButtonBox, QFormLayout
 )
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QPixmap, QFont, QResizeEvent
@@ -17,10 +24,61 @@ from src.controllers.preview_controller import PreviewController
 logger = logging.getLogger(__name__)
 
 
-class PreviewDialog(QDialog):
-    """独立预览窗口 - 视频帧预览 + 时间轴片段选择 + 自定义分区"""
+class GIFExportDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("导出 GIF")
+        self.setMinimumWidth(300)
 
+        layout = QVBoxLayout(self)
+
+        form_layout = QFormLayout()
+
+        self.fps_combo = QComboBox()
+        self.fps_combo.addItems(["5", "10", "15", "24"])
+        self.fps_combo.setCurrentIndex(1)
+        form_layout.addRow("帧率 (fps):", self.fps_combo)
+
+        self.size_combo = QComboBox()
+        self.size_combo.addItems(["原尺寸", "50%", "25%"])
+        self.size_combo.setCurrentIndex(0)
+        form_layout.addRow("尺寸:", self.size_combo)
+
+        self.loop_combo = QComboBox()
+        self.loop_combo.addItems(["1", "3", "5", "无限"])
+        self.loop_combo.setCurrentIndex(3)
+        form_layout.addRow("循环次数:", self.loop_combo)
+
+        layout.addLayout(form_layout)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def get_params(self):
+        fps = int(self.fps_combo.currentText())
+        size_text = self.size_combo.currentText()
+        if size_text == "原尺寸":
+            scale = 1.0
+        elif size_text == "50%":
+            scale = 0.5
+        else:
+            scale = 0.25
+
+        loop_text = self.loop_combo.currentText()
+        if loop_text == "无限":
+            loop = 0
+        else:
+            loop = int(loop_text)
+
+        return fps, scale, loop
+
+
+class PreviewDialog(QDialog):
     export_clip_requested = Signal(str)
+    # GIF导出完成信号（跨线程通信）
+    gif_export_finished = Signal(bool, str, str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -47,6 +105,9 @@ class PreviewDialog(QDialog):
 
         self.split_points: List[float] = []
 
+        # 连接GIF导出完成信号到槽函数
+        self.gif_export_finished.connect(self._on_gif_export_finished)
+
         self.setup_ui()
         self._update_split_buttons()
         self._update_split_display()
@@ -59,7 +120,6 @@ class PreviewDialog(QDialog):
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(8)
 
-        # 预览画面
         self.preview_label = QLabel("选择视频后预览")
         self.preview_label.setAlignment(Qt.AlignCenter)
         self.preview_label.setMinimumHeight(250)
@@ -74,7 +134,6 @@ class PreviewDialog(QDialog):
         self.preview_label.setScaledContents(False)
         main_layout.addWidget(self.preview_label, 1)
 
-        # 时间信息 + 时间轴
         time_info_layout = QHBoxLayout()
         self.position_label = QLabel("00:00:00")
         self.position_label.setFont(QFont("monospace", 13))
@@ -87,7 +146,6 @@ class PreviewDialog(QDialog):
         time_info_layout.addWidget(self.duration_label)
         main_layout.addLayout(time_info_layout)
 
-        # 时间轴滑块
         self.slider = QSlider(Qt.Horizontal)
         self.slider.setRange(0, 10000)
         self.slider.setValue(0)
@@ -116,7 +174,6 @@ class PreviewDialog(QDialog):
         self.slider.valueChanged.connect(self._on_slider_value_changed)
         main_layout.addWidget(self.slider)
 
-        # 刻度标签
         self.tick_container = QWidget()
         self.tick_container.setFixedHeight(20)
         self.tick_container.setStyleSheet("background: transparent;")
@@ -130,17 +187,14 @@ class PreviewDialog(QDialog):
             self.tick_labels.append(label)
         main_layout.addWidget(self.tick_container)
 
-        # 底部按钮行（仅一行）
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(4)
 
-        # 分割点列表显示（动态更新）
         self.split_list_label = QLabel("分割点: 无")
         self.split_list_label.setStyleSheet("color: #FF9800; font-size: 13px; font-family: Arial; font-weight: bold;")
         self.split_list_label.setWordWrap(False)
         btn_layout.addWidget(self.split_list_label)
 
-        # 添加分割点
         self.add_split_btn = QPushButton("添加分割点")
         self.add_split_btn.setStyleSheet("""
             QPushButton {
@@ -158,7 +212,6 @@ class PreviewDialog(QDialog):
         self.add_split_btn.clicked.connect(self.add_split_point)
         btn_layout.addWidget(self.add_split_btn)
 
-        # 删除分割点（清除所有）
         self.clear_splits_btn = QPushButton("删除分割点")
         self.clear_splits_btn.setStyleSheet("""
             QPushButton {
@@ -176,7 +229,6 @@ class PreviewDialog(QDialog):
         self.clear_splits_btn.clicked.connect(self.clear_split_points)
         btn_layout.addWidget(self.clear_splits_btn)
 
-        # 应用分区
         self.apply_splits_btn = QPushButton("应用分区")
         self.apply_splits_btn.setStyleSheet("""
             QPushButton {
@@ -194,7 +246,6 @@ class PreviewDialog(QDialog):
         self.apply_splits_btn.clicked.connect(self.apply_split_points)
         btn_layout.addWidget(self.apply_splits_btn)
 
-        # 设起始
         self.set_start_btn = QPushButton("设起始")
         self.set_start_btn.setStyleSheet("""
             QPushButton {
@@ -212,7 +263,6 @@ class PreviewDialog(QDialog):
         self.set_start_btn.clicked.connect(self.set_start)
         btn_layout.addWidget(self.set_start_btn)
 
-        # 设结束
         self.set_end_btn = QPushButton("设结束")
         self.set_end_btn.setStyleSheet("""
             QPushButton {
@@ -230,7 +280,6 @@ class PreviewDialog(QDialog):
         self.set_end_btn.clicked.connect(self.set_end)
         btn_layout.addWidget(self.set_end_btn)
 
-        # 清除范围
         self.clear_range_btn = QPushButton("清除")
         self.clear_range_btn.setStyleSheet("""
             QPushButton {
@@ -247,7 +296,6 @@ class PreviewDialog(QDialog):
         self.clear_range_btn.clicked.connect(self.clear_range)
         btn_layout.addWidget(self.clear_range_btn)
 
-        # 导出片段
         self.export_btn = QPushButton("导出片段")
         self.export_btn.setEnabled(False)
         self.export_btn.setStyleSheet("""
@@ -266,9 +314,26 @@ class PreviewDialog(QDialog):
         self.export_btn.clicked.connect(self.export_clip)
         btn_layout.addWidget(self.export_btn)
 
-        # 导出GIF（暂未实现，占位）
+        self.open_clip_folder_btn = QPushButton("📁 片段夹")
+        self.open_clip_folder_btn.setEnabled(False)
+        self.open_clip_folder_btn.setStyleSheet("""
+            QPushButton {
+                font-size: 13px;
+                font-family: Arial;
+                background: #607D8B;
+                color: white;
+                font-weight: bold;
+                padding: 4px 8px;
+                border-radius: 4px;
+            }
+            QPushButton:hover { background: #455A64; }
+            QPushButton:disabled { background: #555; color: #888; }
+        """)
+        self.open_clip_folder_btn.clicked.connect(self.open_clip_folder)
+        btn_layout.addWidget(self.open_clip_folder_btn)
+
         self.export_gif_btn = QPushButton("导出GIF")
-        self.export_gif_btn.setEnabled(False)  # 暂不可用
+        self.export_gif_btn.setEnabled(False)
         self.export_gif_btn.setStyleSheet("""
             QPushButton {
                 font-size: 13px;
@@ -285,9 +350,26 @@ class PreviewDialog(QDialog):
         self.export_gif_btn.clicked.connect(self.export_gif)
         btn_layout.addWidget(self.export_gif_btn)
 
+        self.open_gif_folder_btn = QPushButton("📁 GIF夹")
+        self.open_gif_folder_btn.setEnabled(False)
+        self.open_gif_folder_btn.setStyleSheet("""
+            QPushButton {
+                font-size: 13px;
+                font-family: Arial;
+                background: #FF8A65;
+                color: white;
+                font-weight: bold;
+                padding: 4px 8px;
+                border-radius: 4px;
+            }
+            QPushButton:hover { background: #E64A19; }
+            QPushButton:disabled { background: #555; color: #888; }
+        """)
+        self.open_gif_folder_btn.clicked.connect(self.open_gif_folder)
+        btn_layout.addWidget(self.open_gif_folder_btn)
+
         main_layout.addLayout(btn_layout)
 
-        # 进度标签
         self.progress_label = QLabel("")
         self.progress_label.setStyleSheet("color: #888; font-size: 13px; font-family: Arial; padding: 2px;")
         main_layout.addWidget(self.progress_label)
@@ -318,9 +400,11 @@ class PreviewDialog(QDialog):
         self.clear_range()
         self.clear_split_points()
         self._update_split_buttons()
+        self.export_gif_btn.setEnabled(True)
+        self.open_clip_folder_btn.setEnabled(True)
+        self.open_gif_folder_btn.setEnabled(True)
         QTimer.singleShot(50, self._update_tick_positions)
 
-    # ===== 刻度相关 =====
     def _update_ticks(self):
         if self.duration <= 0:
             for label in self.tick_labels:
@@ -356,7 +440,6 @@ class PreviewDialog(QDialog):
                 x = container_width - label.width()
             label.move(x, y)
 
-    # ===== 工具方法 =====
     def _format_time(self, seconds: float) -> str:
         if seconds < 0:
             seconds = 0
@@ -422,7 +505,7 @@ class PreviewDialog(QDialog):
                         Qt.SmoothTransformation
                     )
                     self.preview_label.setPixmap(scaled)
-            self._slider_update_timer.start(150)
+            self._slider_update_timer.start(300)
         else:
             self._update_preview(time_sec)
 
@@ -433,7 +516,6 @@ class PreviewDialog(QDialog):
     def _on_progress_update(self, message: str):
         self.progress_label.setText(message)
 
-    # ===== 片段操作 =====
     def set_start(self):
         if not self.video_path:
             QMessageBox.information(self, "提示", "请先加载视频")
@@ -476,7 +558,6 @@ class PreviewDialog(QDialog):
             QMessageBox.warning(self, "警告", f"片段太短（{end - start:.1f}s），请选择至少 0.5 秒")
             return
 
-        # 使用记忆的上次导出目录（图片和视频共用）
         default_dir = os.path.expanduser("~")
         if hasattr(self, 'main_controller') and self.main_controller:
             config = getattr(self.main_controller, '_config', None)
@@ -492,7 +573,6 @@ class PreviewDialog(QDialog):
         if not export_dir:
             return
 
-        # 保存本次选择的目录
         if hasattr(self, 'main_controller') and self.main_controller:
             config = getattr(self.main_controller, '_config', None)
             if config and hasattr(config, 'set_last_export_dir'):
@@ -524,7 +604,157 @@ class PreviewDialog(QDialog):
 
         asyncio.create_task(do_export())
 
-    # ===== 分割点管理 =====
+    def open_clip_folder(self):
+        config = self.main_controller._config if self.main_controller and hasattr(self.main_controller, '_config') else None
+        target_dir = config.get_last_export_dir() if config else None
+        if not target_dir or not os.path.exists(target_dir):
+            QMessageBox.information(self, "提示", "尚未导出过片段或截图，目录不存在。")
+            return
+        try:
+            os.startfile(target_dir)
+        except AttributeError:
+            import subprocess
+            subprocess.Popen(["open", target_dir])
+        except Exception as e:
+            QMessageBox.warning(self, "无法打开目录", f"打开目录失败:\n{e}")
+
+    def open_gif_folder(self):
+        config = self.main_controller._config if self.main_controller and hasattr(self.main_controller, '_config') else None
+        target_dir = config.get_last_gif_export_dir() if config else None
+        if not target_dir or not os.path.exists(target_dir):
+            QMessageBox.information(self, "提示", "尚未导出过GIF，目录不存在。")
+            return
+        try:
+            os.startfile(target_dir)
+        except AttributeError:
+            import subprocess
+            subprocess.Popen(["open", target_dir])
+        except Exception as e:
+            QMessageBox.warning(self, "无法打开目录", f"打开目录失败:\n{e}")
+
+    def export_gif(self):
+        if not self.video_path:
+            QMessageBox.warning(self, "警告", "未加载视频")
+            return
+
+        if not self.controller.is_range_valid():
+            QMessageBox.warning(self, "警告", "请先设置有效的片段范围（起始 < 结束）")
+            return
+
+        start, end = self.controller.get_range()
+        duration = end - start
+        if duration < 0.5:
+            QMessageBox.warning(self, "警告", f"片段太短（{duration:.1f}s），请选择至少 0.5 秒")
+            return
+
+        clip_duration = duration
+        clip_start = start
+        if duration > 30.0:
+            reply = QMessageBox.question(
+                self,
+                "片段超长",
+                f"当前片段长度为 {duration:.1f} 秒，GIF 导出最长支持 30 秒。\n将自动裁剪前 30 秒。是否继续？",
+                QMessageBox.Yes | QMessageBox.No
+            )
+            if reply != QMessageBox.Yes:
+                return
+            clip_duration = 30.0
+
+        dlg = GIFExportDialog(self)
+        if dlg.exec() != QDialog.Accepted:
+            return
+        fps, scale, loop = dlg.get_params()
+
+        config = self.main_controller._config if self.main_controller and hasattr(self.main_controller, '_config') else None
+        default_dir = config.get_last_gif_export_dir() if config else None
+        if not default_dir:
+            default_dir = os.path.expanduser("~")
+
+        video_name = os.path.splitext(os.path.basename(self.video_path))[0]
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        default_filename = f"{video_name}_clip_{timestamp}.gif"
+        save_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "保存 GIF",
+            os.path.join(default_dir, default_filename),
+            "GIF 文件 (*.gif)"
+        )
+        if not save_path:
+            return
+
+        save_dir = os.path.dirname(save_path)
+        if config:
+            config.set_last_gif_export_dir(save_dir)
+
+        if scale == 1.0:
+            scale_filter = f"fps={fps}"
+        else:
+            scale_expr = f"iw*{scale}:ih*{scale}"
+            scale_filter = f"fps={fps},scale={scale_expr}"
+
+        if loop == 0:
+            loop_filter = "loop=-1:size=32767"
+        else:
+            loop_filter = f"loop={loop}:size={int(fps * clip_duration)}"
+
+        cmd = [
+            "ffmpeg", "-hide_banner",
+            "-ss", str(clip_start),
+            "-i", self.video_path,
+            "-t", str(clip_duration),
+            "-vf", f"{scale_filter},{loop_filter}",
+            "-y", save_path
+        ]
+
+        self.export_gif_btn.setEnabled(False)
+        self.export_gif_btn.setText("⏳ 生成中...")
+        self.progress_label.setText("正在生成 GIF...")
+        print("[GIF调试] 开始导出，按钮已禁用，进度标签已设置")
+
+        def run_ffmpeg():
+            try:
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    encoding='utf-8',
+                    errors='ignore',
+                    timeout=180,
+                    creationflags=0x08000000 if os.name == 'nt' else 0
+                )
+                print(f"[GIF调试] FFmpeg 完成, returncode={result.returncode}")
+                return result.returncode == 0, result.stderr
+            except subprocess.TimeoutExpired:
+                print("[GIF调试] FFmpeg 超时")
+                return False, "FFmpeg 超时"
+            except Exception as e:
+                print(f"[GIF调试] FFmpeg 异常: {e}")
+                return False, str(e)
+
+        import threading
+
+        def do_export():
+            success, error = run_ffmpeg()
+            print(f"[GIF调试] do_export: success={success}, error={error[:100] if error else 'None'}")
+            print("[GIF调试] 准备发射 gif_export_finished 信号")
+            self.gif_export_finished.emit(success, error, save_path)
+            print("[GIF调试] 信号已发射")
+
+        threading.Thread(target=do_export, daemon=True).start()
+
+    def _on_gif_export_finished(self, success: bool, error: str, save_path: str):
+        print(f"[GIF调试] _on_gif_export_finished 被调用, success={success}")
+        self.export_gif_btn.setEnabled(True)
+        self.export_gif_btn.setText("导出GIF")
+        self.progress_label.setText("")
+        if success:
+            self.progress_label.setText(f"✅ GIF 已保存: {os.path.basename(save_path)}")
+            QMessageBox.information(self, "导出完成", f"GIF 已保存到:\n{save_path}")
+            print("[GIF调试] 导出成功，提示框已显示")
+        else:
+            QMessageBox.warning(self, "导出失败", f"GIF 导出失败:\n{error}")
+            print("[GIF调试] 导出失败")
+
     def add_split_point(self):
         if not self.video_path:
             QMessageBox.information(self, "提示", "请先加载视频")
@@ -619,12 +849,9 @@ class PreviewDialog(QDialog):
     def _update_split_buttons(self):
         enabled = self.video_path is not None
         self.add_split_btn.setEnabled(enabled)
-        # 导出GIF暂不可用，保持禁用
-        self.export_gif_btn.setEnabled(False)
-
-    def export_gif(self):
-        """导出GIF（暂未实现）"""
-        QMessageBox.information(self, "提示", "GIF导出功能将在后续版本中实现。")
+        self.export_gif_btn.setEnabled(enabled)
+        self.open_clip_folder_btn.setEnabled(enabled)
+        self.open_gif_folder_btn.setEnabled(enabled)
 
     def resizeEvent(self, event: QResizeEvent):
         super().resizeEvent(event)

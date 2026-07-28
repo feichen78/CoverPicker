@@ -1,14 +1,14 @@
 # ui/views/zoom_dialog.py
-# 完整文件，可直接覆盖
-# 修复：延迟加载候选帧，避免与主任务冲突
-# 修复：导出后通知主界面刷新视频列表图标（✅状态）
+# v3.2: O5 最大化按钮 + 3.2.5 打开导出夹按钮 + 3.2.3调试（强制print）
+#       调用 ZoomPreviewDialog 时传入 cols=3
+#       空格键打开放大预览（多选时提示）
 
 import os, asyncio, shutil
 from typing import List, Tuple, Optional
 from functools import partial
 from PySide6.QtWidgets import *
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QPixmap, QFont, QColor
+from PySide6.QtGui import QPixmap, QFont, QColor, QKeyEvent
 from src.controllers.segment_controller import SegmentController
 from src.video_scanner import extract_frame
 from ui.widgets import ClickableLabel
@@ -35,9 +35,9 @@ class ZoomDialog(QDialog):
         self.setWindowTitle(f"Zoom 精修 L{self.level} - 帧筛选")
         self.setMinimumSize(800, 600)
         self.resize(900, 700)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowMaximizeButtonHint | Qt.WindowMinimizeButtonHint)
 
         self.setup_ui()
-        # 延迟加载候选帧，避免与主任务冲突
         QTimer.singleShot(50, self.load_candidates)
 
     def setup_ui(self):
@@ -50,17 +50,14 @@ class ZoomDialog(QDialog):
         title.setFont(QFont("Arial", 12, QFont.Bold))
         title_layout.addWidget(title)
         title_layout.addStretch()
-
         level_label = QLabel(f"层级: {self.level}/4")
         level_label.setStyleSheet("color:#888;font-size:12px;")
         title_layout.addWidget(level_label)
-
         close_btn = QPushButton("✕")
         close_btn.setFixedSize(30, 30)
         close_btn.setStyleSheet("QPushButton{border:none;font-size:16px;border-radius:4px;}QPushButton:hover{background:#e74c3c;color:white;}")
         close_btn.clicked.connect(self.reject)
         title_layout.addWidget(close_btn)
-
         main_layout.addLayout(title_layout)
 
         self.scroll = QScrollArea()
@@ -97,6 +94,11 @@ class ZoomDialog(QDialog):
         self.export_btn.clicked.connect(self.export_selected)
         bottom_bar.addWidget(self.export_btn)
 
+        self.open_folder_btn = QPushButton("📂 打开导出夹")
+        self.open_folder_btn.setStyleSheet("background:#607D8B;color:white;font-weight:bold;")
+        self.open_folder_btn.clicked.connect(self.open_export_folder)
+        bottom_bar.addWidget(self.open_folder_btn)
+
         self.replace_btn = QPushButton("🔄 替换原图")
         self.replace_btn.setStyleSheet("background:#9C27B0;color:white;font-weight:bold;")
         self.replace_btn.clicked.connect(self.replace_selected)
@@ -132,14 +134,13 @@ class ZoomDialog(QDialog):
         asyncio.create_task(self._load_candidates_async())
 
     def _get_time_offsets(self) -> List[float]:
-        """根据层级返回固定的9个时间偏移量（相对于中心时间）"""
         if self.level == 1:
             return [-4.0, -3.0, -2.0, -1.0, 0.0, 1.0, 2.0, 3.0, 4.0]
         elif self.level == 2:
             return [-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0]
         elif self.level == 3:
             return [-1.0, -0.75, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75, 1.0]
-        else:  # level == 4
+        else:
             return [-0.4, -0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3, 0.4]
 
     async def _load_candidates_async(self):
@@ -228,16 +229,26 @@ class ZoomDialog(QDialog):
         pixmap = QPixmap(item['path'])
         if pixmap.isNull():
             return
-        dlg = ZoomPreviewDialog(pixmap, item['time'], self)
+       
+        image_list = []
+        for i, it in enumerate(self.candidate_frames):
+            p = it.get('path')
+            path_exists = p and os.path.exists(p)
+            
+            if path_exists:
+                pm = QPixmap(p)
+                
+                if not pm.isNull():
+                    image_list.append((pm, it['time']))
+        
+        dlg = ZoomPreviewDialog(pixmap, item['time'], self, image_list, pos, 3)
         dlg.exec()
 
     def on_label_click(self, pos: int, idx=None):
-        print(f"[DEBUG] ZoomDialog.on_label_click: pos={pos}, before toggle selected_indices={self.selected_indices}")
         if pos in self.selected_indices:
             self.selected_indices.remove(pos)
         else:
             self.selected_indices.add(pos)
-        print(f"[DEBUG] ZoomDialog.on_label_click: after toggle selected_indices={self.selected_indices}")
         self._refresh_grid()
 
     def _update_selected_count(self):
@@ -268,7 +279,6 @@ class ZoomDialog(QDialog):
             self.selected_indices = set(range(count))
         else:
             self.selected_indices.clear()
-        print(f"[DEBUG] ZoomDialog.toggle_select_all: selected_indices={self.selected_indices}")
         self._refresh_grid()
 
     def favorite_selected(self):
@@ -319,7 +329,7 @@ class ZoomDialog(QDialog):
             if not item.get('path') or not os.path.exists(item['path']):
                 continue
             time_sec = item['time']
-            dest_name = f"cover_{time_sec:.2f}s.jpg"
+            dest_name = f"{video_name}_cover_{time_sec:.2f}s.jpg"
             dest_path = os.path.join(export_dir, dest_name)
             try:
                 shutil.copy2(item['path'], dest_path)
@@ -339,16 +349,34 @@ class ZoomDialog(QDialog):
 
         if exported > 0:
             self.controller._save_state_to_db()
-            # ===== 修复：通知主界面刷新视频列表图标 =====
             self.controller._notify_data_changed()
-            # ===== 修复结束 =====
             self._refresh_grid()
             QMessageBox.information(self, "导出完成", f"成功导出 {exported} 张截图到:\n{export_dir}")
         else:
             QMessageBox.warning(self, "警告", "导出失败，请检查文件是否存在。")
 
+    def open_export_folder(self):
+        if not self.controller or not self.controller.get_video_path():
+            QMessageBox.information(self, "提示", "未加载视频。")
+            return
+        video_path = self.controller.get_video_path()
+        video_name = os.path.splitext(os.path.basename(video_path))[0]
+        export_dir = os.path.join(self.controller.export_base, video_name)
+        if not os.path.exists(export_dir):
+            try:
+                os.makedirs(export_dir, exist_ok=True)
+            except Exception as e:
+                QMessageBox.warning(self, "无法创建目录", f"创建导出目录失败:\n{e}")
+                return
+        try:
+            os.startfile(export_dir)
+        except AttributeError:
+            import subprocess
+            subprocess.Popen(["open", export_dir])
+        except Exception as e:
+            QMessageBox.warning(self, "无法打开目录", f"打开目录失败:\n{e}")
+
     def replace_selected(self):
-        print(f"[DEBUG] ZoomDialog.replace_selected called, selected_indices={self.selected_indices}, len={len(self.selected_indices)}")
         if len(self.selected_indices) != 1:
             QMessageBox.warning(self, "提示", "替换原图仅针对1张截图，请只选中一张。")
             return
@@ -387,7 +415,7 @@ class ZoomDialog(QDialog):
             success = self.controller.replace_screenshot(self.seg_label, self.pos, item['time'], item['path'], self.center_time)
             if success:
                 self.controller._save_state_to_db()
-                self.controller._notify_data_changed()  # 替换也会影响数据，触发刷新
+                self.controller._notify_data_changed()
                 QMessageBox.information(self, "完成", "替换成功！")
                 self.accept()
             else:
@@ -418,3 +446,24 @@ class ZoomDialog(QDialog):
             original_fav_time=fav_time
         )
         dlg.exec()
+
+    def keyPressEvent(self, event: QKeyEvent):
+        key = event.key()
+        # ESC 关闭对话框
+        if key == Qt.Key_Escape:
+            self.reject()
+            return
+
+        # 空格键：打开放大预览（仅当选中1张）
+        if key == Qt.Key_Space:
+            if len(self.selected_indices) != 1:
+                QMessageBox.information(self, "提示", "只能选中1张截图进行放大预览。")
+                return
+            # 获取唯一选中的位置
+            pos = next(iter(self.selected_indices))
+            # 调用双击预览方法
+            self._preview_single(pos)
+            event.accept()
+            return
+
+        super().keyPressEvent(event)

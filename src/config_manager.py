@@ -66,6 +66,14 @@ class ConfigManager:
         if dir_path and os.path.isdir(dir_path):
             self.set('last_export_dir', dir_path)
 
+    # ---- 上次 GIF 导出目录（3.2.2 新增） ----
+    def get_last_gif_export_dir(self) -> Optional[str]:
+        return self.get('last_gif_export_dir')
+
+    def set_last_gif_export_dir(self, dir_path: str):
+        if dir_path and os.path.isdir(dir_path):
+            self.set('last_gif_export_dir', dir_path)
+
     # ---- 主题 (dark/light/system) ----
     def get_theme(self) -> str:
         return self.get('theme', 'system')

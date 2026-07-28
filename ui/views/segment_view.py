@@ -1,8 +1,10 @@
 # ui/views/segment_view.py
 # v2.5.2: 路径显示修复 + 状态图标优先级 + NAS收藏提示 + 细选导出刷新
-# v3.0.1: 视频信息区改为5行（名字/时长/分辨率/大小/路径），
-#         间距设为6px，顶部对齐，底部stretch吸收空白，
-#         视频列表拉伸因子从2改为3，信息区保持拉伸因子1
+# v3.0.1: 视频信息区改为5行（名字/时长/分辨率/大小/路径），间距6px，顶部对齐
+# v3.2: O4（恢复无需重启）+ 3.2.5（打开导出夹按钮）+ 3.2.3调试（强制print）
+#        preview_image 传入 cols 参数，支持上下键按网格列数切换
+# v3.2.4: 修复监控目录文件移动后未触发更新 + 视频列表按第一级子目录分组排序
+# v3.2.5: 修复定时扫描与异步加载任务冲突导致的 RuntimeError
 
 import os
 import asyncio
@@ -16,7 +18,7 @@ from PySide6.QtWidgets import *
 from PySide6.QtCore import Qt, QTimer, QPoint, QRect, QSize, QFileSystemWatcher
 from PySide6.QtGui import QPixmap, QFont, QColor, QAction, QKeyEvent, QPainter, QPen
 
-from src.video_scanner import scan_videos, get_video_duration
+from src.video_scanner import scan_videos, scan_videos_in_directory, get_video_duration
 from src.controllers.segment_controller import SegmentController
 from src.config_manager import ConfigManager
 from ui.views.zoom_dialog import ZoomDialog
@@ -142,6 +144,11 @@ class SegmentView(QWidget):
         self.scan_timer.timeout.connect(self._scan_all_watch_dirs)
         self.scan_timer.start(60000)
 
+        self._watch_debounce_timer = QTimer(self)
+        self._watch_debounce_timer.setSingleShot(True)
+        self._watch_debounce_timer.timeout.connect(self._on_watch_debounce_timeout)
+        self._pending_watch_paths: List[str] = []
+
         logger.debug("SegmentView __init__ 完成")
 
     def setup_ui(self):
@@ -225,7 +232,6 @@ class SegmentView(QWidget):
 
         left_layout.addLayout(search_layout)
 
-        # 视频列表 - 拉伸因子从2改为3，让列表多一点空间
         self.video_list = QListWidget()
         self.video_list.setFont(QFont("Arial", 10))
         self.video_list.setStyleSheet(
@@ -236,9 +242,8 @@ class SegmentView(QWidget):
         self.video_list.itemDoubleClicked.connect(self.on_video_selected)
         self.video_list.itemSelectionChanged.connect(self._update_batch_delete_btn_state)
         self._refresh_video_list()
-        left_layout.addWidget(self.video_list, 3)  # 拉伸因子 3
+        left_layout.addWidget(self.video_list, 3)
 
-        # ===== 视频信息组（v3.0.1 最终版：5行，间距6px） =====
         info_group = QFrame()
         info_group.setFrameShape(QFrame.StyledPanel)
         info_group.setStyleSheet("background:#f8f8f8;border-radius:4px;")
@@ -247,7 +252,7 @@ class SegmentView(QWidget):
         info_group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
         info_layout = QVBoxLayout(info_group)
-        info_layout.setSpacing(6)  # 行间距6px
+        info_layout.setSpacing(6)
         info_layout.setContentsMargins(8, 6, 8, 6)
 
         font_unified = QFont("Arial", 12, QFont.Bold)
@@ -259,7 +264,6 @@ class SegmentView(QWidget):
             }
         """
 
-        # 第1行：视频文件名
         self.info_name = QLabel("未选择")
         self.info_name.setObjectName("info_name")
         self.info_name.setFont(font_unified)
@@ -268,7 +272,6 @@ class SegmentView(QWidget):
         self.info_name.setMinimumHeight(0)
         self.info_name.setWordWrap(False)
 
-        # 第2行：时长
         self.info_duration = QLabel("时长: --")
         self.info_duration.setFont(font_unified)
         self.info_duration.setStyleSheet(label_style)
@@ -276,7 +279,6 @@ class SegmentView(QWidget):
         self.info_duration.setMinimumHeight(0)
         self.info_duration.setWordWrap(False)
 
-        # 第3行：分辨率
         self.info_resolution = QLabel("分辨率: --")
         self.info_resolution.setFont(font_unified)
         self.info_resolution.setStyleSheet(label_style)
@@ -284,7 +286,6 @@ class SegmentView(QWidget):
         self.info_resolution.setMinimumHeight(0)
         self.info_resolution.setWordWrap(False)
 
-        # 第4行：文件大小
         self.info_size = QLabel("大小: --")
         self.info_size.setFont(font_unified)
         self.info_size.setStyleSheet(label_style)
@@ -292,7 +293,6 @@ class SegmentView(QWidget):
         self.info_size.setMinimumHeight(0)
         self.info_size.setWordWrap(False)
 
-        # 第5行：路径（使用 QTextEdit 保留 v2.5.2 修复）
         self.info_path = QTextEdit()
         self.info_path.setObjectName("info_path")
         self.info_path.setPlainText("路径: --")
@@ -318,13 +318,9 @@ class SegmentView(QWidget):
         info_layout.addWidget(self.info_resolution)
         info_layout.addWidget(self.info_size)
         info_layout.addWidget(self.info_path)
-
-        # 底部 stretch 吸收多余空间，保持顶部对齐
         info_layout.addStretch()
 
-        # 保持拉伸因子1（v2.5.2 修复）
         left_layout.addWidget(info_group, 1)
-        # ===== 视频信息组结束 =====
 
         self.progress_label_left = QLabel("")
         self.progress_label_left.setFont(QFont("Arial", 11, QFont.Bold))
@@ -487,6 +483,7 @@ class SegmentView(QWidget):
             ("♻️ 重抽", lambda: asyncio.create_task(self.reset_all())),
             ("🔍 细选", self.zoom_selected),
             ("📥 导出", self.export_selected),
+            ("📂 打开导出夹", self.open_export_folder),
             ("☑ 全选", self.toggle_select_all),
             ("↩ 撤销", self.undo_action),
             ("↪ 重做", self.redo_action),
@@ -584,7 +581,7 @@ class SegmentView(QWidget):
                             if sub_path not in self.watcher.directories():
                                 self.watcher.addPath(sub_path)
                 self.progress_label_left.setText(f"📂 监控目录已添加: {os.path.basename(dir_path)}")
-                self._scan_and_import_directory(dir_path)
+                self._scan_all_watch_dirs()
                 QTimer.singleShot(3000, lambda: self.progress_label_left.setText(""))
             else:
                 QMessageBox.information(self, "提示", "该目录已在监控列表中。")
@@ -598,10 +595,17 @@ class SegmentView(QWidget):
             QMessageBox.information(self, "完成", "已清空所有监控目录。")
 
     def _on_directory_changed(self, path: str):
+        """目录变化事件 - 使用防抖定时器合并短时间内多次变化"""
         logger.info(f"监控目录发生变化: {path}")
-        self._scan_and_import_directory(path)
+        self._watch_debounce_timer.start(500)
+
+    def _on_watch_debounce_timeout(self):
+        """防抖超时后执行完整扫描"""
+        logger.info("监控目录防抖超时，执行完整扫描")
+        self._scan_all_watch_dirs()
 
     def _scan_and_import_directory(self, dir_path: str):
+        """保留但不再使用，由 _scan_all_watch_dirs 替代"""
         if not os.path.exists(dir_path):
             return
         self.progress_label_left.setText(f"🔄 扫描目录: {os.path.basename(dir_path)}...")
@@ -629,18 +633,37 @@ class SegmentView(QWidget):
             QTimer.singleShot(2000, lambda: self.progress_label_left.setText(""))
 
     def _scan_all_watch_dirs(self):
+        """完整扫描所有监控目录 - 包含新增和删除检测，避免与异步加载任务冲突"""
         dirs = self.config.get_watch_dirs()
         if not dirs:
             return
-        self.progress_label_left.setText("🔄 定时扫描监控目录...")
+
+        # 检测是否有正在进行的视频加载任务
+        has_loading_task = (
+            self.controller._load_task is not None and
+            not self.controller._load_task.done()
+        )
+
+        if has_loading_task:
+            self.progress_label_left.setText("⏳ 有视频正在加载，扫描延迟到加载完成后执行...")
+            logger.info("有视频正在加载，本次扫描跳过删除操作，仅处理新增")
+            # 仅处理新增，不处理删除（避免与加载任务冲突）
+            self._scan_add_only()
+            return
+
+        self.progress_label_left.setText("🔄 完整扫描监控目录...")
         QApplication.processEvents()
+
         current_videos = set()
         for d in dirs:
             if os.path.exists(d):
                 for f in scan_videos(d):
                     current_videos.add(os.path.normpath(f))
+
         existing_paths = {os.path.normpath(p) for p in self.all_videos}
         to_remove = existing_paths - current_videos
+        to_add = current_videos - existing_paths
+
         removed_count = 0
         if to_remove:
             self.progress_label_left.setText(f"🗑️ 检测到 {len(to_remove)} 个已删除视频，正在移除...")
@@ -653,7 +676,7 @@ class SegmentView(QWidget):
                             self.filtered_videos.remove(path)
                         removed_count += 1
             if removed_count > 0:
-                logger.info(f"定时扫描: 移除 {removed_count} 个已删除的视频")
+                logger.info(f"完整扫描: 移除 {removed_count} 个已删除的视频")
                 self._refresh_video_list()
                 current_path = self.controller.get_video_path()
                 if current_path and current_path not in self.all_videos:
@@ -668,19 +691,47 @@ class SegmentView(QWidget):
                         btn.setEnabled(False)
                     if self.preview_dialog and self.preview_dialog.isVisible():
                         self.preview_dialog.close()
-                self.progress_label_left.setText(f"🗑️ 已移除 {removed_count} 个视频")
-                QTimer.singleShot(3000, lambda: self.progress_label_left.setText(""))
-        to_add = current_videos - existing_paths
+
         if to_add:
             self.progress_label_left.setText(f"📥 发现 {len(to_add)} 个新视频，正在导入...")
             QApplication.processEvents()
-            logger.info(f"定时扫描: 发现 {len(to_add)} 个新视频")
+            logger.info(f"完整扫描: 发现 {len(to_add)} 个新视频")
             self._add_videos(list(to_add))
-            self.progress_label_left.setText(f"✅ 已导入 {len(to_add)} 个视频")
-            QTimer.singleShot(3000, lambda: self.progress_label_left.setText(""))
+
         if not to_remove and not to_add:
             self.progress_label_left.setText("✅ 视频库已同步")
             QTimer.singleShot(2000, lambda: self.progress_label_left.setText(""))
+        else:
+            self._refresh_video_list()
+            if to_add or removed_count > 0:
+                self.progress_label_left.setText(f"✅ 已处理: 新增 {len(to_add)} 个，移除 {removed_count} 个")
+                QTimer.singleShot(3000, lambda: self.progress_label_left.setText(""))
+
+    def _scan_add_only(self):
+        """仅处理新增视频（当有加载任务时使用）"""
+        dirs = self.config.get_watch_dirs()
+        if not dirs:
+            return
+
+        current_videos = set()
+        for d in dirs:
+            if os.path.exists(d):
+                for f in scan_videos(d):
+                    current_videos.add(os.path.normpath(f))
+
+        existing_paths = {os.path.normpath(p) for p in self.all_videos}
+        to_add = current_videos - existing_paths
+
+        if to_add:
+            self.progress_label_left.setText(f"📥 发现 {len(to_add)} 个新视频，正在导入...")
+            QApplication.processEvents()
+            logger.info(f"仅新增扫描: 发现 {len(to_add)} 个新视频")
+            self._add_videos(list(to_add))
+            self.progress_label_left.setText(f"✅ 已导入 {len(to_add)} 个新视频")
+            QTimer.singleShot(3000, lambda: self.progress_label_left.setText(""))
+        else:
+            self.progress_label_left.setText("⏳ 无新视频，加载完成后将自动处理删除")
+            QTimer.singleShot(3000, lambda: self.progress_label_left.setText(""))
 
     def _update_backup_status_label(self):
         pass
@@ -747,10 +798,42 @@ class SegmentView(QWidget):
         backup_path = backups[idx]['path']
         if QMessageBox.question(self, "确认恢复", f"将从 {backup_path} 恢复，当前进度将丢失！继续？", QMessageBox.Yes | QMessageBox.No) != QMessageBox.Yes:
             return
+
+        current_path = self.controller.get_video_path()
+        if current_path:
+            self.controller.video_path = None
+            self.controller.video_id = None
+            self.controller.duration = 0.0
+            self.controller.video_name = ""
+            self.controller.video_resolution = ""
+            self.controller.segments = []
+            self.controller.screenshots = {}
+            self.controller.loaded_segments = set()
+            self.controller.favorites = []
+            self.controller.current_seg_index = 0
+            self.controller.excluded_ranges = []
+            self.controller._clear_history()
+            self.selected_indices.clear()
+
         success, result = self.controller.db.restore(backup_path)
         if success:
-            QMessageBox.information(self, "恢复成功", "程序将关闭，请手动重启。")
-            QApplication.quit()
+            db_videos = self.controller.db.get_all_videos()
+            self.all_videos = [v['file_path'] for v in db_videos]
+            self.filtered_videos = self.all_videos.copy()
+            self._refresh_video_list()
+            self.video_name_label.setText("请选择视频")
+            self.info_name.setText("未选择")
+            self.info_duration.setText("时长: --")
+            self.info_resolution.setText("分辨率: --")
+            self.info_size.setText("大小: --")
+            self.info_path.setPlainText("路径: --")
+            self._refresh_grid()
+            for btn in self.seg_buttons:
+                btn.setEnabled(False)
+            self.controller._notify_data_changed()
+            if self.preview_dialog and self.preview_dialog.isVisible():
+                self.preview_dialog.close()
+            QMessageBox.information(self, "恢复成功", f"数据库已从备份恢复，无需重启。")
         else:
             QMessageBox.warning(self, "恢复失败", f"错误: {result}")
 
@@ -839,6 +922,7 @@ class SegmentView(QWidget):
 
     def _preview_selected_screenshot(self):
         if len(self.selected_indices) != 1:
+            QMessageBox.information(self, "提示", "只能选中1张截图进行放大预览。")
             return
         seg_idx, pos = next(iter(self.selected_indices))
         seg_label, _, _ = self.controller.get_current_segment()
@@ -852,7 +936,17 @@ class SegmentView(QWidget):
         pixmap = QPixmap(item['path'])
         if pixmap.isNull():
             return
-        dlg = ZoomPreviewDialog(pixmap, item['time'], self)
+
+        density = self.controller.density
+        cols = {9: 3, 12: 3, 16: 4, 25: 5}.get(density, 4)
+
+        image_list = []
+        for i, it in enumerate(items):
+            if it.get('path') and os.path.exists(it['path']):
+                p = QPixmap(it['path'])
+                if not p.isNull():
+                    image_list.append((p, it['time']))
+        dlg = ZoomPreviewDialog(pixmap, item['time'], self, image_list, pos, cols)
         dlg.exec()
 
     def _update_cache_info(self):
@@ -1047,9 +1141,41 @@ class SegmentView(QWidget):
         self.filtered_videos = self.all_videos.copy()
         self._refresh_video_list()
 
+    def _get_video_group_key(self, path: str) -> Tuple[int, str]:
+        """
+        获取视频的分组键，用于按监控根目录下第一级子目录分组排序
+        返回: (监控根目录索引, 第一级子目录名称)
+        索引为 -1 表示不属于任何监控目录（手动导入）
+        """
+        watch_dirs = self.config.get_watch_dirs()
+        norm_path = os.path.normpath(path)
+
+        for idx, watch_dir in enumerate(watch_dirs):
+            norm_watch = os.path.normpath(watch_dir)
+            if norm_path.startswith(norm_watch):
+                rel_path = os.path.relpath(norm_path, norm_watch)
+                parts = rel_path.split(os.sep)
+                if len(parts) > 1:
+                    return (idx, parts[0])
+                else:
+                    return (idx, "__ROOT__")
+
+        return (-1, "__UNKNOWN__")
+
     def _refresh_video_list(self):
+        """刷新视频列表 - 按监控根目录下第一级子目录分组排序"""
         self.video_list.clear()
-        for path in self.filtered_videos:
+
+        sorted_videos = sorted(
+            self.filtered_videos,
+            key=lambda p: (
+                self._get_video_group_key(p)[0],
+                self._get_video_group_key(p)[1],
+                os.path.basename(p).lower()
+            )
+        )
+
+        for path in sorted_videos:
             name = os.path.basename(path)
             item = QListWidgetItem(name)
             item.setData(Qt.UserRole, path)
@@ -1401,7 +1527,18 @@ class SegmentView(QWidget):
         pixmap = QPixmap(item['path'])
         if pixmap.isNull():
             return
-        dlg = ZoomPreviewDialog(pixmap, item['time'], self)
+
+        density = self.controller.density
+        cols = {9: 3, 12: 3, 16: 4, 25: 5}.get(density, 4)
+
+        image_list = []
+        for i, it in enumerate(items):
+            if it.get('path') and os.path.exists(it['path']):
+                p = QPixmap(it['path'])
+                if not p.isNull():
+                    image_list.append((p, it['time']))
+
+        dlg = ZoomPreviewDialog(pixmap, item['time'], self, image_list, pos, cols)
         dlg.exec()
 
     def select_all(self):
@@ -1524,6 +1661,27 @@ class SegmentView(QWidget):
         self._update_select_all_state()
         self._refresh_all_video_icons()
         QMessageBox.information(self, "导出完成", f"成功导出 {exported} 张截图到:\n{export_dir}")
+
+    def open_export_folder(self):
+        video_path = self.controller.get_video_path()
+        if not video_path:
+            QMessageBox.information(self, "提示", "请先加载视频。")
+            return
+        video_name = os.path.splitext(os.path.basename(video_path))[0]
+        export_dir = os.path.join(self.controller.export_base, video_name)
+        if not os.path.exists(export_dir):
+            try:
+                os.makedirs(export_dir, exist_ok=True)
+            except Exception as e:
+                QMessageBox.warning(self, "无法创建目录", f"创建导出目录失败:\n{e}")
+                return
+        try:
+            os.startfile(export_dir)
+        except AttributeError:
+            import subprocess
+            subprocess.Popen(["open", export_dir])
+        except Exception as e:
+            QMessageBox.warning(self, "无法打开目录", f"打开目录失败:\n{e}")
 
     def _update_undo_redo_buttons(self):
         self.undo_btn.setEnabled(self.controller.can_undo())

@@ -1,8 +1,10 @@
 # src/controllers/preview_controller.py
+# v3.0.2: 低质量预览帧 (640x360)
 
 import os
 import asyncio
 import logging
+import subprocess
 from typing import Optional, Tuple
 
 from src.video_scanner import extract_frame, extract_video_clip
@@ -35,6 +37,11 @@ class PreviewController:
         self._load_task: Optional[asyncio.Task] = None
         self._progress_callback: Optional[callable] = None
 
+        if os.name == 'nt':
+            self._CREATE_NO_WINDOW = 0x08000000
+        else:
+            self._CREATE_NO_WINDOW = 0
+
     def set_progress_callback(self, callback: callable):
         """注册进度更新回调"""
         self._progress_callback = callback
@@ -59,41 +66,77 @@ class PreviewController:
         """
         设置预览时间点，同步生成帧
         返回帧路径或 None
+        v3.0.2: 使用低质量预览帧 (640x360)
         """
         if not self.video_path:
             return None
 
-        # 边界裁剪
         time_sec = max(0, min(self.duration, time_sec))
         self.preview_time = time_sec
 
-        # 生成帧
         frame_path = self._get_frame(time_sec)
         return frame_path
 
     def _get_frame(self, time_sec: float) -> Optional[str]:
-        """获取指定时间点的帧（同步方式，适合滑块拖动）"""
+        """v3.0.2: 获取指定时间点的帧，使用低质量预览帧 (640x360)"""
         if not self.video_path or not self.temp_dir:
             return None
 
-        # 生成临时文件名
-        frame_name = f"preview_{int(time_sec * 100)}.jpg"
+        # 生成临时文件名（包含分辨率标识）
+        frame_name = f"preview_{int(time_sec * 100)}_640.jpg"
         frame_path = os.path.join(self.temp_dir, frame_name)
 
         # 如果文件已存在且接近当前时间，直接返回
         if os.path.exists(frame_path):
-            # 检查文件修改时间是否在最近10秒内
             import time
-            if time.time() - os.path.getmtime(frame_path) < 10:
+            if time.time() - os.path.getmtime(frame_path) < 300:  # 5分钟缓存
                 return frame_path
 
-        # 提取帧（同步，因为滑块拖动需要即时反馈）
+        # v3.0.2: 使用低质量预览帧（640x360）
+        try:
+            cmd = [
+                "ffmpeg", "-hide_banner",
+                "-skip_frame", "nokey",
+                "-ss", str(time_sec),
+                "-i", self.video_path,
+                "-frames:v", "1",
+                "-vf", "scale=640:-1",
+                "-q:v", "6",
+                "-y", frame_path
+            ]
+
+            result = subprocess.run(
+                cmd, capture_output=True, text=True,
+                encoding='utf-8', errors='ignore',
+                timeout=30, creationflags=self._CREATE_NO_WINDOW
+            )
+            if result.returncode == 0 and os.path.exists(frame_path) and os.path.getsize(frame_path) > 0:
+                return frame_path
+            else:
+                return self._get_frame_original(time_sec)
+        except Exception as e:
+            logger.error(f"预览帧提取失败: {e}")
+            return self._get_frame_original(time_sec)
+
+    def _get_frame_original(self, time_sec: float) -> Optional[str]:
+        """原始质量提取帧（回退方案）"""
+        if not self.video_path or not self.temp_dir:
+            return None
+
+        frame_name = f"preview_{int(time_sec * 100)}.jpg"
+        frame_path = os.path.join(self.temp_dir, frame_name)
+
+        if os.path.exists(frame_path):
+            import time
+            if time.time() - os.path.getmtime(frame_path) < 300:
+                return frame_path
+
         try:
             success = extract_frame(self.video_path, time_sec, frame_path)
             if success:
                 return frame_path
         except Exception as e:
-            logger.error(f"预览帧提取失败: {e}")
+            logger.error(f"预览帧提取失败（原始质量）: {e}")
 
         return None
 
@@ -105,19 +148,37 @@ class PreviewController:
         time_sec = max(0, min(self.duration, time_sec))
         self.preview_time = time_sec
 
-        frame_name = f"preview_{int(time_sec * 100)}.jpg"
+        frame_name = f"preview_{int(time_sec * 100)}_640.jpg"
         frame_path = os.path.join(self.temp_dir, frame_name)
 
-        # 检查缓存
         if os.path.exists(frame_path):
             return frame_path
 
-        # 异步提取
         try:
             self._notify_progress(f"正在加载预览帧 @ {time_sec:.1f}s")
-            success = await asyncio.to_thread(extract_frame, self.video_path, time_sec, frame_path)
+            cmd = [
+                "ffmpeg", "-hide_banner",
+                "-skip_frame", "nokey",
+                "-ss", str(time_sec),
+                "-i", self.video_path,
+                "-frames:v", "1",
+                "-vf", "scale=640:-1",
+                "-q:v", "6",
+                "-y", frame_path
+            ]
+
+            result = await asyncio.to_thread(
+                subprocess.run,
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding='utf-8',
+                errors='ignore',
+                timeout=30,
+                creationflags=self._CREATE_NO_WINDOW
+            )
             self._notify_progress("")
-            if success:
+            if result.returncode == 0 and os.path.exists(frame_path) and os.path.getsize(frame_path) > 0:
                 return frame_path
         except asyncio.CancelledError:
             return None
@@ -131,7 +192,6 @@ class PreviewController:
         time_sec = max(0, min(self.duration, time_sec))
         self.start_time = time_sec
         self.is_start_set = True
-        # 如果结束点未设置或小于起始点，自动调整
         if not self.is_end_set or self.end_time < self.start_time:
             self.end_time = min(self.duration, self.start_time + 1.0)
             self.is_end_set = True
@@ -141,7 +201,6 @@ class PreviewController:
         time_sec = max(0, min(self.duration, time_sec))
         self.end_time = time_sec
         self.is_end_set = True
-        # 如果起始点未设置或大于结束点，自动调整
         if not self.is_start_set or self.start_time > self.end_time:
             self.start_time = max(0, self.end_time - 1.0)
             self.is_start_set = True
@@ -194,7 +253,6 @@ class PreviewController:
         if end - start < 0.5:
             return (False, f"片段太短（{end - start:.1f}s），请选择至少 0.5 秒")
 
-        # 生成输出文件名
         video_name = os.path.splitext(os.path.basename(self.video_path))[0]
         output_filename = f"{video_name}_clip_{start:.1f}s_{end:.1f}s.mp4"
         output_path = os.path.join(output_dir, output_filename)
