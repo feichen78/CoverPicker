@@ -2,6 +2,7 @@
 # v3.0.1: 导入视频时获取分辨率并存入数据库
 # v3.2: 3.2.4 导出命名优化（添加视频文件名前缀）
 # v3.2.6: O4 增加 refresh_unlocked 和 reset_segment 的 seg_idx 越界检查
+# v3.2.7: 备份保留策略改为保留最近5个备份文件
 
 import os, asyncio, random, tempfile, shutil, logging, json, multiprocessing
 from typing import Dict, List, Set, Tuple, Optional, Any
@@ -81,20 +82,19 @@ class SegmentController:
         return None
 
     def delete_old_backups(self, backup_dir: str) -> int:
+        """v3.2.7: 保留最近5个备份文件，删除其余"""
         if not backup_dir or not os.path.exists(backup_dir):
             return 0
-        today = datetime.now().strftime("%Y%m%d")
+
         backup_files = []
         try:
             for f in os.listdir(backup_dir):
                 if f.startswith("coverpicker_backup_") and f.endswith(".db"):
                     file_path = os.path.join(backup_dir, f)
                     stat = os.stat(file_path)
-                    date_str = f.split("_")[2] if len(f.split("_")) >= 4 else ""
                     backup_files.append({
                         'path': file_path,
                         'name': f,
-                        'date_str': date_str,
                         'mtime': stat.st_mtime
                     })
         except Exception as e:
@@ -104,18 +104,24 @@ class SegmentController:
         if not backup_files:
             return 0
 
+        # 按修改时间降序排序（最新的在前）
         backup_files.sort(key=lambda x: x['mtime'], reverse=True)
-        newest_file = backup_files[0]
+
+        # 保留最近5个
+        keep_count = 5
+        to_keep = backup_files[:keep_count]
+        to_delete = backup_files[keep_count:]
 
         deleted = 0
-        for bf in backup_files:
-            if bf['date_str'] != today and bf['path'] != newest_file['path']:
-                try:
-                    os.remove(bf['path'])
-                    deleted += 1
-                    logger.info(f"已删除旧备份: {bf['name']}")
-                except Exception as e:
-                    logger.error(f"删除旧备份失败 {bf['name']}: {e}")
+        for bf in to_delete:
+            try:
+                os.remove(bf['path'])
+                deleted += 1
+                logger.info(f"已删除旧备份: {bf['name']}")
+            except Exception as e:
+                logger.error(f"删除旧备份失败 {bf['name']}: {e}")
+
+        logger.info(f"备份保留: 保留 {len(to_keep)} 个，删除 {deleted} 个")
         return deleted
 
     def _get_favorites_dir(self) -> str:

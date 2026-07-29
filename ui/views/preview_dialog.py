@@ -1,9 +1,7 @@
 # ui/views/preview_dialog.py
-# v3.0.2: 300ms 防抖 + 低质量预览帧 (640x360)
-# v3.2: GIF导出 + 片段夹/GIF夹 + 目录记忆
-# v3.2.3: 使用 Signal 跨线程通知主线程（官方推荐方式）
-# v3.2.4: 增加调试日志，确认执行路径
-# v3.2.6: 将调试 print 改为 logger.debug (O1)
+# v3.2.2: 预览窗口时间轴优化 - 方案A 时间输入跳转
+# 新增: 时间输入框 + 跳转按钮 + 当前时间填充按钮
+# v3.2.3: GIF导出默认选项改为 5fps + 25% 尺寸
 
 import os
 import asyncio
@@ -15,7 +13,7 @@ from datetime import datetime
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
     QSlider, QSizePolicy, QMessageBox, QWidget, QFileDialog,
-    QComboBox, QDialogButtonBox, QFormLayout
+    QComboBox, QDialogButtonBox, QFormLayout, QLineEdit
 )
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QPixmap, QFont, QResizeEvent
@@ -37,12 +35,12 @@ class GIFExportDialog(QDialog):
 
         self.fps_combo = QComboBox()
         self.fps_combo.addItems(["5", "10", "15", "24"])
-        self.fps_combo.setCurrentIndex(1)
+        self.fps_combo.setCurrentIndex(0)  # v3.2.3: 默认 5fps
         form_layout.addRow("帧率 (fps):", self.fps_combo)
 
         self.size_combo = QComboBox()
         self.size_combo.addItems(["原尺寸", "50%", "25%"])
-        self.size_combo.setCurrentIndex(0)
+        self.size_combo.setCurrentIndex(2)  # v3.2.3: 默认 25%
         form_layout.addRow("尺寸:", self.size_combo)
 
         self.loop_combo = QComboBox()
@@ -138,6 +136,84 @@ class PreviewDialog(QDialog):
         self.position_label.setFont(QFont("monospace", 13))
         self.position_label.setStyleSheet("color: #888; font-size: 13px;")
         time_info_layout.addWidget(self.position_label)
+
+        # v3.2.2: 时间输入跳转控件
+        self.time_input = QLineEdit()
+        self.time_input.setPlaceholderText("HH:MM:SS")
+        self.time_input.setFixedWidth(100)
+        self.time_input.setStyleSheet("""
+            QLineEdit {
+                font-family: monospace;
+                font-size: 13px;
+                padding: 2px 4px;
+                background: #2a2a2a;
+                color: #ccc;
+                border: 1px solid #555;
+                border-radius: 3px;
+            }
+            QLineEdit:focus {
+                border: 1px solid #888;
+            }
+        """)
+        self.time_input.returnPressed.connect(self._jump_to_time)
+        time_info_layout.addWidget(self.time_input)
+
+        self.jump_btn = QPushButton("跳转")
+        self.jump_btn.setStyleSheet("""
+            QPushButton {
+                font-size: 13px;
+                font-family: Arial;
+                padding: 2px 8px;
+                border-radius: 3px;
+                background: #3a3a3a;
+                color: #ccc;
+                border: 1px solid #555;
+            }
+            QPushButton:hover {
+                background: #4a4a4a;
+                border: 1px solid #777;
+            }
+            QPushButton:pressed {
+                background: #2a2a2a;
+            }
+            QPushButton:disabled {
+                background: #2a2a2a;
+                color: #666;
+                border: 1px solid #444;
+            }
+        """)
+        self.jump_btn.clicked.connect(self._jump_to_time)
+        self.jump_btn.setEnabled(False)
+        time_info_layout.addWidget(self.jump_btn)
+
+        self.current_time_btn = QPushButton("当前")
+        self.current_time_btn.setStyleSheet("""
+            QPushButton {
+                font-size: 13px;
+                font-family: Arial;
+                padding: 2px 8px;
+                border-radius: 3px;
+                background: #3a3a3a;
+                color: #ccc;
+                border: 1px solid #555;
+            }
+            QPushButton:hover {
+                background: #4a4a4a;
+                border: 1px solid #777;
+            }
+            QPushButton:pressed {
+                background: #2a2a2a;
+            }
+            QPushButton:disabled {
+                background: #2a2a2a;
+                color: #666;
+                border: 1px solid #444;
+            }
+        """)
+        self.current_time_btn.clicked.connect(self._fill_current_time)
+        self.current_time_btn.setEnabled(False)
+        time_info_layout.addWidget(self.current_time_btn)
+
         time_info_layout.addStretch()
         self.duration_label = QLabel("00:00:00")
         self.duration_label.setFont(QFont("monospace", 13))
@@ -402,6 +478,9 @@ class PreviewDialog(QDialog):
         self.export_gif_btn.setEnabled(True)
         self.open_clip_folder_btn.setEnabled(True)
         self.open_gif_folder_btn.setEnabled(True)
+        self.jump_btn.setEnabled(True)
+        self.current_time_btn.setEnabled(True)
+        self.time_input.setEnabled(True)
         QTimer.singleShot(50, self._update_tick_positions)
 
     def _update_ticks(self):
@@ -514,6 +593,83 @@ class PreviewDialog(QDialog):
 
     def _on_progress_update(self, message: str):
         self.progress_label.setText(message)
+
+    # ========== v3.2.2: 时间输入跳转功能 ==========
+
+    def _parse_time_input(self, text: str) -> Optional[float]:
+        """解析时间输入，支持 HH:MM:SS 和 MM:SS 两种格式。
+        返回秒数，解析失败返回 None。
+        """
+        text = text.strip()
+        if not text:
+            return None
+
+        parts = text.split(':')
+        if len(parts) == 2:
+            # MM:SS
+            try:
+                minutes = int(parts[0])
+                seconds = int(parts[1])
+                if minutes < 0 or seconds < 0 or seconds >= 60:
+                    return None
+                return minutes * 60 + seconds
+            except ValueError:
+                return None
+        elif len(parts) == 3:
+            # HH:MM:SS
+            try:
+                hours = int(parts[0])
+                minutes = int(parts[1])
+                seconds = int(parts[2])
+                if hours < 0 or minutes < 0 or seconds < 0 or seconds >= 60 or minutes >= 60:
+                    return None
+                return hours * 3600 + minutes * 60 + seconds
+            except ValueError:
+                return None
+        else:
+            return None
+
+    def _jump_to_time(self):
+        """解析输入时间并跳转"""
+        if self.duration <= 0:
+            return
+
+        text = self.time_input.text().strip()
+        if not text:
+            return
+
+        target_sec = self._parse_time_input(text)
+        if target_sec is None:
+            QMessageBox.warning(self, "输入错误", "请使用 HH:MM:SS 或 MM:SS 格式输入时间")
+            return
+
+        if target_sec < 0 or target_sec > self.duration:
+            QMessageBox.warning(
+                self,
+                "时间超出范围",
+                f"输入时间 {self._format_time(target_sec)} 超出视频范围 (0:00:00 ~ {self._format_time(self.duration)})"
+            )
+            return
+
+        # 跳转到目标时间
+        self._pending_time = target_sec
+        self._update_preview(target_sec)
+        # 保留输入内容，方便微调
+
+    def _fill_current_time(self):
+        """将当前滑块位置的时间填充到输入框"""
+        if self.duration <= 0:
+            return
+        current_sec = self._pending_time
+        if current_sec < 0:
+            current_sec = 0
+        self.time_input.setText(self._format_time(current_sec))
+        # 自动选中输入框内容，方便用户直接覆盖
+        self.time_input.selectAll()
+        # 让输入框获得焦点
+        self.time_input.setFocus()
+
+    # ========== 原有方法 ==========
 
     def set_start(self):
         if not self.video_path:
