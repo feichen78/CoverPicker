@@ -2,6 +2,7 @@
 # v3.2.2: 预览窗口时间轴优化 - 方案A 时间输入跳转
 # 新增: 时间输入框 + 跳转按钮 + 当前时间填充按钮
 # v3.2.3: GIF导出默认选项改为 5fps + 25% 尺寸
+# v3.3.10: 刻度从5个改为11个（0%, 10%, 20%, ..., 100%）
 
 import os
 import asyncio
@@ -254,7 +255,8 @@ class PreviewDialog(QDialog):
         self.tick_container.setStyleSheet("background: transparent;")
         self.tick_labels = []
         tick_style = "color: #666; background: transparent; font-size: 13px; font-family: Arial;"
-        for i in range(5):
+        # v3.3.10: 11个刻度标签
+        for i in range(11):
             label = QLabel(self.tick_container)
             label.setStyleSheet(tick_style)
             label.setAlignment(Qt.AlignCenter)
@@ -490,7 +492,8 @@ class PreviewDialog(QDialog):
                 label.adjustSize()
             return
 
-        positions = [0, 0.25, 0.5, 0.75, 1.0]
+        # v3.3.10: 11个均匀刻度：0%, 10%, 20%, ..., 100%
+        positions = [i / 10.0 for i in range(11)]
         for i, pos in enumerate(positions):
             time_sec = pos * self.duration
             if i < len(self.tick_labels):
@@ -505,7 +508,8 @@ class PreviewDialog(QDialog):
 
         margin = 15
         available_width = container_width - margin * 2
-        positions = [0, 0.25, 0.5, 0.75, 1.0]
+        # v3.3.10: 11个均匀刻度：0%, 10%, 20%, ..., 100%
+        positions = [i / 10.0 for i in range(11)]
         for i, pos in enumerate(positions):
             if i >= len(self.tick_labels):
                 break

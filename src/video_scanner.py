@@ -1,6 +1,5 @@
 # src/video_scanner.py
-# 恢复稳定版本 —— 移除质量/尺寸参数，保留 -skip_frame nokey 加速
-# v3.0.1: 新增 get_video_resolution 函数，用于导入时获取视频分辨率
+# v3.3.12: 移除 -skip_frame nokey，提高兼容性；保留色彩空间转换
 
 import os
 import json
@@ -84,14 +83,9 @@ def get_video_duration(video_path: str, retries: int = 1) -> Optional[float]:
 
 
 def get_video_resolution(video_path: str) -> str:
-    """
-    获取视频分辨率，返回 "宽x高" 格式的字符串
-    如果获取失败返回空字符串
-    """
     if not os.path.exists(video_path):
         return ""
 
-    # 使用 ffprobe 获取视频流的宽度和高度
     cmd = [
         "ffprobe", "-v", "error",
         "-select_streams", "v:0",
@@ -142,17 +136,18 @@ def get_video_info(video_path: str) -> Optional[dict]:
 
 def extract_frame(video_path: str, timestamp: float, output_path: str, retries: int = 1) -> bool:
     """
-    提取视频帧（快速 Seek + 关键帧跳过，固定高质量）
-    同步版本，保留用于兼容
+    提取视频帧（快速 Seek）
+    v3.3.12: 移除 -skip_frame nokey，提高兼容性
     """
     for attempt in range(retries + 1):
         cmd = [
             "ffmpeg", "-hide_banner",
-            "-skip_frame", "nokey",
             "-ss", str(timestamp),
             "-i", video_path,
             "-frames:v", "1",
+            "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuvj420p",
             "-q:v", "2",
+            "-strict", "unofficial",
             "-y", output_path
         ]
         try:
@@ -184,17 +179,18 @@ def extract_frame(video_path: str, timestamp: float, output_path: str, retries: 
 async def extract_frame_async(video_path: str, timestamp: float, output_path: str,
                               retries: int = 1) -> Tuple[bool, Optional[asyncio.subprocess.Process]]:
     """
-    异步提取视频帧，支持取消（取消时 kill 子进程）
-    返回 (成功标志, 进程对象)
+    异步提取视频帧，支持取消
+    v3.3.12: 移除 -skip_frame nokey，提高兼容性
     """
     for attempt in range(retries + 1):
         cmd = [
             "ffmpeg", "-hide_banner",
-            "-skip_frame", "nokey",
             "-ss", str(timestamp),
             "-i", video_path,
             "-frames:v", "1",
+            "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuvj420p",
             "-q:v", "2",
+            "-strict", "unofficial",
             "-y", output_path
         ]
         process = None
@@ -238,7 +234,7 @@ def extract_frames_batch(video_path: str, timestamps: List[float], output_dir: s
 def extract_frames_batch_fast(video_path: str, timestamps: List[float], output_dir: str) -> List[str]:
     """
     单次 FFmpeg 调用批量提取多帧（更快，适合密度 >= 12）
-    使用 fps filter 一次性提取所有帧
+    v3.3.12: 移除 -skip_frame nokey，添加色彩空间转换
     """
     if not timestamps:
         return []
@@ -259,12 +255,12 @@ def extract_frames_batch_fast(video_path: str, timestamps: List[float], output_d
 
     cmd = [
         "ffmpeg", "-hide_banner",
-        "-skip_frame", "nokey",
         "-ss", str(start - 0.5),
         "-i", video_path,
         "-t", str(duration + 1.0),
-        "-vf", f"fps={fps}",
+        "-vf", f"fps={fps},scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuvj420p",
         "-q:v", "2",
+        "-strict", "unofficial",
         "-frames:v", str(count + 2),
         "-y", output_template
     ]

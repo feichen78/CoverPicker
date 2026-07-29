@@ -1,8 +1,6 @@
 # src/controllers/segment_controller.py
-# v3.0.1: 导入视频时获取分辨率并存入数据库
-# v3.2: 3.2.4 导出命名优化（添加视频文件名前缀）
-# v3.2.6: O4 增加 refresh_unlocked 和 reset_segment 的 seg_idx 越界检查
-# v3.2.7: 备份保留策略改为保留最近5个备份文件
+# v3.2.9: 修复 _last_cleanup_date 持久化（使用 config 存储）
+# 每天第一次启动时清理备份文件
 
 import os, asyncio, random, tempfile, shutil, logging, json, multiprocessing
 from typing import Dict, List, Set, Tuple, Optional, Any
@@ -81,9 +79,27 @@ class SegmentController:
             return self._config.get_backup_dir()
         return None
 
+    def _get_last_cleanup_date(self) -> Optional[str]:
+        """从 config 读取上次清理日期"""
+        if self._config:
+            return self._config.get('last_cleanup_date')
+        return None
+
+    def _set_last_cleanup_date(self, date_str: str):
+        """将清理日期保存到 config"""
+        if self._config:
+            self._config.set('last_cleanup_date', date_str)
+
     def delete_old_backups(self, backup_dir: str) -> int:
-        """v3.2.7: 保留最近5个备份文件，删除其余"""
+        """v3.2.9: 每天第一次启动时清理，保留最近5个备份文件"""
         if not backup_dir or not os.path.exists(backup_dir):
+            return 0
+
+        # 检查今天是否已经清理过（使用 config 持久化存储）
+        today = datetime.now().strftime("%Y%m%d")
+        last_cleanup = self._get_last_cleanup_date()
+        if last_cleanup == today:
+            logger.debug("今天已清理过备份，跳过")
             return 0
 
         backup_files = []
@@ -104,10 +120,8 @@ class SegmentController:
         if not backup_files:
             return 0
 
-        # 按修改时间降序排序（最新的在前）
         backup_files.sort(key=lambda x: x['mtime'], reverse=True)
 
-        # 保留最近5个
         keep_count = 5
         to_keep = backup_files[:keep_count]
         to_delete = backup_files[keep_count:]
@@ -122,6 +136,9 @@ class SegmentController:
                 logger.error(f"删除旧备份失败 {bf['name']}: {e}")
 
         logger.info(f"备份保留: 保留 {len(to_keep)} 个，删除 {deleted} 个")
+
+        # 记录今天已清理（保存到 config）
+        self._set_last_cleanup_date(today)
         return deleted
 
     def _get_favorites_dir(self) -> str:
@@ -981,7 +998,6 @@ class SegmentController:
                 break
 
     async def refresh_unlocked(self, seg_idx: int) -> int:
-        # O4: 增加 seg_idx 有效性检查
         if not self.video_path or not self.segments:
             return 0
         if seg_idx < 0 or seg_idx >= len(self.segments):
@@ -1038,7 +1054,6 @@ class SegmentController:
         return refreshed
 
     async def reset_segment(self, seg_idx: int):
-        # O4: 增加 seg_idx 有效性检查
         if not self.segments:
             logger.warning("reset_segment: segments 为空")
             return
@@ -1207,6 +1222,7 @@ class SegmentController:
             return False
 
     def auto_clean_cache(self, threshold_gb: float = 5.0) -> Tuple[int, float]:
+        # 暂未实现自动清理，保留为占位
         return 0, 0.0
 
     def _restore_favorites_from_db(self):
