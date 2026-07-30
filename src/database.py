@@ -1,12 +1,24 @@
 # src/database.py
-import os, sqlite3, logging, shutil, time, json, hashlib
+# v3.0.2: get_video_by_path 增加路径格式修复功能
+# 当精确查询失败时，遍历所有视频用 os.path.normpath() 匹配，匹配后更新为规范化路径
+
+import os
+import sqlite3
+import logging
+import shutil
+import time
+import json
+import hashlib
 from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime
 from pathlib import Path
+
 logger = logging.getLogger(__name__)
 
+
 class Database:
-    DB_VERSION = 3  # 版本升级，因为添加了新字段
+    DB_VERSION = 3
+
     def __init__(self, db_path: Optional[str] = None):
         if db_path is None:
             home = Path.home()
@@ -43,7 +55,6 @@ class Database:
         conn = self._get_conn()
         cursor = conn.cursor()
 
-        # videos 表 - 新增 excluded_ranges 字段
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS videos (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -63,7 +74,6 @@ class Database:
             )
         """)
 
-        # 为已有数据库添加 excluded_ranges 字段
         if not self._column_exists('videos', 'excluded_ranges'):
             try:
                 cursor.execute("ALTER TABLE videos ADD COLUMN excluded_ranges TEXT DEFAULT '[]'")
@@ -93,7 +103,6 @@ class Database:
         except:
             pass
 
-        # segments 表 - 移除 excluded_ranges 字段（保留列但不再使用）
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS segments (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -108,9 +117,6 @@ class Database:
                 UNIQUE(video_id, segment_label)
             )
         """)
-
-        # 如果 segments 表有 excluded_ranges 列，保留但不再使用（不删除，避免数据丢失）
-        # 我们不再从 segments 表读写排除区间
 
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS favorites (
@@ -164,21 +170,22 @@ class Database:
     def get_or_create_video(self, file_path: str, file_name: str, duration: int, resolution: str = "", file_size: int = 0, modified_time: int = 0) -> int:
         conn = self._get_conn()
         cursor = conn.cursor()
-        file_id = self._compute_file_id(file_path, file_size, modified_time)
+        norm_path = os.path.normpath(file_path)
+        file_id = self._compute_file_id(norm_path, file_size, modified_time)
 
         cursor.execute("SELECT id, file_path, duration, file_size, modified_time FROM videos WHERE file_id = ?", (file_id,))
         row = cursor.fetchone()
         if row:
             vid = row['id']
-            if row['file_path'] != file_path:
-                cursor.execute("UPDATE videos SET file_path = ? WHERE id = ?", (file_path, vid))
+            if row['file_path'] != norm_path:
+                cursor.execute("UPDATE videos SET file_path = ? WHERE id = ?", (norm_path, vid))
             if row['file_size'] != file_size or row['modified_time'] != modified_time:
                 cursor.execute("UPDATE videos SET file_size = ?, modified_time = ?, duration = ?, resolution = ? WHERE id = ?",
                              (file_size, modified_time, duration, resolution, vid))
                 conn.commit()
             return vid
 
-        cursor.execute("SELECT id, file_size, modified_time FROM videos WHERE file_path = ?", (file_path,))
+        cursor.execute("SELECT id, file_size, modified_time FROM videos WHERE file_path = ?", (norm_path,))
         row = cursor.fetchone()
         if row:
             vid = row['id']
@@ -189,16 +196,42 @@ class Database:
         cursor.execute("""
             INSERT INTO videos (file_id, file_path, file_name, duration, resolution, file_size, modified_time, excluded_ranges)
             VALUES (?,?,?,?,?,?,?,?)
-        """, (file_id, file_path, file_name, duration, resolution, file_size, modified_time, '[]'))
+        """, (file_id, norm_path, file_name, duration, resolution, file_size, modified_time, '[]'))
         conn.commit()
         return cursor.lastrowid
 
     def get_video_by_path(self, file_path: str) -> Optional[Dict]:
+        """
+        根据路径查询视频。
+        v3.0.2: 如果精确查询失败，遍历所有视频用 os.path.normpath() 匹配，
+        匹配后更新为规范化路径，修复历史数据中的路径格式不一致问题。
+        """
         conn = self._get_conn()
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM videos WHERE file_path = ?", (file_path,))
+        norm_path = os.path.normpath(file_path)
+
+        # 1. 精确查询
+        cursor.execute("SELECT * FROM videos WHERE file_path = ?", (norm_path,))
         row = cursor.fetchone()
-        return dict(row) if row else None
+        if row:
+            return dict(row)
+
+        # 2. 精确查询失败，遍历所有视频用规范化路径匹配
+        # 这可以修复历史数据中正斜杠/反斜杠混用的问题
+        cursor.execute("SELECT * FROM videos")
+        all_rows = cursor.fetchall()
+        for row in all_rows:
+            if os.path.normpath(row['file_path']) == norm_path:
+                # 找到匹配，更新数据库为规范化路径
+                cursor.execute("UPDATE videos SET file_path = ? WHERE id = ?", (norm_path, row['id']))
+                conn.commit()
+                logger.info(f"get_video_by_path: 修复路径格式 {row['file_path']} -> {norm_path}")
+                # 重新查询返回更新后的数据
+                cursor.execute("SELECT * FROM videos WHERE id = ?", (row['id'],))
+                updated_row = cursor.fetchone()
+                return dict(updated_row) if updated_row else None
+
+        return None
 
     def get_video_by_file_id(self, file_id: str) -> Optional[Dict]:
         conn = self._get_conn()
@@ -210,14 +243,15 @@ class Database:
     def get_video_id_by_path_or_file_id(self, file_path: str, file_size: int, modified_time: int) -> Optional[int]:
         conn = self._get_conn()
         cursor = conn.cursor()
-        file_id = self._compute_file_id(file_path, file_size, modified_time)
+        norm_path = os.path.normpath(file_path)
+        file_id = self._compute_file_id(norm_path, file_size, modified_time)
 
         cursor.execute("SELECT id FROM videos WHERE file_id = ?", (file_id,))
         row = cursor.fetchone()
         if row:
             return row['id']
 
-        cursor.execute("SELECT id FROM videos WHERE file_path = ?", (file_path,))
+        cursor.execute("SELECT id FROM videos WHERE file_path = ?", (norm_path,))
         row = cursor.fetchone()
         if row:
             cursor.execute("UPDATE videos SET file_id = ? WHERE id = ?", (file_id, row['id']))
@@ -247,9 +281,7 @@ class Database:
         cursor.execute(f"UPDATE videos SET {', '.join(updates)} WHERE id = ?", params)
         conn.commit()
 
-    # ========== 视频级别的排除区间操作 ==========
     def get_video_excluded_ranges(self, video_id: int) -> List[Tuple[float, float]]:
-        """获取视频的全局排除区间"""
         conn = self._get_conn()
         cursor = conn.cursor()
         cursor.execute("SELECT excluded_ranges FROM videos WHERE id = ?", (video_id,))
@@ -262,7 +294,6 @@ class Database:
         return []
 
     def set_video_excluded_ranges(self, video_id: int, ranges: List[Tuple[float, float]]) -> None:
-        """设置视频的全局排除区间"""
         conn = self._get_conn()
         cursor = conn.cursor()
         cursor.execute("UPDATE videos SET excluded_ranges = ? WHERE id = ?", (json.dumps(ranges), video_id))
@@ -297,7 +328,6 @@ class Database:
                             is_viewed: Optional[bool] = None,
                             has_starred: Optional[bool] = None,
                             has_exported: Optional[bool] = None) -> None:
-        """更新分区状态（不再包含 excluded_ranges）"""
         conn = self._get_conn()
         cursor = conn.cursor()
         updates = []
@@ -318,7 +348,6 @@ class Database:
         conn.commit()
 
     def get_segment_state(self, video_id: int, segment_label: str) -> Optional[Dict]:
-        """获取分区状态（不再包含 excluded_ranges）"""
         conn = self._get_conn()
         cursor = conn.cursor()
         cursor.execute("SELECT is_viewed, has_starred, has_exported FROM segments WHERE video_id = ? AND segment_label = ?",
