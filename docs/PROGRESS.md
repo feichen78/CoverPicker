@@ -1,12 +1,19 @@
 # 📋 CoverPicker 项目进度日志
 🏷️ 当前版本信息
 项目	内容
-版本号	v3.2.8
-版本名称	备份清理优化 + 刻度密度提升
+版本号	v3.2.9
+版本名称	延迟删除触发 + 线程安全修复
 发布日期	2026-07-30
 状态	✅ 核心功能稳定
 稳定基准版本	v2.5.2
-对应 PRODUCT.md 版本	v6.8
+对应 PRODUCT.md 版本	v6.9
+
+✅ v3.2.9 已完成
+编号	优化项	状态	说明
+1	延迟删除触发（方案A）	✅ 已完成	加载完成后自动清理待删除视频，避免幽灵条目
+2	线程安全修复（E1）	✅ 已完成	预览窗口关闭使用 QTimer.singleShot 确保主线程执行
+3	恢复状态清空选中集合（E4）	✅ 已完成	_restore_state 成功后显式清空 selected_indices
+4	旧标签残留修复	✅ 已完成	_update_ticks 中 duration<=0 时隐藏所有刻度标签
 
 ✅ v3.2.8 已完成
 编号	优化项	状态	说明
@@ -108,6 +115,13 @@ CoverPicker/
 └── PROGRESS.md
 
 📝 开发日志
+2026-07-30 (v3.2.9)
+完成事项：
+1. 延迟删除触发（方案A）
+2. 线程安全修复（E1）
+3. 恢复状态清空选中集合（E4）
+4. 旧标签残留修复
+
 2026-07-30 (v3.2.8)
 完成事项：
 1. 备份清理策略优化（每天首次启动清理）
@@ -122,21 +136,29 @@ CoverPicker/
 
 🚧 后续计划
 版本	核心目标	状态
-v3.2.8	备份清理优化 + 刻度密度提升 + FFmpeg 兼容性	✅ 已发布
-v3.3	AI 偏好学习与智能推荐（已放弃开发）	⏸️ 暂停
-v3.3+	时间轴方案C（缩放式时间轴 + 缩略图游标）	⏳ 待评估
+v3.2.9	延迟删除触发 + 线程安全修复 + 旧标签残留修复	✅ 已发布
+v3.3	macOS 10.15.8 兼容性适配	🚧 开发中
+- 目标：基于 v3.2.9 代码，适配 macOS 10.15.8（Catalina）
+- 主要工作：
+  1. 验证 PySide6 在 macOS 10.15.8 上的兼容性（Qt 6.11.1 是否支持 macOS 10.15）
+  2. 处理 macOS 特有的路径格式（区分大小写、/ 分隔符）
+  3. 适配 macOS 的 FFmpeg 调用（确保 ffmpeg 在 PATH 或可执行文件打包）
+  4. 优化 PyInstaller 打包配置（生成 macOS .app 包）
+  5. 修复 macOS 上可能出现的窗口行为差异
+- 预期交付：v3.3 正式版，支持 Windows 10/11 和 macOS 10.15.8+
+- 平台策略：Windows 先行稳定，macOS 作为后续扩展目标
 
 📌 备注
 - 所有修改遵循"稳定性 > 性能 > 新增功能"原则
 - v2.5.2 是稳定的基准版本
 - AI 预览版开发已终止（测试未通过）
 - 备份清理逻辑：每天第一次启动时执行，保留最近5个备份
-- 核心布局方案已冻结（见 PRODUCT.md 附录E）
+- 核心布局方案已冻结（见 PRODUCT.md 附录F）
 
 最后更新：2026-07-30
-状态：✅ v3.2.8 已完成
+状态：✅ v3.2.9 已完成
 稳定基准版本：v2.5.2
-对应 PRODUCT.md 版本：v6.8
+对应 PRODUCT.md 版本：v6.9
 
 代码冗余与错误检查清单
 以下是对所有提供文件的审查结果：
@@ -164,13 +186,13 @@ v3.3+	时间轴方案C（缩放式时间轴 + 缩略图游标）	⏳ 待评估
 函数签名	✅	
 问题1	⚠️	scan_videos() 和 scan_videos_in_directory() 存在功能重叠，后者可被前者替代（当 os.walk 只需一层深度时），但保留不影响功能 — 低优先级
 问题2	⚠️	extract_frames_batch() 和 extract_frames_batch_fast() 中的 CREATE_NO_WINDOW 在 os.name != 'nt' 时未定义（但代码中已处理）— 无问题
-5. segment_controller.py — ⚠️ 发现3处问题
+5. segment_controller.py — ✅ 已修复（v3.2.9）
 检查项	状态	说明
 逻辑完整性	✅	
 异常处理	✅	
-问题1	⚠️	delete_old_backups() 中的 _last_cleanup_date 仅在当前 SegmentController 实例生命周期内有效，如果在同一天内多次启动程序，每次都会创建新实例，因此 _last_cleanup_date 在每次启动时都是 None，导致同一天内每次启动都会执行清理，而非“每天第一次启动”
-问题2	⚠️	auto_clean_cache() 方法未实现（返回 (0, 0.0)），可能是占位符 — 低优先级
-问题3	⚠️	_save_favorite_to_nas() 中 fallback_path 使用 self.temp_dir 保存，但该路径是全局缓存目录，退出时不会被清理，可能导致文件残留 — 低优先级
+问题1（备份清理）	✅ 已修复	_last_cleanup_date 使用 config 持久化存储
+问题2（auto_clean_cache）	⚠️ 未实现（占位方法）	低优先级，不影响功能
+问题3（fallback_path）	⚠️ 临时文件可能残留	低优先级，不影响功能
 冗余代码	无	
 6. preview_controller.py — ✅ 无明显问题
 检查项	状态
@@ -187,18 +209,18 @@ v3.3+	时间轴方案C（缩放式时间轴 + 缩略图游标）	⏳ 待评估
 异常捕获	✅
 报告生成	✅
 冗余代码	无
-9. preview_dialog.py — ⚠️ 发现2处问题
+9. preview_dialog.py — ✅ 已修复（v3.2.9）
 检查项	状态	说明
 UI 构建	✅	
 刻度逻辑	✅	11个均匀刻度（0%,10%,...100%）
-问题1	⚠️	_update_ticks() 中，当 self.duration <= 0 时，只清空标签文本但未删除标签对象，可能导致旧标签残留 — 低优先级
-问题2	⚠️	_update_tick_positions() 中 margin = 15，但容器内标签数从5个变为11个，边距可能不足 — 低优先级
+问题1（旧标签残留）	✅ 已修复	duration<=0 时隐藏所有标签
+问题2（边距）	⚠️ 低优先级	可能影响显示，但现有布局已稳定
 冗余代码	无	
-10. segment_view.py — ⚠️ 发现1处问题
+10. segment_view.py — ✅ 已修复（v3.2.9）
 检查项	状态	说明
 UI 构建	✅	
 视频列表	✅	
-问题	⚠️	_scan_add_only() 中，当有加载任务时，删除操作被延迟到加载完成后执行，但没有显式的后续触发机制来执行延迟的删除操作 — 中优先级
+问题（延迟删除）	✅ 已修复	方案A：加载完成后自动清理待删除视频
 冗余代码	无	
 11. zoom_dialog.py — ✅ 无明显问题
 检查项	状态
@@ -225,10 +247,12 @@ UI 构建	✅
 绘制逻辑	✅
 双击处理	✅
 冗余代码	无
-需要优先处理的问题（按优先级排序）
-优先级	问题	文件	说明
-高	_last_cleanup_date 每次启动重置	segment_controller.py	备份清理每天第一次启动的逻辑未生效，每次启动都会清理
-中	_scan_add_only() 延迟删除无后续触发	segment_view.py	加载完成后未自动执行删除操作
-低	auto_clean_cache() 未实现	segment_controller.py	占位方法，不影响功能
-低	get_all_videos() 排序大小写问题	database.py	可忽略
-低	_update_ticks() 旧标签残留	preview_dialog.py	低优先级
+已处理问题汇总（v3.2.9）
+优先级	问题	文件	状态
+高	_last_cleanup_date 每次启动重置	segment_controller.py	✅ 已修复（v3.2.9）
+高	_scan_add_only() 延迟删除无后续触发	segment_view.py	✅ 已修复（方案A）
+中	预览窗口关闭线程安全（E1）	segment_view.py	✅ 已修复
+中	恢复状态后清空选中集合（E4）	segment_view.py	✅ 已修复
+低	_update_ticks() 旧标签残留	preview_dialog.py	✅ 已修复
+低	auto_clean_cache() 未实现	segment_controller.py	⏳ 保留（占位方法）
+低	get_all_videos() 排序大小写问题	database.py	⏳ 保留（可忽略）
