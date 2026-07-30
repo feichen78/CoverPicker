@@ -3,6 +3,7 @@
 # 新增: 时间输入框 + 跳转按钮 + 当前时间填充按钮
 # v3.2.3: GIF导出默认选项改为 5fps + 25% 尺寸
 # v3.3.10: 刻度从5个改为11个（0%, 10%, 20%, ..., 100%）
+# v3.2.9: 低优先级修复 - _update_ticks 旧标签残留
 
 import os
 import asyncio
@@ -486,9 +487,11 @@ class PreviewDialog(QDialog):
         QTimer.singleShot(50, self._update_tick_positions)
 
     def _update_ticks(self):
+        """v3.2.9: 修复旧标签残留 - duration<=0时隐藏所有标签"""
         if self.duration <= 0:
             for label in self.tick_labels:
                 label.setText("")
+                label.setVisible(False)
                 label.adjustSize()
             return
 
@@ -498,10 +501,14 @@ class PreviewDialog(QDialog):
             time_sec = pos * self.duration
             if i < len(self.tick_labels):
                 self.tick_labels[i].setText(self._format_time(time_sec))
+                self.tick_labels[i].setVisible(True)
                 self.tick_labels[i].adjustSize()
         self._update_tick_positions()
 
     def _update_tick_positions(self):
+        """v3.2.9: duration<=0时直接返回，避免计算错误"""
+        if self.duration <= 0:
+            return
         container_width = self.tick_container.width()
         if container_width < 50:
             return

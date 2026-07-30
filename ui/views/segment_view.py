@@ -6,6 +6,9 @@
 # v3.2.4: 修复监控目录文件移动后未触发更新 + 视频列表按第一级子目录分组排序
 # v3.2.5: 修复定时扫描与异步加载任务冲突导致的 RuntimeError
 # v3.2.6: O4 增加 refresh_unlocked 和 reset_all 的 seg_idx 越界检查
+# v3.2.9: 方案A - 延迟删除触发（加载完成后自动清理待删除视频）
+#         E1 - 预览窗口关闭线程安全（使用 QTimer.singleShot）
+#         E4 - 恢复状态后清空选中集合
 
 import os
 import asyncio
@@ -116,6 +119,10 @@ class SegmentView(QWidget):
         self.seg_buttons_layout = QHBoxLayout()
         self.seg_buttons: List[QPushButton] = []
         self.preview_dialog = None
+
+        # v3.2.9: 延迟删除相关
+        self._pending_deletions: List[str] = []
+        self._pending_deletion_scan: bool = False
 
         db_videos = self.controller.db.get_all_videos()
         self.all_videos = [v['file_path'] for v in db_videos]
@@ -684,8 +691,9 @@ class SegmentView(QWidget):
                     self._refresh_grid()
                     for btn in self.seg_buttons:
                         btn.setEnabled(False)
+                    # E1: 使用 QTimer.singleShot 确保在主线程执行
                     if self.preview_dialog and self.preview_dialog.isVisible():
-                        self.preview_dialog.close()
+                        QTimer.singleShot(0, self.preview_dialog.close)
 
         if to_add:
             self.progress_label_left.setText(f"📥 发现 {len(to_add)} 个新视频，正在导入...")
@@ -703,6 +711,7 @@ class SegmentView(QWidget):
                 QTimer.singleShot(3000, lambda: self.progress_label_left.setText(""))
 
     def _scan_add_only(self):
+        """v3.2.9: 仅处理新增视频，删除操作延迟到加载完成后执行"""
         dirs = self.config.get_watch_dirs()
         if not dirs:
             return
@@ -715,6 +724,12 @@ class SegmentView(QWidget):
 
         existing_paths = {os.path.normpath(p) for p in self.all_videos}
         to_add = current_videos - existing_paths
+        to_remove = existing_paths - current_videos
+
+        if to_remove:
+            self._pending_deletions = list(to_remove)
+            self._pending_deletion_scan = True
+            logger.info(f"仅新增扫描: 检测到 {len(to_remove)} 个已删除视频，将在加载完成后处理")
 
         if to_add:
             self.progress_label_left.setText(f"📥 发现 {len(to_add)} 个新视频，正在导入...")
@@ -724,8 +739,60 @@ class SegmentView(QWidget):
             self.progress_label_left.setText(f"✅ 已导入 {len(to_add)} 个新视频")
             QTimer.singleShot(3000, lambda: self.progress_label_left.setText(""))
         else:
-            self.progress_label_left.setText("⏳ 无新视频，加载完成后将自动处理删除")
+            if to_remove:
+                self.progress_label_left.setText(f"⏳ 检测到 {len(to_remove)} 个已删除视频，加载完成后自动清理")
+                QTimer.singleShot(3000, lambda: self.progress_label_left.setText(""))
+            else:
+                self.progress_label_left.setText("⏳ 无新视频，加载完成后将自动处理删除")
+                QTimer.singleShot(3000, lambda: self.progress_label_left.setText(""))
+
+    def _process_pending_deletions(self):
+        """v3.2.9: 处理延迟删除的视频（在视频加载完成后调用）"""
+        if not self._pending_deletions or not self._pending_deletion_scan:
+            return
+
+        current_path = self.controller.get_video_path()
+        removed = 0
+        current_norm = os.path.normpath(current_path) if current_path else None
+
+        for path in list(self._pending_deletions):
+            norm_path = os.path.normpath(path)
+            # 如果待删除的视频是当前正在加载的视频，跳过删除
+            if current_norm and norm_path == current_norm:
+                logger.debug(f"延迟删除: 跳过当前视频 {path}")
+                self._pending_deletions.remove(path)
+                continue
+
+            if path in self.all_videos:
+                if self.controller.remove_video(path):
+                    self.all_videos.remove(path)
+                    if path in self.filtered_videos:
+                        self.filtered_videos.remove(path)
+                    removed += 1
+                    logger.info(f"延迟删除: 已移除 {path}")
+
+        # 如果当前视频不在 all_videos 中（已被外部删除），重置界面
+        if current_path and current_path not in self.all_videos:
+            self.video_name_label.setText("请选择视频")
+            self.info_name.setText("未选择")
+            self.info_duration.setText("时长: --")
+            self.info_resolution.setText("分辨率: --")
+            self.info_size.setText("大小: --")
+            self.info_path.setPlainText("路径: --")
+            self._refresh_grid()
+            for btn in self.seg_buttons:
+                btn.setEnabled(False)
+            if self.preview_dialog and self.preview_dialog.isVisible():
+                QTimer.singleShot(0, self.preview_dialog.close)
+
+        self._pending_deletions.clear()
+        self._pending_deletion_scan = False
+
+        if removed > 0:
+            self._refresh_video_list()
+            self.progress_label_left.setText(f"✅ 已清理 {removed} 个已删除视频")
             QTimer.singleShot(3000, lambda: self.progress_label_left.setText(""))
+            logger.info(f"延迟删除处理完成: 移除 {removed} 个视频")
 
     def _update_backup_status_label(self):
         pass
@@ -825,8 +892,10 @@ class SegmentView(QWidget):
             for btn in self.seg_buttons:
                 btn.setEnabled(False)
             self.controller._notify_data_changed()
+            # E4: 恢复状态后清空选中集合
+            self.selected_indices.clear()
             if self.preview_dialog and self.preview_dialog.isVisible():
-                self.preview_dialog.close()
+                QTimer.singleShot(0, self.preview_dialog.close)
             QMessageBox.information(self, "恢复成功", f"数据库已从备份恢复，无需重启。")
         else:
             QMessageBox.warning(self, "恢复失败", f"错误: {result}")
@@ -995,7 +1064,7 @@ class SegmentView(QWidget):
             for btn in self.seg_buttons:
                 btn.setEnabled(False)
             if self.preview_dialog and self.preview_dialog.isVisible():
-                self.preview_dialog.close()
+                QTimer.singleShot(0, self.preview_dialog.close)
         self._refresh_video_list()
         self._update_batch_delete_btn_state()
         if failed:
@@ -1229,7 +1298,7 @@ class SegmentView(QWidget):
             for btn in self.seg_buttons:
                 btn.setEnabled(False)
             if self.preview_dialog and self.preview_dialog.isVisible():
-                self.preview_dialog.close()
+                QTimer.singleShot(0, self.preview_dialog.close)
         QMessageBox.information(self, "完成", "已移除。")
 
     def on_video_selected(self, item):
@@ -1238,6 +1307,19 @@ class SegmentView(QWidget):
             asyncio.create_task(self._load_video(path))
 
     async def _load_video(self, video_path):
+        """v3.2.9: 加载视频，完成后处理延迟删除"""
+        # 检查文件是否存在
+        if not os.path.exists(video_path):
+            logger.warning(f"视频文件不存在，从列表中移除: {video_path}")
+            if video_path in self.all_videos:
+                self.all_videos.remove(video_path)
+            if video_path in self.filtered_videos:
+                self.filtered_videos.remove(video_path)
+            self._refresh_video_list()
+            self.progress_label_left.setText(f"⚠️ 文件已删除: {os.path.basename(video_path)}")
+            QTimer.singleShot(3000, lambda: self.progress_label_left.setText(""))
+            return
+
         self.progress_label_left.setText("加载中...")
         self.video_name_label.setText(os.path.basename(video_path))
         self.info_name.setText(os.path.basename(video_path))
@@ -1265,6 +1347,8 @@ class SegmentView(QWidget):
             self.progress_label_left.setText("加载失败（时长未知）")
             for btn in self.seg_buttons:
                 btn.setEnabled(False)
+            # 即使加载失败，也处理延迟删除
+            self._process_pending_deletions()
             return
 
         dur = self.controller.get_duration()
@@ -1300,6 +1384,9 @@ class SegmentView(QWidget):
 
         self._update_undo_redo_buttons()
         self._update_select_all_state()
+
+        # v3.2.9: 加载完成后处理延迟删除
+        self._process_pending_deletions()
 
     def _rebuild_seg_buttons(self):
         for btn in self.seg_buttons:
