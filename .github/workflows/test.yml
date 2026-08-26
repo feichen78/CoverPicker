@@ -31,9 +31,10 @@ jobs:
         pip install pytest pytest-cov pytest-qt pytest-asyncio
 
     - name: Run tests with coverage
+      env:
+        PYTHONPATH: ${{ github.workspace }}
       run: |
-        pytest tests/ --cov=src --cov-report=xml --cov-report=html
-      working-directory: ${{ github.workspace }}
+        python -m pytest tests/ --cov=src --cov-report=xml --cov-report=html --import-mode=importlib
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
