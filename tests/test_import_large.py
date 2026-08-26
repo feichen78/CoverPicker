@@ -25,8 +25,8 @@ class TestImportLarge:
     def teardown_class(cls):
         shutil.rmtree(cls.temp_dir, ignore_errors=True)
 
-    def test_scan_1000_videos(self, temp_db):
-        """使用临时数据库，不污染真实数据库"""
+    def test_scan_1000_videos(self, tmp_path):
+        """使用临时目录扫描视频（不依赖数据库）"""
         start = time.perf_counter()
         videos = scan_videos(self.temp_dir)
         elapsed = time.perf_counter() - start
@@ -34,16 +34,16 @@ class TestImportLarge:
         print(f"扫描 {self.video_count} 个视频耗时 {elapsed:.2f} 秒")
         assert elapsed < 2.0
 
-    def test_database_insert_1000(self, temp_db):
+    def test_database_insert_1000(self, tmp_path):
         """使用临时数据库进行插入性能测试"""
-        db = Database(db_path=temp_db)
+        # 在临时目录中创建数据库文件
+        db_path = tmp_path / "test.db"
+        db = Database(db_path=str(db_path))
         start = time.perf_counter()
         for i in range(self.video_count):
             path = os.path.join(self.temp_dir, f"video_{i:04d}.mp4")
             db.get_or_create_video(path, os.path.basename(path), 0, "", 0, 0)
         elapsed = time.perf_counter() - start
         print(f"插入 {self.video_count} 条记录耗时 {elapsed:.2f} 秒")
-        # 进一步放宽阈值，适应 CI 环境波动
         assert elapsed < 20.0
         db.close()
-        # 临时数据库会在 fixture 结束后自动删除
