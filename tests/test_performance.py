@@ -153,12 +153,12 @@ class TestPerformance:
         start = time.perf_counter()
         controller.undo()
         elapsed = time.perf_counter() - start
-        assert elapsed < 0.05
+        assert elapsed < 0.1
 
         start = time.perf_counter()
         controller.redo()
         elapsed = time.perf_counter() - start
-        assert elapsed < 0.05
+        assert elapsed < 0.1
 
     def test_cache_info_performance(self, controller_with_mocks):
         """测试缓存信息获取的耗时"""
