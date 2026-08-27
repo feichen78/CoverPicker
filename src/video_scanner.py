@@ -1,5 +1,6 @@
 # src/video_scanner.py
 # v3.2.12: 统一路径规范化（正斜杠），修复删除失败
+# v3.2.15: 添加 CREATE_NO_WINDOW 防止打包后 ffmpeg 窗口闪现
 
 import os
 import subprocess
@@ -11,6 +12,12 @@ from typing import List, Optional, Tuple
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+# Windows: 禁止创建新窗口（防止 ffmpeg 窗口闪现）
+if os.name == 'nt':
+    CREATE_NO_WINDOW = 0x08000000
+else:
+    CREATE_NO_WINDOW = 0
 
 # 支持的视频扩展名
 VIDEO_EXTENSIONS = [
@@ -35,7 +42,14 @@ def get_video_duration(video_path: str) -> Optional[float]:
             'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1',
             video_path
         ]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10, encoding='utf-8')
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            encoding='utf-8',
+            creationflags=CREATE_NO_WINDOW  # ✅ 添加
+        )
         if result.returncode == 0 and result.stdout.strip():
             return float(result.stdout.strip())
         return None
@@ -52,7 +66,14 @@ def get_video_resolution(video_path: str) -> str:
             '-of', 'default=noprint_wrappers=1:nokey=1',
             video_path
         ]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10, encoding='utf-8')
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            encoding='utf-8',
+            creationflags=CREATE_NO_WINDOW  # ✅ 添加
+        )
         if result.returncode == 0:
             lines = result.stdout.strip().splitlines()
             if len(lines) >= 2:
@@ -105,7 +126,6 @@ def scan_videos(directory: str, recursive: bool = True) -> List[str]:
                             file_count += 1
                             ext = os.path.splitext(entry.name)[1].lower()
                             if ext in video_exts:
-                                # 规范化路径
                                 video_files.append(normalize_path(entry.path))
                     except (PermissionError, OSError):
                         permission_errors += 1
@@ -142,7 +162,12 @@ def extract_frame(video_path: str, time_sec: float, output_path: str) -> bool:
             '-strict', 'unofficial',
             output_path
         ]
-        result = subprocess.run(cmd, capture_output=True, timeout=30)
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            timeout=30,
+            creationflags=CREATE_NO_WINDOW  # ✅ 添加
+        )
         return result.returncode == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 0
     except Exception:
         return False
@@ -160,10 +185,12 @@ async def extract_frame_async(video_path: str, time_sec: float, output_path: str
         output_path
     ]
     try:
+        # ✅ 添加 creationflags 参数，防止窗口闪现
         process = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            stderr=asyncio.subprocess.PIPE,
+            creationflags=CREATE_NO_WINDOW if os.name == 'nt' else 0
         )
         stdout, stderr = await process.communicate()
         if process.returncode == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 0:
@@ -195,7 +222,12 @@ def extract_video_clip(video_path: str, start_time: float, end_time: float, outp
                 '-c', 'copy',
                 output_path
             ]
-        result = subprocess.run(cmd, capture_output=True, timeout=60)
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            timeout=60,
+            creationflags=CREATE_NO_WINDOW  # ✅ 添加
+        )
         return result.returncode == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 0
     except Exception:
         return False
@@ -221,6 +253,5 @@ async def extract_frames_batch_async(video_path: str, times: List[float], output
     for task in asyncio.as_completed(tasks):
         success, _ = await task
         if success:
-            # 实际获取路径需要从任务中提取，此处暂不实现
             pass
     return results

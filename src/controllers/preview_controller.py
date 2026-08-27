@@ -1,5 +1,6 @@
 # src/controllers/preview_controller.py
 # v3.0.2: 低质量预览帧 (640x360)
+# v3.2.15: 添加 CREATE_NO_WINDOW 防止打包后 ffmpeg 窗口闪现
 
 import os
 import asyncio
@@ -10,6 +11,12 @@ from typing import Optional, Tuple
 from src.video_scanner import extract_frame, extract_video_clip
 
 logger = logging.getLogger(__name__)
+
+# Windows: 禁止创建新窗口
+if os.name == 'nt':
+    CREATE_NO_WINDOW = 0x08000000
+else:
+    CREATE_NO_WINDOW = 0
 
 
 class PreviewController:
@@ -108,7 +115,7 @@ class PreviewController:
             result = subprocess.run(
                 cmd, capture_output=True, text=True,
                 encoding='utf-8', errors='ignore',
-                timeout=30, creationflags=self._CREATE_NO_WINDOW
+                timeout=30, creationflags=self._CREATE_NO_WINDOW  # ✅ 添加
             )
             if result.returncode == 0 and os.path.exists(frame_path) and os.path.getsize(frame_path) > 0:
                 return frame_path
@@ -175,7 +182,7 @@ class PreviewController:
                 encoding='utf-8',
                 errors='ignore',
                 timeout=30,
-                creationflags=self._CREATE_NO_WINDOW
+                creationflags=self._CREATE_NO_WINDOW  # ✅ 添加
             )
             self._notify_progress("")
             if result.returncode == 0 and os.path.exists(frame_path) and os.path.getsize(frame_path) > 0:
