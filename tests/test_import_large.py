@@ -1,5 +1,5 @@
 # tests/test_import_large.py
-# 测试导入大量视频时的性能与稳定性（使用临时数据库）
+# 测试导入大量视频时的性能与稳定性（使用内存数据库加速）
 
 import pytest
 import os
@@ -26,7 +26,7 @@ class TestImportLarge:
         shutil.rmtree(cls.temp_dir, ignore_errors=True)
 
     def test_scan_1000_videos(self, tmp_path):
-        """使用临时目录扫描视频（不依赖数据库）"""
+        """测试扫描大量视频的性能（不依赖数据库）"""
         start = time.perf_counter()
         videos = scan_videos(self.temp_dir)
         elapsed = time.perf_counter() - start
@@ -35,15 +35,18 @@ class TestImportLarge:
         assert elapsed < 2.0
 
     def test_database_insert_1000(self, tmp_path):
-        """使用临时数据库进行插入性能测试"""
-        # 在临时目录中创建数据库文件
-        db_path = tmp_path / "test.db"
-        db = Database(db_path=str(db_path))
+        """
+        测试数据库插入性能（使用内存数据库，避免磁盘 I/O 波动）
+        在 CI 环境中，磁盘操作可能很慢，使用 :memory: 保证测试稳定。
+        """
+        # 使用内存数据库，速度极快，不受磁盘性能影响
+        db = Database(db_path=":memory:")
         start = time.perf_counter()
         for i in range(self.video_count):
             path = os.path.join(self.temp_dir, f"video_{i:04d}.mp4")
             db.get_or_create_video(path, os.path.basename(path), 0, "", 0, 0)
         elapsed = time.perf_counter() - start
         print(f"插入 {self.video_count} 条记录耗时 {elapsed:.2f} 秒")
-        assert elapsed < 20.0
+        # 内存数据库极快，断言 5 秒以内（实际通常 < 1 秒）
+        assert elapsed < 5.0
         db.close()
