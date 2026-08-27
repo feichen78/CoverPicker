@@ -13,7 +13,8 @@ class ConfigManager:
     CONFIG_FILE_NAME = "config.json"
 
     def __init__(self):
-        self._config_path = self._get_config_path()
+        # 移除 self._config_path 缓存，改为每次动态获取
+        # 这样测试时 monkeypatch Path.home() 才能生效
         self._config: Dict[str, Any] = {}
         self._load()
 
@@ -24,23 +25,25 @@ class ConfigManager:
         return config_dir / self.CONFIG_FILE_NAME
 
     def _load(self):
-        if self._config_path.exists():
+        config_path = self._get_config_path()  # 动态获取
+        if config_path.exists():
             try:
-                with open(self._config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, 'r', encoding='utf-8') as f:
                     self._config = json.load(f)
-                logger.info(f"配置文件已加载: {self._config_path}")
+                logger.info(f"配置文件已加载: {config_path}")
             except Exception as e:
                 logger.warning(f"加载配置文件失败: {e}")
                 self._config = {}
         else:
-            logger.info(f"配置文件不存在，将使用默认配置: {self._config_path}")
+            logger.info(f"配置文件不存在，将使用默认配置: {config_path}")
             self._config = {}
 
     def _save(self):
+        config_path = self._get_config_path()  # 动态获取
         try:
-            with open(self._config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump(self._config, f, indent=2, ensure_ascii=False)
-            logger.info(f"配置文件已保存: {self._config_path}")
+            logger.info(f"配置文件已保存: {config_path}")
         except Exception as e:
             logger.error(f"保存配置文件失败: {e}")
 

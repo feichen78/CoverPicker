@@ -1,13 +1,12 @@
 # src/controllers/segment_controller.py
-# v3.2.9: 修复 _last_cleanup_date 持久化（使用 config 存储）
-# 每天第一次启动时清理备份文件
+# v3.2.13: 增加诊断日志，打印所有视频路径
 
 import os, asyncio, random, tempfile, shutil, logging, json, multiprocessing
 from typing import Dict, List, Set, Tuple, Optional, Any
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 from src.database import Database
-from src.video_scanner import get_video_duration, get_video_resolution, calculate_segments, extract_frame_async
+from src.video_scanner import get_video_duration, get_video_resolution, calculate_segments, extract_frame_async, normalize_path
 
 logger = logging.getLogger(__name__)
 
@@ -80,22 +79,17 @@ class SegmentController:
         return None
 
     def _get_last_cleanup_date(self) -> Optional[str]:
-        """从 config 读取上次清理日期"""
         if self._config:
             return self._config.get('last_cleanup_date')
         return None
 
     def _set_last_cleanup_date(self, date_str: str):
-        """将清理日期保存到 config"""
         if self._config:
             self._config.set('last_cleanup_date', date_str)
 
     def delete_old_backups(self, backup_dir: str) -> int:
-        """v3.2.9: 每天第一次启动时清理，保留最近5个备份文件"""
         if not backup_dir or not os.path.exists(backup_dir):
             return 0
-
-        # 检查今天是否已经清理过（使用 config 持久化存储）
         today = datetime.now().strftime("%Y%m%d")
         last_cleanup = self._get_last_cleanup_date()
         if last_cleanup == today:
@@ -121,7 +115,6 @@ class SegmentController:
             return 0
 
         backup_files.sort(key=lambda x: x['mtime'], reverse=True)
-
         keep_count = 5
         to_keep = backup_files[:keep_count]
         to_delete = backup_files[keep_count:]
@@ -136,8 +129,6 @@ class SegmentController:
                 logger.error(f"删除旧备份失败 {bf['name']}: {e}")
 
         logger.info(f"备份保留: 保留 {len(to_keep)} 个，删除 {deleted} 个")
-
-        # 记录今天已清理（保存到 config）
         self._set_last_cleanup_date(today)
         return deleted
 
@@ -1191,14 +1182,24 @@ class SegmentController:
 
         return total_files
 
+    # ===================== 修改点：remove_video 方法 =====================
     def remove_video(self, video_path: str) -> bool:
-        video_data = self.db.get_video_by_path(video_path)
+        """
+        删除视频（仅删除数据库记录，不删除文件）。
+        检查删除结果并返回布尔值。
+        """
+        norm_path = normalize_path(video_path)
+        print(f"[remove_video] 尝试删除规范化路径: {repr(norm_path)}")
+        video_data = self.db.get_video_by_path(norm_path)
         if not video_data:
+            print(f"[remove_video] 未找到视频，路径: {repr(norm_path)}")
             return False
 
         video_id = video_data['id']
+        stored_path = video_data['file_path']
+        print(f"[remove_video] 找到视频: id={video_id}, path={repr(stored_path)}")
 
-        if self.video_path == video_path:
+        if self.video_path and normalize_path(self.video_path) == norm_path:
             if self._load_task and not self._load_task.done():
                 self._load_task.cancel()
             self.video_path = None
@@ -1215,10 +1216,12 @@ class SegmentController:
             self._clear_history()
             self._notify_data_changed()
 
-        try:
-            self.db.delete_video(video_id)
+        # 调用数据库删除，根据返回值判断
+        if self.db.delete_video(video_id):
+            print(f"[remove_video] 成功删除视频，id={video_id}")
             return True
-        except:
+        else:
+            print(f"[remove_video] 删除视频失败，id={video_id}")
             return False
 
     def auto_clean_cache(self, threshold_gb: float = 5.0) -> Tuple[int, float]:

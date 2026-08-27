@@ -1,6 +1,5 @@
 # src/database.py
-# v3.0.2: get_video_by_path 增加路径格式修复功能
-# 当精确查询失败时，遍历所有视频用 os.path.normpath() 匹配，匹配后更新为规范化路径
+# v3.2.13: 启动时打印数据库路径，便于诊断
 
 import os
 import sqlite3
@@ -16,6 +15,11 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
+def normalize_path(path):
+    """统一路径为正斜杠格式，用于内部存储和比较"""
+    return os.path.normpath(path).replace('\\', '/')
+
+
 class Database:
     DB_VERSION = 3
 
@@ -26,6 +30,9 @@ class Database:
             data_dir.mkdir(exist_ok=True)
             db_path = data_dir / "coverpicker.db"
         self.db_path = str(db_path)
+        # ===== 关键诊断输出 =====
+        print(f"[DIAG] Database 初始化，使用数据库: {self.db_path}")
+        # ========================
         self._conn: Optional[sqlite3.Connection] = None
         self._init_db()
 
@@ -170,7 +177,7 @@ class Database:
     def get_or_create_video(self, file_path: str, file_name: str, duration: int, resolution: str = "", file_size: int = 0, modified_time: int = 0) -> int:
         conn = self._get_conn()
         cursor = conn.cursor()
-        norm_path = os.path.normpath(file_path)
+        norm_path = normalize_path(file_path)
         file_id = self._compute_file_id(norm_path, file_size, modified_time)
 
         cursor.execute("SELECT id, file_path, duration, file_size, modified_time FROM videos WHERE file_id = ?", (file_id,))
@@ -201,32 +208,23 @@ class Database:
         return cursor.lastrowid
 
     def get_video_by_path(self, file_path: str) -> Optional[Dict]:
-        """
-        根据路径查询视频。
-        v3.0.2: 如果精确查询失败，遍历所有视频用 os.path.normpath() 匹配，
-        匹配后更新为规范化路径，修复历史数据中的路径格式不一致问题。
-        """
         conn = self._get_conn()
         cursor = conn.cursor()
-        norm_path = os.path.normpath(file_path)
+        norm_path = normalize_path(file_path)
 
-        # 1. 精确查询
         cursor.execute("SELECT * FROM videos WHERE file_path = ?", (norm_path,))
         row = cursor.fetchone()
         if row:
             return dict(row)
 
-        # 2. 精确查询失败，遍历所有视频用规范化路径匹配
-        # 这可以修复历史数据中正斜杠/反斜杠混用的问题
         cursor.execute("SELECT * FROM videos")
         all_rows = cursor.fetchall()
         for row in all_rows:
-            if os.path.normpath(row['file_path']) == norm_path:
-                # 找到匹配，更新数据库为规范化路径
+            stored_norm = normalize_path(row['file_path'])
+            if os.path.normcase(stored_norm) == os.path.normcase(norm_path):
                 cursor.execute("UPDATE videos SET file_path = ? WHERE id = ?", (norm_path, row['id']))
                 conn.commit()
-                logger.info(f"get_video_by_path: 修复路径格式 {row['file_path']} -> {norm_path}")
-                # 重新查询返回更新后的数据
+                logger.info(f"get_video_by_path: 修复路径格式 {row['file_path']} -> {norm_path} (大小写不匹配)")
                 cursor.execute("SELECT * FROM videos WHERE id = ?", (row['id'],))
                 updated_row = cursor.fetchone()
                 return dict(updated_row) if updated_row else None
@@ -243,7 +241,7 @@ class Database:
     def get_video_id_by_path_or_file_id(self, file_path: str, file_size: int, modified_time: int) -> Optional[int]:
         conn = self._get_conn()
         cursor = conn.cursor()
-        norm_path = os.path.normpath(file_path)
+        norm_path = normalize_path(file_path)
         file_id = self._compute_file_id(norm_path, file_size, modified_time)
 
         cursor.execute("SELECT id FROM videos WHERE file_id = ?", (file_id,))
@@ -479,8 +477,19 @@ class Database:
         conn.execute("VACUUM")
         conn.commit()
 
-    def delete_video(self, video_id: int) -> None:
+    def delete_video(self, video_id: int) -> bool:
+        """
+        删除视频记录，成功返回 True，失败返回 False。
+        增加异常捕获和日志，确保操作明确。
+        """
         conn = self._get_conn()
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM videos WHERE id = ?", (video_id,))
-        conn.commit()
+        try:
+            cursor.execute("DELETE FROM videos WHERE id = ?", (video_id,))
+            conn.commit()
+            logger.info(f"delete_video: 成功删除视频 id={video_id}")
+            return True
+        except Exception as e:
+            logger.error(f"delete_video: 删除视频 id={video_id} 失败: {e}")
+            conn.rollback()
+            return False

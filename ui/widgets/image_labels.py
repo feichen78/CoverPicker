@@ -100,7 +100,10 @@ class ClickableLabel(QLabel):
         hours = int(self.timestamp // 3600)
         minutes = int((self.timestamp % 3600) // 60)
         seconds = int(self.timestamp % 60)
-        time_str = f"{hours}:{minutes:02d}:{seconds:02d}"
+        if hours > 0:
+            time_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+        else:
+            time_str = f"{minutes:02d}:{seconds:02d}"
 
         painter.setFont(QFont("Arial", 9, QFont.Bold))
         fm = painter.fontMetrics()
