@@ -18,9 +18,10 @@ Clips/
 dist/
 build/
 log/
-tools/
 GIF/
+tools/
 .coverage
+.spec
 MagicMock/
 test_covers/
 htmlcov/
