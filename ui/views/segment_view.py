@@ -1,5 +1,6 @@
 # ui/views/segment_view.py
-# v3.2.14: 修复导入视频不写入数据库的问题，确保数据库与内存列表一致
+# v3.2.15: 修复定时扫描误移除手动导入视频的问题
+# 只移除"位于监控目录下、但当前扫描不到"的视频，不碰手动导入的视频
 
 import os
 import asyncio
@@ -546,12 +547,10 @@ class SegmentView(QWidget):
                 norm_path = normalize_path(path)
                 if norm_path in [normalize_path(p) for p in self.all_videos]:
                     continue
-                # 加入内存列表
                 self.all_videos.append(norm_path)
                 self.filtered_videos.append(norm_path)
                 added += 1
 
-                # 写入数据库（先占位，时长0，分辨率空）
                 file_name = os.path.basename(norm_path)
                 try:
                     file_size = int(os.path.getsize(norm_path))
@@ -595,11 +594,9 @@ class SegmentView(QWidget):
                     except:
                         file_size = 0
                         modified_time = 0
-                    # 更新数据库（如果已存在则更新）
                     self.controller.db.get_or_create_video(
                         norm_path, file_name, int(duration or 0), resolution or "", file_size, modified_time
                     )
-                    # 刷新列表以更新图标（如果有）
                     self._refresh_video_list()
                 except Exception as e:
                     logger.error(f"获取元数据失败 {path}: {e}")
@@ -752,7 +749,17 @@ class SegmentView(QWidget):
                     current_videos.add(normalize_path(f))
 
         existing_paths = {normalize_path(p) for p in self.all_videos}
-        to_remove = existing_paths - current_videos
+
+        # v3.2.15 修复：只移除"位于监控目录下、但当前扫描不到"的视频，
+        # 不碰手动导入的、不在监控目录中的视频
+        watch_dirs_norm = [normalize_path(d) for d in dirs if os.path.exists(d)]
+        to_remove = set()
+        for p in existing_paths:
+            is_in_watch_dir = any(
+                p == wd or p.startswith(wd + '/') for wd in watch_dirs_norm
+            )
+            if is_in_watch_dir and p not in current_videos:
+                to_remove.add(p)
         to_add = current_videos - existing_paths
 
         removed_count = 0
@@ -803,7 +810,10 @@ class SegmentView(QWidget):
                 QTimer.singleShot(3000, lambda: self.progress_label_left.setText(""))
 
     def _scan_add_only(self):
-        """v3.2.9: 仅处理新增视频，删除操作延迟到加载完成后执行"""
+        """v3.2.9: 仅处理新增视频，删除操作延迟到加载完成后执行
+        v3.2.15: 只将"位于监控目录下、但当前扫描不到"的视频加入延迟删除队列，
+        不碰手动导入的、不在监控目录中的视频
+        """
         dirs = self.config.get_watch_dirs()
         if not dirs:
             return
@@ -816,7 +826,16 @@ class SegmentView(QWidget):
 
         existing_paths = {normalize_path(p) for p in self.all_videos}
         to_add = current_videos - existing_paths
-        to_remove = existing_paths - current_videos
+
+        # v3.2.15 修复：只标记监控目录下扫描不到的视频
+        watch_dirs_norm = [normalize_path(d) for d in dirs if os.path.exists(d)]
+        to_remove = set()
+        for p in existing_paths:
+            is_in_watch_dir = any(
+                p == wd or p.startswith(wd + '/') for wd in watch_dirs_norm
+            )
+            if is_in_watch_dir and p not in current_videos:
+                to_remove.add(p)
 
         if to_remove:
             self._pending_deletions = list(to_remove)
@@ -1019,7 +1038,6 @@ class SegmentView(QWidget):
         if key == Qt.Key_Delete:
             if self.video_list.hasFocus():
                 self.batch_remove_videos()
-            # 不再处理截图网格的删除（根据用户要求）
             return
         if key == Qt.Key_Space and not event.isAutoRepeat():
             self._preview_selected_screenshot()
@@ -1055,7 +1073,6 @@ class SegmentView(QWidget):
         self._refresh_grid()
 
     def _delete_selected_screenshots(self):
-        # 此方法不再使用，保留为空（避免误调用）
         pass
 
     def _preview_selected_screenshot(self):
@@ -1110,34 +1127,27 @@ class SegmentView(QWidget):
     def batch_remove_videos(self):
         items = self.video_list.selectedItems()
         if not items:
-            print("[DEBUG] batch_remove_videos: 未选中任何视频")
             return
         video_paths = [item.data(Qt.UserRole) for item in items if item.data(Qt.UserRole)]
         if not video_paths:
-            print("[DEBUG] batch_remove_videos: 选中的条目没有有效路径")
             return
         if QMessageBox.question(self, "确认批量删除", f"删除 {len(video_paths)} 个视频（不删除文件）？", QMessageBox.Yes | QMessageBox.No) != QMessageBox.Yes:
             return
 
-        print(f"[DEBUG] batch_remove_videos: 开始删除 {len(video_paths)} 个视频")
         removed = 0
-        failed = []  # 存储 (路径, 原因)
+        failed = []
         current_path = self.controller.get_video_path()
 
-        # 构建规范化路径映射
         all_videos_norm = {normalize_path(p): p for p in self.all_videos}
 
         for v in video_paths:
             norm_v = normalize_path(v)
-            print(f"[DEBUG] 尝试删除规范化路径: {norm_v}")
             target_path = all_videos_norm.get(norm_v)
             if target_path is None:
-                target_path = norm_v  # 直接使用规范化路径尝试
+                target_path = norm_v
 
-            print(f"[DEBUG] 调用 controller.remove_video({target_path})")
             if self.controller.remove_video(target_path):
                 removed += 1
-                # 从列表中移除所有可能格式
                 for p in self.all_videos:
                     if normalize_path(p) == norm_v:
                         self.all_videos.remove(p)
@@ -1146,15 +1156,11 @@ class SegmentView(QWidget):
                     if normalize_path(p) == norm_v:
                         self.filtered_videos.remove(p)
                         break
-                print(f"[DEBUG] 删除成功: {target_path}")
             else:
-                err_msg = f"{os.path.basename(v)} (数据库删除失败，使用了路径: {target_path})"
+                err_msg = f"{os.path.basename(v)} (数据库删除失败)"
                 failed.append((v, err_msg))
-                print(f"[DEBUG] 删除失败: {err_msg}")
 
-        # 如果当前加载的视频已被删除，重置界面
         if current_path and current_path not in self.all_videos:
-            print("[DEBUG] 当前加载的视频已被删除，重置界面")
             self.video_name_label.setText("请选择视频")
             self.info_name.setText("未选择")
             self.info_duration.setText("时长: --")
@@ -1172,11 +1178,10 @@ class SegmentView(QWidget):
 
         if failed:
             detail = "\n".join([f"• {f[0]} : {f[1]}" for f in failed])
-            QMessageBox.warning(self, "批量删除完成", 
+            QMessageBox.warning(self, "批量删除完成",
                 f"成功 {removed} 个，失败 {len(failed)} 个。\n\n失败详情：\n{detail}")
         else:
             QMessageBox.information(self, "批量删除完成", f"成功删除 {removed} 个视频。")
-        print(f"[DEBUG] batch_remove_videos 结束，删除 {removed} 个，失败 {len(failed)} 个")
 
     def toggle_preview_dialog(self):
         if self.preview_dialog is None:
@@ -1250,7 +1255,6 @@ class SegmentView(QWidget):
                 else:
                     return (idx, "__ROOT__")
 
-        # 其他组：使用一个很大的索引，确保排到最后
         return (999, "__UNKNOWN__")
 
     def _refresh_video_list(self):
@@ -1352,7 +1356,6 @@ class SegmentView(QWidget):
             QTimer.singleShot(3000, lambda: self.progress_label_left.setText(""))
             return
 
-        # ---------- 先显示基本信息 ----------
         self.progress_label_left.setText("正在读取视频信息...")
         try:
             size_mb = os.path.getsize(video_path) / (1024 * 1024)
@@ -1376,7 +1379,6 @@ class SegmentView(QWidget):
         self._update_fav_count()
         self._refresh_all_video_icons()
 
-        # ---------- 然后加载视频（截图提取） ----------
         self.progress_label_left.setText("正在加载视频信息...")
         QApplication.processEvents()
 
@@ -1423,7 +1425,6 @@ class SegmentView(QWidget):
         self._update_select_all_state()
         self._process_pending_deletions()
 
-    # ---------- 其余原有方法（未修改） ----------
     def _rebuild_seg_buttons(self):
         for btn in self.seg_buttons:
             self.seg_buttons_layout.removeWidget(btn)
